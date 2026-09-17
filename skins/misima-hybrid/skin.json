@@ -1,0 +1,53 @@
+{
+  "formatVersion": 1,
+  "id": "misima-hybrid",
+  "name": "Misima Hybrid",
+  "author": "Misima",
+  "window": {
+    "width": 980,
+    "height": 820,
+    "background": "#0a1214"
+  },
+  "panels": {
+    "main": {
+      "rect": { "x": 0, "y": 0, "w": 920, "h": 280 },
+      "image": "assets/panel_main.png",
+      "clip": "auto-alpha",
+      "dragAreas": [{ "x": 16, "y": 8, "w": 400, "h": 36 }]
+    },
+    "eq": {
+      "rect": { "x": 0, "y": 290, "w": 920, "h": 160 },
+      "image": "assets/panel_eq.png",
+      "clip": "auto-alpha",
+      "dragAreas": [{ "x": 16, "y": 8, "w": 300, "h": 28 }]
+    },
+    "playlist": {
+      "rect": { "x": 400, "y": 470, "w": 520, "h": 320 },
+      "image": "assets/panel_playlist.png",
+      "clip": "auto-alpha",
+      "dragAreas": [{ "x": 16, "y": 8, "w": 280, "h": 28 }]
+    }
+  },
+  "controls": {
+    "transport": {
+      "panel": "main",
+      "buttons": ["prev", "play", "pause", "stop", "next"]
+    },
+    "eqBands": {
+      "panel": "eq",
+      "count": 10,
+      "rangeDb": [-12, 12]
+    },
+    "playlist": {
+      "panel": "playlist",
+      "rowHeight": 22,
+      "scroll": true
+    }
+  },
+  "visualizer": {
+    "panel": "main",
+    "rect": { "x": 280, "y": 80, "w": 520, "h": 160 },
+    "mode": "bars",
+    "colors": { "low": "#3dffb5", "high": "#ff4fd8" }
+  }
+}
