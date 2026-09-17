@@ -92,7 +92,11 @@ impl LoadedSkin {
 
 fn safe_entry_name(name: &str) -> bool {
     let n = name.replace('\\', "/");
-    !n.contains("..") && !n.starts_with('/') && !n.contains(':')
+    if n.starts_with('/') || n.contains(':') {
+        return false;
+    }
+    // Reject any path segment that is exactly ".."
+    !n.split('/').any(|seg| seg == "..")
 }
 
 pub fn parse_skin_zip(bytes: &[u8]) -> Result<LoadedSkin, SkinError> {
@@ -106,17 +110,27 @@ pub fn parse_skin_zip(bytes: &[u8]) -> Result<LoadedSkin, SkinError> {
     let mut total_uncompressed: u64 = 0;
 
     for i in 0..zip.len() {
-        let mut file = zip.by_index(i)?;
+        let file = zip.by_index(i)?;
         let name = file.name().to_string();
         if !safe_entry_name(&name) {
             return Err(SkinError::Invalid(format!("unsafe path {name}")));
         }
-        let mut buf = Vec::new();
-        file.read_to_end(&mut buf)?;
-        total_uncompressed += buf.len() as u64;
-        if total_uncompressed > MAX_SKIN_BYTES {
+        // Cap each entry before allocating — zip-bomb guard.
+        let declared = file.size();
+        if declared > MAX_SKIN_BYTES {
+            return Err(SkinError::Invalid("entry too large".into()));
+        }
+        if total_uncompressed + declared > MAX_SKIN_BYTES {
             return Err(SkinError::Invalid("uncompressed skin too large".into()));
         }
+        let mut buf = Vec::with_capacity(declared.min(1 << 20) as usize);
+        let max_read = MAX_SKIN_BYTES.saturating_sub(total_uncompressed);
+        let mut limited = file.take(max_read);
+        limited.read_to_end(&mut buf)?;
+        if buf.len() as u64 > max_read {
+            return Err(SkinError::Invalid("uncompressed skin too large".into()));
+        }
+        total_uncompressed += buf.len() as u64;
         if name == "skin.json" {
             let m: SkinManifest = serde_json::from_slice(&buf)?;
             if m.format_version != 1 {

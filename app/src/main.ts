@@ -119,7 +119,7 @@ async function openFiles() {
     filters: [
       {
         name: "Audio",
-        extensions: ["mp3", "flac", "wav", "ogg", "m4a"],
+        extensions: ["mp3", "flac", "wav", "ogg"],
       },
     ],
   });
@@ -178,8 +178,49 @@ async function init() {
     activeId = e.payload;
     void refreshPlaylist();
   });
+  await listen("track_ended", async () => {
+    try {
+      await invoke("next");
+      await refreshPlaylist();
+    } catch {
+      setStatus("Playback ended");
+    }
+  });
   await refreshPlaylist();
   setStatus("Ready — OPEN to add files");
+}
+
+/** Apply a skin bundle returned by the load_skin command. */
+export async function applySkinFromPath(path: string) {
+  const bundle = await invoke<{
+    manifest: {
+      id: string;
+      name: string;
+      panels?: Record<
+        string,
+        { image?: string; rect?: { x: number; y: number; w: number; h: number } }
+      >;
+    };
+    assets: Record<string, string>;
+  }>("load_skin", { path });
+  const panels = bundle.manifest.panels ?? {};
+  const map: Record<string, string> = {
+    main: "panel-main",
+    eq: "panel-eq",
+    playlist: "panel-playlist",
+  };
+  for (const [key, id] of Object.entries(map)) {
+    const panel = panels[key];
+    if (!panel?.image) continue;
+    const data = bundle.assets[panel.image];
+    if (!data) continue;
+    const el = document.getElementById(id);
+    if (el) {
+      el.style.backgroundImage = `url(${data})`;
+      el.style.backgroundSize = "100% 100%";
+    }
+  }
+  setStatus(`Skin: ${bundle.manifest.name}`);
 }
 
 void init();

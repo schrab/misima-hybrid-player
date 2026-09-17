@@ -74,14 +74,20 @@ fn step_track(state: &State<'_, AppInner>, app: &AppHandle, delta: isize) -> Res
     if len == 0 {
         return Ok(());
     }
-    let cur = state.playlist.read().current.unwrap_or(0) as isize;
-    let mut next = cur + delta;
-    if next < 0 {
-        next = len as isize - 1;
-    } else if next >= len as isize {
-        next = 0;
-    }
-    if let Some(id) = play_index_inner(&state, next as usize)? {
+    let cur = state.playlist.read().current;
+    let next = match cur {
+        None => 0,
+        Some(c) => {
+            let mut n = c as isize + delta;
+            if n < 0 {
+                n = len as isize - 1;
+            } else if n >= len as isize {
+                n = 0;
+            }
+            n as usize
+        }
+    };
+    if let Some(id) = play_index_inner(&state, next)? {
         let _ = app.emit("track_changed", id);
     }
     Ok(())
@@ -144,8 +150,24 @@ pub fn clear_playlist(state: State<'_, AppInner>) {
 }
 
 #[tauri::command]
-pub fn load_skin(path: String) -> Result<String, String> {
+pub fn load_skin(path: String) -> Result<serde_json::Value, String> {
     let loaded: LoadedSkin =
         parse_skin_path(PathBuf::from(&path).as_path()).map_err(|e| e.to_string())?;
-    Ok(loaded.manifest.name)
+    let mut assets = serde_json::Map::new();
+    for (rel, bytes) in &loaded.assets {
+        if rel.ends_with(".png") || rel.ends_with(".webp") {
+            use base64::Engine as _;
+            let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+            let mime = if rel.ends_with(".webp") {
+                "image/webp"
+            } else {
+                "image/png"
+            };
+            assets.insert(rel.clone(), serde_json::Value::String(format!("data:{mime};base64,{b64}")));
+        }
+    }
+    Ok(serde_json::json!({
+        "manifest": loaded.manifest,
+        "assets": assets,
+    }))
 }

@@ -9,8 +9,8 @@
   <body>
     <div id="app">
       <div id="panel-main" class="panel" data-panel="main">
-        <div class="drag-bar" data-drag>
-          <span class="title">MISIMA // HYBRID</span>
+        <div class="drag-bar" data-tauri-drag-region data-drag>
+          <span class="title" data-tauri-drag-region>MISIMA // HYBRID</span>
           <div class="win-buttons">
             <button type="button" id="btn-min" title="Minimize">–</button>
             <button type="button" id="btn-close" title="Close">×</button>
@@ -33,16 +33,16 @@
       </div>
 
       <div id="panel-eq" class="panel" data-panel="eq">
-        <div class="eq-header drag-bar" data-drag>
-          <span>EQUALIZER</span>
+        <div class="eq-header drag-bar" data-tauri-drag-region data-drag>
+          <span data-tauri-drag-region>EQUALIZER</span>
           <button type="button" id="eq-reset">RESET</button>
         </div>
         <div class="eq-bands" id="eq-bands"></div>
       </div>
 
       <div id="panel-playlist" class="panel" data-panel="playlist">
-        <div class="pl-header drag-bar" data-drag>
-          <span>PLAYLIST</span>
+        <div class="pl-header drag-bar" data-tauri-drag-region data-drag>
+          <span data-tauri-drag-region>PLAYLIST</span>
           <div>
             <button type="button" id="pl-clear">CLR</button>
           </div>

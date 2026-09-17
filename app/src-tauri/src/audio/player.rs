@@ -39,9 +39,12 @@ pub struct SharedPlay {
     pub playing: AtomicBool,
     pub volume: Mutex<f32>,
     pub eq: Mutex<EqState>,
+    pub eq_gains: Mutex<[f32; 10]>,
     pub spectrum_tx: Mutex<Vec<f32>>,
     pub spectrum_ready: AtomicBool,
     pub spectrum: Mutex<Option<SpectrumAnalyzer>>,
+    pub ended: AtomicBool,
+    pub device_rate: AtomicUsize,
 }
 
 impl Default for SharedPlay {
@@ -54,9 +57,12 @@ impl Default for SharedPlay {
             playing: AtomicBool::new(false),
             volume: Mutex::new(0.8),
             eq: Mutex::new(EqState::default()),
+            eq_gains: Mutex::new([0.0; 10]),
             spectrum_tx: Mutex::new(vec![0.0; 48]),
             spectrum_ready: AtomicBool::new(false),
             spectrum: Mutex::new(None),
+            ended: AtomicBool::new(false),
+            device_rate: AtomicUsize::new(44_100),
         }
     }
 }
@@ -70,22 +76,78 @@ pub fn shared() -> Arc<SharedPlay> {
     shared_cell().clone()
 }
 
+/// Linear resample interleaved PCM from `from_rate` to `to_rate`.
+pub fn resample_interleaved(
+    input: &[f32],
+    channels: usize,
+    from_rate: u32,
+    to_rate: u32,
+) -> Vec<f32> {
+    if channels == 0 || from_rate == 0 || to_rate == 0 {
+        return input.to_vec();
+    }
+    if from_rate == to_rate {
+        return input.to_vec();
+    }
+    let in_frames = input.len() / channels;
+    if in_frames == 0 {
+        return Vec::new();
+    }
+    let ratio = from_rate as f64 / to_rate as f64;
+    let out_frames = ((in_frames as f64) * (to_rate as f64 / from_rate as f64)).floor() as usize;
+    let mut out = Vec::with_capacity(out_frames * channels);
+    for of in 0..out_frames {
+        let src = of as f64 * ratio;
+        let i0 = src.floor() as usize;
+        let i1 = (i0 + 1).min(in_frames - 1);
+        let t = (src - i0 as f64) as f32;
+        for c in 0..channels {
+            let s0 = input[i0 * channels + c];
+            let s1 = input[i1 * channels + c];
+            out.push(s0 + (s1 - s0) * t);
+        }
+    }
+    out
+}
+
+fn device_sample_rate() -> u32 {
+    use cpal::traits::{DeviceTrait, HostTrait};
+    let host = cpal::default_host();
+    if let Some(device) = host.default_output_device() {
+        if let Ok(cfg) = device.default_output_config() {
+            return cfg.sample_rate().0;
+        }
+    }
+    44_100
+}
+
 pub fn load_and_play(path: &Path) -> anyhow::Result<()> {
     let audio = decode_file(path)?;
     let shared = shared();
+    let device_rate = device_sample_rate();
+    shared.device_rate.store(device_rate as usize, Ordering::SeqCst);
+
+    let samples = resample_interleaved(
+        &audio.samples,
+        audio.channels.max(1),
+        audio.sample_rate,
+        device_rate,
+    );
+
     {
-        let mut samples = shared.samples.write();
-        *samples = audio.samples.clone();
+        let mut buf = shared.samples.write();
+        *buf = samples;
     }
     shared
         .sample_rate
-        .store(audio.sample_rate as usize, Ordering::SeqCst);
-    shared.channels.store(audio.channels, Ordering::SeqCst);
+        .store(device_rate as usize, Ordering::SeqCst);
+    shared.channels.store(audio.channels.max(1), Ordering::SeqCst);
     shared.cursor.store(0, Ordering::SeqCst);
+    shared.ended.store(false, Ordering::SeqCst);
     {
-        let gains = [0.0f32; 10];
+        let gains = *shared.eq_gains.lock();
         let mut eq = shared.eq.lock();
-        *eq = EqState::new(audio.sample_rate as f32, &gains);
+        *eq = EqState::new(device_rate as f32, &gains);
     }
     shared.playing.store(true, Ordering::SeqCst);
     ensure_stream();
@@ -95,6 +157,7 @@ pub fn load_and_play(path: &Path) -> anyhow::Result<()> {
 pub fn play() {
     let shared = shared();
     if !shared.samples.read().is_empty() {
+        shared.ended.store(false, Ordering::SeqCst);
         shared.playing.store(true, Ordering::SeqCst);
         ensure_stream();
     }
@@ -108,6 +171,7 @@ pub fn stop() {
     let shared = shared();
     shared.playing.store(false, Ordering::SeqCst);
     shared.cursor.store(0, Ordering::SeqCst);
+    shared.ended.store(false, Ordering::SeqCst);
 }
 
 pub fn set_volume(v: f32) {
@@ -116,7 +180,9 @@ pub fn set_volume(v: f32) {
 
 pub fn set_eq(gains: [f32; 10]) {
     let shared = shared();
-    let sr = shared.sample_rate.load(Ordering::SeqCst) as f32;
+    *shared.eq_gains.lock() = gains;
+    let sr = shared.device_rate.load(Ordering::SeqCst) as f32;
+    let sr = if sr > 0.0 { sr } else { 44_100.0 };
     shared.eq.lock().set_gains(sr, &gains);
 }
 
@@ -126,6 +192,7 @@ pub fn seek_secs(secs: f64) {
     let ch = shared.channels.load(Ordering::SeqCst).max(1);
     let frame = (secs.max(0.0) * sr as f64) as usize;
     shared.cursor.store(frame * ch, Ordering::SeqCst);
+    shared.ended.store(false, Ordering::SeqCst);
 }
 
 pub fn position_secs() -> f64 {
@@ -137,6 +204,10 @@ pub fn position_secs() -> f64 {
         return 0.0;
     }
     cursor / (sr * ch)
+}
+
+pub fn take_ended() -> bool {
+    shared().ended.swap(false, Ordering::SeqCst)
 }
 
 fn ensure_stream() {
@@ -159,8 +230,10 @@ fn start_output_stream() -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("no output device"))?;
     let config = device.default_output_config()?;
     let sample_format = config.sample_format();
-    let stream_config: cpal::StreamConfig = config.into();
+    let stream_config: cpal::StreamConfig = config.clone().into();
     let out_channels = stream_config.channels as usize;
+    let rate = config.sample_rate().0;
+    shared().device_rate.store(rate as usize, Ordering::SeqCst);
     let shared = shared();
 
     let stream = match sample_format {
@@ -199,14 +272,16 @@ where
             let playing = shared.playing.load(Ordering::SeqCst);
             let ch_in = shared.channels.load(Ordering::SeqCst).max(1);
             let volume = *shared.volume.lock();
+            let samples = shared.samples.read();
+            let total = samples.len();
+            let mut finished = false;
 
             for f in 0..frames {
                 let mut sample_l = 0.0f32;
                 let mut sample_r = 0.0f32;
                 if playing {
-                    let samples = shared.samples.write();
                     let cursor = shared.cursor.load(Ordering::SeqCst);
-                    if cursor + ch_in <= samples.len() {
+                    if cursor + ch_in <= total {
                         sample_l = samples[cursor];
                         sample_r = if ch_in > 1 {
                             samples[cursor + 1]
@@ -216,7 +291,7 @@ where
                         mono_scratch.push((sample_l + sample_r) * 0.5);
                         shared.cursor.store(cursor + ch_in, Ordering::SeqCst);
                     } else {
-                        shared.playing.store(false, Ordering::SeqCst);
+                        finished = true;
                         mono_scratch.push(0.0);
                     }
                 } else {
@@ -240,6 +315,12 @@ where
                 for c in 2..out_channels {
                     data[o + c] = T::from_sample(0.0f32);
                 }
+            }
+            drop(samples);
+
+            if finished {
+                shared.playing.store(false, Ordering::SeqCst);
+                shared.ended.store(true, Ordering::SeqCst);
             }
 
             if playing && !mono_scratch.is_empty() {
@@ -265,11 +346,14 @@ pub fn spawn_spectrum_task(handle: tauri::AppHandle) {
         let shared = shared();
         loop {
             std::thread::sleep(Duration::from_millis(33));
+            use tauri::Emitter;
+            if take_ended() {
+                let _ = handle.emit("track_ended", ());
+            }
             if !shared.spectrum_ready.swap(false, Ordering::Relaxed) {
                 continue;
             }
             let bins = shared.spectrum_tx.lock().clone();
-            use tauri::Emitter;
             let _ = handle.emit("spectrum", bins);
         }
     });
@@ -282,6 +366,21 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
+    fn resample_halves_rate() {
+        // 4 frames mono 22050 → 11025 yields ~2 frames
+        let input = vec![0.0, 1.0, 0.0, -1.0];
+        let out = resample_interleaved(&input, 1, 22050, 11025);
+        assert_eq!(out.len(), 2);
+    }
+
+    #[test]
+    fn resample_identity_when_same_rate() {
+        let input = vec![0.1, 0.2, 0.3, 0.4];
+        let out = resample_interleaved(&input, 2, 44100, 44100);
+        assert_eq!(out, input);
+    }
+
+    #[test]
     fn decode_load_sets_shared_buffer() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("t.wav");
@@ -289,17 +388,18 @@ mod tests {
         load_and_play(&path).expect("load");
         let shared = shared();
         assert!(!shared.samples.read().is_empty());
-        assert_eq!(shared.sample_rate.load(Ordering::SeqCst), 22050);
+        // stored at device rate (default 44100 when no device)
+        assert_eq!(shared.sample_rate.load(Ordering::SeqCst), shared.device_rate.load(Ordering::SeqCst));
         assert!(shared.playing.load(Ordering::SeqCst));
         stop();
         assert!(!shared.playing.load(Ordering::SeqCst));
     }
 
     #[test]
-    fn eq_and_volume_setters() {
-        set_volume(0.5);
-        assert!((*shared().volume.lock() - 0.5).abs() < 1e-6);
-        set_eq([3.0; 10]);
+    fn eq_gains_persist_across_set() {
+        set_eq([6.0; 10]);
+        assert_eq!(*shared().eq_gains.lock(), [6.0; 10]);
+        set_eq([0.0; 10]);
     }
 
     #[test]

@@ -104,19 +104,10 @@ body {
   justify-content: space-between;
   padding: 10px 16px 4px;
   cursor: grab;
-  -webkit-app-region: drag;
   color: var(--accent);
   letter-spacing: 0.12em;
   font-size: 12px;
   font-weight: 600;
-}
-
-.drag-bar button,
-.transport button,
-#btn-open,
-#eq-reset,
-#pl-clear {
-  -webkit-app-region: no-drag;
 }
 
 .title {
