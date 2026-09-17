@@ -153,6 +153,10 @@ pub fn parse_skin_zip(bytes: &[u8]) -> Result<LoadedSkin, SkinError> {
 }
 
 pub fn parse_skin_path(path: &Path) -> Result<LoadedSkin, SkinError> {
+    let meta = std::fs::metadata(path)?;
+    if meta.len() > MAX_SKIN_BYTES {
+        return Err(SkinError::Invalid("skin file too large".into()));
+    }
     let bytes = std::fs::read(path)?;
     parse_skin_zip(&bytes)
 }

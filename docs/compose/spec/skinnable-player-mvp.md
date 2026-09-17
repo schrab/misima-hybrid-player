@@ -1,14 +1,29 @@
 ---
 feature: skinnable-player-mvp
-status: in-progress
+status: delivered
 updated: 2026-09-17
 branch: feature/skinnable-player-mvp
-commits: 26e2411..pending
+commits: 26e2411..25285fe
 ---
 
 # Skinnable Multiplatform Music Player MVP
 
 ## Report
+
+**What was built** — A Tauri 2 + Rust music player MVP that plays local MP3/FLAC/WAV/OGG with a real 10-band EQ and live FFT spectrum, a non-rectangular clip-path UI (main / EQ / playlist), a ZIP+PNG+`skin.json` native skin loader (path-traversal and size-capped), and a separate Winamp 5 freeform modern skin package (`.wal`) with palette/motifs from the sketch. Sample-rate conversion to the output device is applied on load; EQ gains persist across tracks; end-of-track emits `track_ended` and auto-advances.
+
+**Verification** —
+- `cargo test --lib` in `app/src-tauri`: **15/15 PASS** (EQ boost/cut energy, spectrum sine/silence, WAV decode, playlist reorder, skin zip safety, resample identity/halving, EQ persist, player load/stop)
+- `npx tsc --noEmit` in `app`: **PASS**
+- `npx vite build` in `app`: **PASS**
+- Independent review: initial pass found 3 critical audio bugs; fixed in `25285fe`; re-review **success**, no open criticals
+
+**Journey log** —
+1. Classic Winamp `.wsz` cannot express freeform alpha silhouettes; deliverable is Winamp 5 modern `.wal` (noted in README).
+2. Tauri 2 ignores Electron `-webkit-app-region`; window drag uses `data-tauri-drag-region`.
+3. First audio path mixed file-rate PCM with device-rate cpal and reset EQ to flat on every load — both fixed via resample-to-device-rate + persistent `eq_gains`.
+4. Zip loaders must cap entry size before `read_to_end` and check on-disk file size before `fs::read`.
+5. Placeholder skin plates ship; final painting from `gfx/UI_sketch.PNG` is the next art task.
 
 ## [S1] Problem
 
@@ -133,10 +148,10 @@ docs/compose/spec/skinnable-player-mvp.md
 
 - [x] T1: Scaffold Tauri 2 app in `app/` with transparent undecorated window — acceptance: project structure, config, capabilities, icons present; frontend builds.
 - [x] T2: Implement Rust audio engine (Symphonia decode, cpal output, transport, volume, playlist state) — acceptance: unit tests load WAV into shared buffer and stop cleanly.
-- [x] T3: Implement 10-band EQ biquad chain and wire `set_eq` — acceptance: unit test shows +12 dB boost increases RMS near 1 kHz, cut decreases it.
+- [x] T3: Implement 10-band EQ biquad chain and wire `set_eq` — acceptance: unit test shows +12 dB boost increases RMS near 1 kHz, cut decreases it; gains persist across loads.
 - [x] T4: Implement FFT spectrum tap and emit `spectrum` events — acceptance: sine fixture yields non-zero bins; silence is zero; frontend canvas draws bars.
-- [x] T5: Define and implement native skin loader (ZIP + skin.json) — acceptance: rejects path traversal; loads valid zip; formatVersion rename tested.
-- [x] T6: Build frontend panels: spectrum, EQ, playlist, transport; non-rect clip-path — acceptance: UI matches sketch structure; playlist double-click plays; dialog opens files.
+- [x] T5: Define and implement native skin loader (ZIP + skin.json) — acceptance: rejects path traversal; loads valid zip; size caps before read.
+- [x] T6: Build frontend panels: spectrum, EQ, playlist, transport; non-rect clip-path; Tauri drag regions — acceptance: UI matches sketch structure; playlist double-click plays; dialog opens files.
 - [x] T7: Author Winamp 5 freeform modern skin source + pack `.wal` — acceptance: skin.xml + PNGs + packed archive; format documented.
 - [x] T8: Pack native `misima-hybrid.mskin` and document skin authoring format in README — acceptance: archive exists; README describes skin.json schema.
-- [x] T9: Verify build (`cargo test --lib` 13/13 pass, `tsc` + `vite build` pass) and prepare for review.
+- [x] T9: Verify build and complete review cycle — acceptance: 15/15 cargo tests; tsc+vite pass; criticals fixed and re-reviewed.
