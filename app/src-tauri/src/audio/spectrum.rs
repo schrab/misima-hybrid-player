@@ -57,8 +57,8 @@ impl SpectrumAnalyzer {
                 cnt += 1;
             }
             let mag = if cnt > 0 { acc / cnt as f32 } else { 0.0 };
-            // compress to 0..1-ish
-            self.magnitudes[b] = (mag * 0.05).min(1.0);
+            // compress into a display-friendly 0..1 range (boosted vs raw FFT magnitude)
+            self.magnitudes[b] = (mag * 0.35).clamp(0.0, 1.0);
         }
         &self.magnitudes
     }

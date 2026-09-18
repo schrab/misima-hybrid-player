@@ -20,9 +20,22 @@ const EQ_FREQS = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
 let bins: Float32Array = new Float32Array(48);
 let activeId: number | null = null;
 let draggingId: number | null = null;
+let peakHold = new Float32Array(48);
 
 function setStatus(msg: string) {
   statusEl.textContent = msg;
+}
+
+/** Default skin plates shipped in /public/skin (Vite serves them). */
+function applyDefaultSkin() {
+  const map: Record<string, string> = {
+    "panel-main": "/skin/panel_main.png",
+    "panel-eq": "/skin/panel_eq.png",
+    "panel-playlist": "/skin/panel_playlist.png",
+  };
+  for (const [id, url] of Object.entries(map)) {
+    document.getElementById(id)?.style.setProperty("--panel-bg", `url(${url})`);
+  }
 }
 
 function buildEq() {
@@ -62,7 +75,8 @@ function renderPlaylist(entries: PlaylistEntry[]) {
     li.addEventListener("dblclick", async () => {
       activeId = entry.id;
       await invoke("play_index", { index: entries.findIndex((e) => e.id === entry.id) });
-      renderPlaylist(entries);
+      await refreshPlaylist();
+      setStatus(`Playing: ${entry.title}`);
     });
     li.addEventListener("dragstart", () => {
       draggingId = entry.id;
@@ -83,6 +97,9 @@ function renderPlaylist(entries: PlaylistEntry[]) {
     });
     playlistEl.append(li);
   }
+  if (entries.length > 0 && !statusEl.textContent?.startsWith("Playing")) {
+    setStatus(`${entries.length} track${entries.length === 1 ? "" : "s"} loaded`);
+  }
 }
 
 async function refreshPlaylist() {
@@ -94,20 +111,46 @@ function drawSpectrum() {
   const w = spectrumCanvas.width;
   const h = spectrumCanvas.height;
   ctx.clearRect(0, 0, w, h);
+
+  // grid
+  ctx.strokeStyle = "rgba(94,200,255,0.08)";
+  ctx.lineWidth = 1;
+  for (let y = 20; y < h; y += 20) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+
   const n = bins.length;
-  if (n === 0) return;
+  if (n === 0) {
+    requestAnimationFrame(drawSpectrum);
+    return;
+  }
   const barW = w / n;
+  let max = 0.001;
+  for (let i = 0; i < n; i++) max = Math.max(max, bins[i]);
+
   for (let i = 0; i < n; i++) {
-    const v = Math.min(1, bins[i]);
-    const barH = Math.max(2, v * (h - 8));
-    const t = i / n;
+    // Adaptive normalize + mild gamma so quiet mixes still fill the panel
+    const norm = bins[i] / max;
+    const v = Math.min(1, Math.pow(norm, 0.65) * 0.95 + bins[i] * 0.4);
+    peakHold[i] = Math.max(v, peakHold[i] * 0.92);
+    const barH = Math.max(3, v * (h - 10));
+    const peakY = h - Math.max(3, peakHold[i] * (h - 10)) - 2;
+    const t = i / Math.max(1, n - 1);
     const r = Math.round(61 + t * (255 - 61));
     const g = Math.round(255 - t * (255 - 79));
     const b = Math.round(181 + t * (216 - 181));
     ctx.fillStyle = `rgb(${r},${g},${b})`;
-    ctx.shadowColor = "rgba(61,255,181,0.45)";
-    ctx.shadowBlur = 8;
-    ctx.fillRect(i * barW + 1, h - barH - 2, Math.max(2, barW - 2), barH);
+    ctx.shadowColor = `rgba(${r},${g},${b},0.55)`;
+    ctx.shadowBlur = 10;
+    const x = i * barW + 1;
+    ctx.fillRect(x, h - barH - 2, Math.max(2, barW - 2), barH);
+    // peak cap
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.fillRect(x, peakY, Math.max(2, barW - 2), 2);
   }
   ctx.shadowBlur = 0;
   requestAnimationFrame(drawSpectrum);
@@ -127,6 +170,7 @@ async function openFiles() {
   const paths = Array.isArray(selected) ? selected : [selected];
   await invoke("open_files", { paths });
   await refreshPlaylist();
+  setStatus(`${paths.length} file${paths.length === 1 ? "" : "s"} added`);
 }
 
 document.getElementById("btn-open")!.addEventListener("click", () => {
@@ -137,6 +181,7 @@ document.getElementById("pl-clear")!.addEventListener("click", async () => {
   await invoke("clear_playlist");
   activeId = null;
   await refreshPlaylist();
+  setStatus("Playlist cleared — OPEN to add files");
 });
 
 document.getElementById("eq-reset")!.addEventListener("click", async () => {
@@ -144,9 +189,10 @@ document.getElementById("eq-reset")!.addEventListener("click", async () => {
     el.value = "0";
   });
   await sendEq();
+  setStatus("EQ reset");
 });
 
-volumeInput.addEventListener("change", async () => {
+volumeInput.addEventListener("input", async () => {
   await invoke("set_volume", { volume: Number(volumeInput.value) / 100 });
 });
 
@@ -156,6 +202,13 @@ document.querySelectorAll<HTMLButtonElement>("[data-cmd]").forEach((btn) => {
     await invoke(cmd);
     if (cmd === "play" || cmd === "next" || cmd === "prev") {
       await refreshPlaylist();
+      const entries = await invoke<PlaylistEntry[]>("get_playlist");
+      const cur = entries.find((e) => e.id === activeId);
+      setStatus(cur ? `Playing: ${cur.title}` : `Transport: ${cmd}`);
+    } else if (cmd === "pause") {
+      setStatus("Paused");
+    } else if (cmd === "stop") {
+      setStatus("Stopped");
     }
   });
 });
@@ -169,6 +222,7 @@ document.getElementById("btn-min")!.addEventListener("click", async () => {
 });
 
 async function init() {
+  applyDefaultSkin();
   buildEq();
   drawSpectrum();
   await listen<Float32Array>("spectrum", (e) => {
@@ -187,7 +241,9 @@ async function init() {
     }
   });
   await refreshPlaylist();
-  setStatus("Ready — OPEN to add files");
+  if (!playlistEl.children.length) {
+    setStatus("Ready — OPEN to add files");
+  }
 }
 
 /** Apply a skin bundle returned by the load_skin command. */
@@ -214,11 +270,7 @@ export async function applySkinFromPath(path: string) {
     if (!panel?.image) continue;
     const data = bundle.assets[panel.image];
     if (!data) continue;
-    const el = document.getElementById(id);
-    if (el) {
-      el.style.backgroundImage = `url(${data})`;
-      el.style.backgroundSize = "100% 100%";
-    }
+    document.getElementById(id)?.style.setProperty("--panel-bg", `url(${data})`);
   }
   setStatus(`Skin: ${bundle.manifest.name}`);
 }
