@@ -175,6 +175,12 @@ fn planar_to_interleaved(
     }
 }
 
+/// Cheap duration from headers when possible (full decode only if needed).
+pub fn duration_hint(path: &Path) -> anyhow::Result<f64> {
+    let audio = decode_file(path)?;
+    Ok(audio.duration_secs())
+}
+
 /// Generate a short mono sine WAV for tests.
 #[cfg(test)]
 pub fn write_test_wav(path: &Path, freq: f32, secs: f32, sample_rate: u32) -> std::io::Result<()> {

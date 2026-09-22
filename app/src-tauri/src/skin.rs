@@ -133,7 +133,7 @@ pub fn parse_skin_zip(bytes: &[u8]) -> Result<LoadedSkin, SkinError> {
         total_uncompressed += buf.len() as u64;
         if name == "skin.json" {
             let m: SkinManifest = serde_json::from_slice(&buf)?;
-            if m.format_version != 1 {
+            if m.format_version != 1 && m.format_version != 2 {
                 return Err(SkinError::Invalid(format!(
                     "unsupported formatVersion {}",
                     m.format_version

@@ -54,28 +54,51 @@ cd app
 npm run tauri build
 ```
 
-## Native skin format (v1)
+## Native skin format (v2 — sprite UI)
 
-A skin is a ZIP (`.mskin`) containing `skin.json` + PNG/WebP assets with alpha.
+A skin is a ZIP (`.mskin`) containing master **background PNGs**, **knob/button sprites**, **spectrum cell sheet**, **glyph atlas**, and `skin.json` with **absolute canvas coordinates**.
+
+### Artist workflow
+
+1. Paint a **master artboard** at `canvas.width × canvas.height` (e.g. 1280×980). Transparent outside organic plates.
+2. Export plates: `bg/visualizer.png`, `bg/eq.png`, `bg/playlist.png` (or one full plate).
+3. Export sprites: `ui/knob_magenta.png`, `ui/btn_normal.png`, `ui/btn_pressed.png`.
+4. Export **spectrum sheet**: 10 columns × 12 energy rows of cell rasters (`cell` 64×12 in placeholder).
+5. Export **glyph atlas** PNG + map (10×18 cells). **No TTF required** — raster only is supported and preferred.
+6. Measure pixel **origins** (fader knob top of travel, button top-left, text baselines) and fill `skin.json`.
+7. `python scripts/make_sprite_kit.py` (placeholders) or your pack script → `.mskin`.
+8. Drag faders in the player to verify hit boxes; tweak JSON integers.
+
+### Fader row (left → right)
+
+`volume` · `pitch` · `reverb` · `eq0`…`eq9` · `speed`
+
+Positions are defined **only** by your background art + JSON `origin`/`travel`.
+
+### DSP
+
+| Param | Control | Engine |
+|-------|---------|--------|
+| volume | fader | gain |
+| pitch | fader ±12 st | rate = 2^(st/12) × speed |
+| reverb | fader 0..1 | Schroeder mix |
+| eq0..9 | faders ±12 dB | RBJ peaking |
+| speed | fader 0.5..2× | playback rate (tape-style: pitch+tempo together) |
+
+Generative UI: 10-band raster spectrum + phase/3D waterfall (canvas, clipped to JSON rects).
 
 ```json
 {
-  "formatVersion": 1,
-  "id": "misima-hybrid",
-  "name": "Misima Hybrid",
-  "panels": {
-    "main": {
-      "rect": { "x": 0, "y": 0, "w": 920, "h": 280 },
-      "image": "assets/panel_main.png",
-      "clip": "auto-alpha"
-    }
-  }
+  "formatVersion": 2,
+  "canvas": { "width": 1280, "height": 980 },
+  "faders": [
+    { "id": "volume", "param": "volume", "origin": { "x": 220, "y": 520 }, "travel": 120, "range": [0, 1], "value": 0.8, "knob": "ui/knob_magenta.png" }
+  ]
 }
 ```
 
-- `clip: "auto-alpha"` derives the window/hit silhouette from PNG alpha.
-- Rejects zip path traversal and archives over 64 MiB uncompressed.
-- Pack with `python scripts/make_skins.py`.
+See `docs/compose/spec/sprite-skin-ui.md` for the full schema.
+
 
 ## Winamp deliverable note
 

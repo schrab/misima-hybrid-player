@@ -10,6 +10,14 @@ pub fn open_files(paths: Vec<String>, state: State<'_, AppInner>) -> Result<usiz
     let mut pl = state.playlist.write();
     let before = pl.len();
     pl.add_paths(&paths);
+    // Best-effort duration via decode metadata (full decode skipped for speed on large files).
+    for entry in pl.entries_mut()[before..].iter_mut() {
+        if let Ok(meta) = crate::audio::decoder::duration_hint(&std::path::Path::new(&entry.path)) {
+            let m = (meta / 60.0).floor() as u64;
+            let s = (meta % 60.0).floor() as u64;
+            entry.duration = Some(format!("{m:02}:{s:02}"));
+        }
+    }
     Ok(pl.len() - before)
 }
 
@@ -129,6 +137,31 @@ pub fn set_eq(gains: Vec<f64>, state: State<'_, AppInner>) -> Result<(), String>
     }
     *state.eq_gains.write() = arr;
     player::set_eq(arr);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_params(
+    volume: f64,
+    pitch: f64,
+    reverb: f64,
+    eq: Vec<f64>,
+    speed: f64,
+) -> Result<(), String> {
+    if eq.len() != 10 {
+        return Err("expected 10 EQ gains".into());
+    }
+    let mut arr = [0.0f32; 10];
+    for (i, g) in eq.iter().enumerate() {
+        arr[i] = *g as f32;
+    }
+    player::set_params(
+        volume as f32,
+        pitch as f32,
+        reverb as f32,
+        arr,
+        speed as f32,
+    );
     Ok(())
 }
 

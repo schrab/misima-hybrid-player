@@ -7,55 +7,7 @@
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <div id="app">
-      <div id="panel-main" class="panel" data-panel="main">
-        <div class="panel-inner">
-          <div class="drag-bar" data-tauri-drag-region>
-            <span class="title" data-tauri-drag-region>MISIMA // HYBRID</span>
-            <div class="win-buttons">
-              <button type="button" id="btn-min" title="Minimize">–</button>
-              <button type="button" id="btn-close" title="Close">×</button>
-            </div>
-          </div>
-          <canvas id="spectrum" width="640" height="160"></canvas>
-          <div class="transport">
-            <button type="button" data-cmd="prev" title="Previous">⏮</button>
-            <button type="button" data-cmd="play" title="Play">▶</button>
-            <button type="button" data-cmd="pause" title="Pause">⏸</button>
-            <button type="button" data-cmd="stop" title="Stop">⏹</button>
-            <button type="button" data-cmd="next" title="Next">⏭</button>
-            <button type="button" id="btn-open">OPEN</button>
-            <label class="vol">
-              VOL
-              <input type="range" id="volume" min="0" max="100" value="80" />
-            </label>
-          </div>
-          <div class="status" id="status">Ready</div>
-        </div>
-      </div>
-
-      <div id="panel-eq" class="panel" data-panel="eq">
-        <div class="panel-inner">
-          <div class="eq-header drag-bar" data-tauri-drag-region>
-            <span data-tauri-drag-region>EQUALIZER</span>
-            <button type="button" id="eq-reset">RESET</button>
-          </div>
-          <div class="eq-bands" id="eq-bands"></div>
-        </div>
-      </div>
-
-      <div id="panel-playlist" class="panel" data-panel="playlist">
-        <div class="panel-inner">
-          <div class="pl-header drag-bar" data-tauri-drag-region>
-            <span data-tauri-drag-region>PLAYLIST</span>
-            <div>
-              <button type="button" id="pl-clear">CLR</button>
-            </div>
-          </div>
-          <ol id="playlist" class="playlist"></ol>
-        </div>
-      </div>
-    </div>
+    <canvas id="ui"></canvas>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

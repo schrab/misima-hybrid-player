@@ -45,6 +45,12 @@ pub struct SharedPlay {
     pub spectrum: Mutex<Option<SpectrumAnalyzer>>,
     pub ended: AtomicBool,
     pub device_rate: AtomicUsize,
+    pub pitch_semitones: Mutex<f32>,
+    pub speed: Mutex<f32>,
+    pub reverb: Mutex<Reverb>,
+    pub reverb_mix: Mutex<f32>,
+    /// Fractional source frame index (device-rate buffer).
+    pub play_pos: Mutex<f64>,
 }
 
 impl Default for SharedPlay {
@@ -63,7 +69,55 @@ impl Default for SharedPlay {
             spectrum: Mutex::new(None),
             ended: AtomicBool::new(false),
             device_rate: AtomicUsize::new(44_100),
+            pitch_semitones: Mutex::new(0.0),
+            speed: Mutex::new(1.0),
+            reverb: Mutex::new(Reverb::default()),
+            reverb_mix: Mutex::new(0.15),
+            play_pos: Mutex::new(0.0),
         }
+    }
+}
+
+/// Simple Schroeder reverb (4 combs + 2 allpass), stereo-safe via mono mix path.
+#[derive(Debug, Clone)]
+pub struct Reverb {
+    combs: [(Vec<f32>, usize, f32); 4],
+    allpass: [(Vec<f32>, usize, f32); 2],
+    damp: f32,
+}
+
+impl Default for Reverb {
+    fn default() -> Self {
+        let comb_lens = [1557, 1617, 1491, 1422];
+        let ap_lens = [225, 556];
+        Self {
+            combs: comb_lens.map(|n| (vec![0.0; n], 0, 0.82)),
+            allpass: ap_lens.map(|n| (vec![0.0; n], 0, 0.5)),
+            damp: 0.25,
+        }
+    }
+}
+
+impl Reverb {
+    pub fn process_mono(&mut self, x: f32) -> f32 {
+        let mut acc = 0.0f32;
+        for (buf, idx, fb) in self.combs.iter_mut() {
+            let y = buf[*idx];
+            acc += y;
+            let mut store = y * (1.0 - self.damp) + buf[(*idx + buf.len() - 1) % buf.len()] * self.damp;
+            store = store * *fb + x;
+            buf[*idx] = store.clamp(-2.0, 2.0);
+            *idx = (*idx + 1) % buf.len();
+        }
+        let mut out = acc * 0.25;
+        for (buf, idx, g) in self.allpass.iter_mut() {
+            let bufout = buf[*idx];
+            let gn = *g;
+            out = out - gn * out + bufout;
+            buf[*idx] = out;
+            *idx = (*idx + 1) % buf.len();
+        }
+        out
     }
 }
 
@@ -143,6 +197,7 @@ pub fn load_and_play(path: &Path) -> anyhow::Result<()> {
         .store(device_rate as usize, Ordering::SeqCst);
     shared.channels.store(audio.channels.max(1), Ordering::SeqCst);
     shared.cursor.store(0, Ordering::SeqCst);
+    *shared.play_pos.lock() = 0.0;
     shared.ended.store(false, Ordering::SeqCst);
     {
         let gains = *shared.eq_gains.lock();
@@ -171,6 +226,17 @@ pub fn stop() {
     let shared = shared();
     shared.playing.store(false, Ordering::SeqCst);
     shared.cursor.store(0, Ordering::SeqCst);
+    *shared.play_pos.lock() = 0.0;
+    shared.ended.store(false, Ordering::SeqCst);
+}
+
+pub fn seek_secs(secs: f64) {
+    let shared = shared();
+    let sr = shared.sample_rate.load(Ordering::SeqCst) as f64;
+    let frame = (secs.max(0.0) * sr) as f64;
+    *shared.play_pos.lock() = frame;
+    let ch = shared.channels.load(Ordering::SeqCst).max(1);
+    shared.cursor.store((frame as usize) * ch, Ordering::SeqCst);
     shared.ended.store(false, Ordering::SeqCst);
 }
 
@@ -186,24 +252,29 @@ pub fn set_eq(gains: [f32; 10]) {
     shared.eq.lock().set_gains(sr, &gains);
 }
 
-pub fn seek_secs(secs: f64) {
-    let shared = shared();
-    let sr = shared.sample_rate.load(Ordering::SeqCst);
-    let ch = shared.channels.load(Ordering::SeqCst).max(1);
-    let frame = (secs.max(0.0) * sr as f64) as usize;
-    shared.cursor.store(frame * ch, Ordering::SeqCst);
-    shared.ended.store(false, Ordering::SeqCst);
+pub fn set_params(volume: f32, pitch_st: f32, reverb: f32, eq: [f32; 10], speed: f32) {
+    set_volume(volume);
+    *shared().pitch_semitones.lock() = pitch_st.clamp(-24.0, 24.0);
+    *shared().speed.lock() = speed.clamp(0.5, 2.0);
+    *shared().reverb_mix.lock() = reverb.clamp(0.0, 1.0);
+    set_eq(eq);
+}
+
+/// Combined playback rate: speed (tape) * pitch semitones.
+fn playback_rate_factor() -> f32 {
+    let speed = *shared().speed.lock();
+    let pitch = *shared().pitch_semitones.lock();
+    speed * 2f32.powf(pitch / 12.0)
 }
 
 pub fn position_secs() -> f64 {
     let shared = shared();
     let sr = shared.sample_rate.load(Ordering::SeqCst) as f64;
-    let ch = shared.channels.load(Ordering::SeqCst).max(1) as f64;
-    let cursor = shared.cursor.load(Ordering::SeqCst) as f64;
     if sr <= 0.0 {
         return 0.0;
     }
-    cursor / (sr * ch)
+    let pos = *shared.play_pos.lock();
+    pos / sr
 }
 
 pub fn take_ended() -> bool {
@@ -272,6 +343,7 @@ where
             let playing = shared.playing.load(Ordering::SeqCst);
             let ch_in = shared.channels.load(Ordering::SeqCst).max(1);
             let volume = *shared.volume.lock();
+            let rate = playback_rate_factor().clamp(0.25, 4.0);
             let samples = shared.samples.read();
             let total = samples.len();
             let mut finished = false;
@@ -280,7 +352,8 @@ where
                 let mut sample_l = 0.0f32;
                 let mut sample_r = 0.0f32;
                 if playing {
-                    let cursor = shared.cursor.load(Ordering::SeqCst);
+                    let mut pos = shared.play_pos.lock();
+                    let cursor = (*pos as usize) * ch_in;
                     if cursor + ch_in <= total {
                         sample_l = samples[cursor];
                         sample_r = if ch_in > 1 {
@@ -289,7 +362,10 @@ where
                             samples[cursor]
                         };
                         mono_scratch.push((sample_l + sample_r) * 0.5);
-                        shared.cursor.store(cursor + ch_in, Ordering::SeqCst);
+                        *pos += rate as f64;
+                        shared
+                            .cursor
+                            .store((*pos as usize) * ch_in, Ordering::SeqCst);
                     } else {
                         finished = true;
                         mono_scratch.push(0.0);
@@ -302,6 +378,13 @@ where
                 {
                     let mut eq = shared.eq.lock();
                     eq.process_interleaved(&mut frame, 2);
+                }
+                let mix = *shared.reverb_mix.lock();
+                if mix > 0.001 {
+                    let mono = (frame[0] + frame[1]) * 0.5;
+                    let wet = shared.reverb.lock().process_mono(mono);
+                    frame[0] = frame[0] * (1.0 - mix) + wet * mix;
+                    frame[1] = frame[1] * (1.0 - mix) + wet * mix;
                 }
                 let l = (frame[0] * volume).clamp(-1.0, 1.0);
                 let r = (frame[1] * volume).clamp(-1.0, 1.0);
@@ -393,6 +476,18 @@ mod tests {
         assert!(shared.playing.load(Ordering::SeqCst));
         stop();
         assert!(!shared.playing.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn reverb_dry_ish_stability() {
+        let mut rv = Reverb::default();
+        let mut peak = 0.0f32;
+        for i in 0..2000 {
+            let x = if i < 50 { 1.0 } else { 0.0 };
+            let y = rv.process_mono(x);
+            peak = peak.max(y.abs());
+        }
+        assert!(peak.is_finite() && peak < 5.0);
     }
 
     #[test]

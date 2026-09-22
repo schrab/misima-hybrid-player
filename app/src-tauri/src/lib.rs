@@ -40,6 +40,7 @@ pub fn run() {
             commands::get_position,
             commands::set_volume,
             commands::set_eq,
+            commands::set_params,
             commands::get_playlist,
             commands::reorder_playlist,
             commands::clear_playlist,

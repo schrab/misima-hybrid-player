@@ -6,6 +6,8 @@ pub struct PlaylistEntry {
     pub id: u64,
     pub path: String,
     pub title: String,
+    #[serde(default)]
+    pub duration: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -27,6 +29,7 @@ impl Playlist {
                 id: self.next_id,
                 path: p.clone(),
                 title,
+                duration: None,
             });
             self.next_id += 1;
         }
@@ -34,6 +37,10 @@ impl Playlist {
 
     pub fn entries(&self) -> &[PlaylistEntry] {
         &self.entries
+    }
+
+    pub fn entries_mut(&mut self) -> &mut [PlaylistEntry] {
+        &mut self.entries
     }
 
     pub fn clear(&mut self) {
