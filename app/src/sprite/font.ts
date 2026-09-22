@@ -24,7 +24,7 @@ export function createFont(spec: SkinManifestV2["text"]["font"], atlas: HTMLImag
     draw(ctx, text, x, y, maxWidth) {
       let cx = x;
       for (const ch of text) {
-        const cell = font.map[ch] ?? font.map[font.fallback];
+        const cell = font.map[ch] ?? font.map[font.fallback] ?? font.map["?"] ?? font.map["0"];
         if (!cell) continue;
         if (maxWidth != null && cx + font.cell.w > x + maxWidth) break;
         const [col, row] = cell;

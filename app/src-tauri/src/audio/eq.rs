@@ -130,6 +130,16 @@ impl EqState {
     }
 }
 
+/// Standard Schroeder allpass: y = -g*x + d;  d' = x + g*y
+#[inline]
+pub fn allpass_tick(buf: &mut [f32], idx: &mut usize, g: f32, x: f32) -> f32 {
+    let bufout = buf[*idx];
+    let y = -g * x + bufout;
+    buf[*idx] = x + g * y;
+    *idx = (*idx + 1) % buf.len();
+    y
+}
+
 /// RMS energy helper used by tests.
 pub fn rms(data: &[f32]) -> f32 {
     if data.is_empty() {
@@ -147,6 +157,20 @@ mod tests {
         (0..n)
             .map(|i| (2.0 * std::f32::consts::PI * freq * i as f32 / sr).sin())
             .collect()
+    }
+
+    #[test]
+    fn allpass_pulse_energy() {
+        let mut buf = vec![0.0f32; 64];
+        let mut idx = 0usize;
+        let g = 0.5f32;
+        let mut peak = 0.0f32;
+        for i in 0..200 {
+            let x = if i < 10 { 1.0 } else { 0.0 };
+            let y = allpass_tick(&mut buf, &mut idx, g, x);
+            peak = peak.max(y.abs());
+        }
+        assert!(peak > 0.5 && peak < 1.5, "peak={peak}");
     }
 
     #[test]

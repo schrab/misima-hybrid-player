@@ -13,6 +13,10 @@ export function drawSpectrum(
   const frames = spec.frames;
   const bandW = spec.size.w / n;
   const maxStack = Math.floor(spec.size.h / ch);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(spec.origin.x, spec.origin.y, spec.size.w, spec.size.h);
+  ctx.clip();
   for (let i = 0; i < n; i++) {
     const energy = Math.min(1, Math.max(0, bands[i] ?? 0));
     const lit = Math.max(energy > 0.02 ? 1 : 0, Math.round(energy * maxStack));
@@ -24,6 +28,7 @@ export function drawSpectrum(
       ctx.drawImage(sheet, i * cw, cellFrame * ch, cw, ch, dx, dy, cw, ch);
     }
   }
+  ctx.restore();
 }
 
 /** Generative phase / pseudo-3D waterfall inside a rect. */

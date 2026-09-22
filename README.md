@@ -11,7 +11,7 @@ Cross-platform skinnable music player (Windows / macOS / Linux) inspired by clas
 | Output | cpal |
 | EQ | 10-band RBJ biquads |
 | Spectrum | rustfft → log-spaced bins |
-| UI | HTML/CSS/Canvas (clip-path silhouettes) |
+| UI | Canvas sprite compositor (PNG plates + JSON anchors + bitmap font) |
 
 ## Repository layout
 

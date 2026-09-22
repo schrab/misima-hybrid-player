@@ -34,7 +34,34 @@ Classic Winamp 2 skins are fixed-size BMP + color-key (main 275×232). The sketc
 
 ---
 
+## 1b. Sprite UI (current)
+
+The form HTML UI is **replaced** by a canvas compositor (`app/src/main.ts` + `app/src/sprite/*`):
+
+- Layout: **master BG PNGs + `skin.json` v2 absolute anchors** (artist pixels = canvas px)
+- Controls: fader knobs & button frames as sprites; 14 faders L→R: volume, pitch, reverb, eq0–9, speed
+- Text: **raster glyph atlas** (no TTF required)
+- Generative: 10-band raster spectrum sheet + phase/3D waterfall
+- Default kit: `app/public/sprite/` + source `skins/misima-hybrid/sprites/`
+- Spec: `docs/compose/spec/sprite-skin-ui.md`
+- Generate placeholders: `python scripts/make_sprite_kit.py`
+
+DSP: `set_params` → volume, pitch (st), reverb mix (Schroeder), eq[10], speed (tape rate).
+
 ## 2. Layout
+
+```
+misima-hybrid-winamp/                 # main checkout (main branch)
+  gfx/UI_sketch.PNG
+  .worktrees/skinnable-player-mvp/    # THIS workspace
+    docs/compose/spec/
+      skinnable-player-mvp.md
+      sprite-skin-ui.md               # current UI system
+    app/src/sprite/                   # compositor, font, visuals, layout
+    app/public/sprite/                # default runtime kit
+    skins/misima-hybrid/sprites/      # art source + skin.json v2
+    scripts/make_sprite_kit.py
+```
 
 ```
 misima-hybrid-winamp/                 # main checkout (main branch)

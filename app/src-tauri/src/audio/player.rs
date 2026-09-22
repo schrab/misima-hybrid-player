@@ -111,11 +111,7 @@ impl Reverb {
         }
         let mut out = acc * 0.25;
         for (buf, idx, g) in self.allpass.iter_mut() {
-            let bufout = buf[*idx];
-            let gn = *g;
-            out = out - gn * out + bufout;
-            buf[*idx] = out;
-            *idx = (*idx + 1) % buf.len();
+            out = crate::audio::eq::allpass_tick(buf, idx, *g, out);
         }
         out
     }
@@ -347,13 +343,13 @@ where
             let samples = shared.samples.read();
             let total = samples.len();
             let mut finished = false;
+            let mut pos = *shared.play_pos.lock();
 
             for f in 0..frames {
                 let mut sample_l = 0.0f32;
                 let mut sample_r = 0.0f32;
                 if playing {
-                    let mut pos = shared.play_pos.lock();
-                    let cursor = (*pos as usize) * ch_in;
+                    let cursor = (pos as usize) * ch_in;
                     if cursor + ch_in <= total {
                         sample_l = samples[cursor];
                         sample_r = if ch_in > 1 {
@@ -362,10 +358,7 @@ where
                             samples[cursor]
                         };
                         mono_scratch.push((sample_l + sample_r) * 0.5);
-                        *pos += rate as f64;
-                        shared
-                            .cursor
-                            .store((*pos as usize) * ch_in, Ordering::SeqCst);
+                        pos += rate as f64;
                     } else {
                         finished = true;
                         mono_scratch.push(0.0);
@@ -400,6 +393,10 @@ where
                 }
             }
             drop(samples);
+            *shared.play_pos.lock() = pos;
+            shared
+                .cursor
+                .store((pos as usize) * ch_in, Ordering::SeqCst);
 
             if finished {
                 shared.playing.store(false, Ordering::SeqCst);

@@ -89,7 +89,7 @@ def glyph_atlas(cols: int = 32, rows: int = 4, cw: int = 10, ch: int = 18) -> Im
 
 
 def write_glyph_map() -> dict:
-    chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .-:+*#_[]()"
+    chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .-:+*#_[]()?!"
     mapping = {}
     for i, ch in enumerate(chars):
         mapping[ch] = [i % 32, i // 32]

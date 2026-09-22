@@ -14,7 +14,7 @@ import {
   loadImage,
 } from "./sprite/layout";
 import { loadFont, type BitmapFont } from "./sprite/font";
-import { drawSpectrum, drawWaterfall, loadSpectrumSheet } from "./sprite/visuals";
+import { drawSpectrum, drawWaterfall } from "./sprite/visuals";
 
 const BASE = "/sprite/";
 
@@ -100,9 +100,10 @@ async function action(name: string) {
       status = "Cleared";
       break;
     case "reset_eq":
-      params.eq = new Array(10).fill(0);
+      for (let i = 0; i < 10; i++) {
+        params.eq[i] = 0;
+      }
       setParam("eq0", 0);
-      for (let i = 0; i < 10; i++) setParam(`eq${i}`, 0);
       status = "EQ reset";
       break;
     default:
@@ -274,40 +275,55 @@ canvas.addEventListener("dblclick", (ev: MouseEvent) => {
   })();
 });
 
+function loadImageSafe(url: string): Promise<HTMLImageElement | null> {
+  return loadImage(url).catch((err) => {
+    console.warn("missing sprite, skipped:", url, err);
+    return null;
+  });
+}
+
 async function init() {
   skin = await loadJson(BASE + "skin.json");
-  // public/sprite/skin.json already uses relative paths under /sprite/
   const resolve = (p: string) => BASE + p.replace(/^\/?/, "");
 
   for (const block of Object.values(skin.blocks)) {
-    images.set(block.image, await loadImage(resolve(block.image)));
+    images.set(block.image, (await loadImageSafe(resolve(block.image))) as HTMLImageElement);
   }
   for (const f of skin.faders) {
-    images.set(f.knob, await loadImage(resolve(f.knob)));
+    const img = await loadImageSafe(resolve(f.knob));
+    if (img) images.set(f.knob, img);
   }
   for (const b of skin.buttons) {
-    images.set(b.frames.normal, await loadImage(resolve(b.frames.normal)));
-    if (b.frames.pressed) images.set(b.frames.pressed, await loadImage(resolve(b.frames.pressed)));
+    const n = await loadImageSafe(resolve(b.frames.normal));
+    if (n) images.set(b.frames.normal, n);
+    if (b.frames.pressed) {
+      const p = await loadImageSafe(resolve(b.frames.pressed));
+      if (p) images.set(b.frames.pressed, p);
+    }
   }
-  spectrumSheet = await loadSpectrumSheet(resolve(skin.visuals.spectrum.sheet));
+  spectrumSheet = (await loadImageSafe(resolve(skin.visuals.spectrum.sheet))) as HTMLImageElement;
   font = await loadFont({ ...skin.text.font, atlas: resolve(skin.text.font.atlas) }, "");
 
   canvas.width = skin.canvas.width;
   canvas.height = skin.canvas.height;
 
   // seed fader values
-  for (const f of skin.faders) setParam(f.param, f.value);
+  for (const f of skin.faders) {
+    const v = typeof f.value === "number" ? f.value : (f.range[0] + f.range[1]) / 2;
+    setParam(f.param, v);
+  }
 
   await listen<Float32Array>("spectrum", (e) => {
     const raw = Float32Array.from(e.payload);
-    // collapse to 10 bands
+    // 10 log bands aligned to EQ centers (approx 60…16k) over 48 log-ish bins
     const out = new Float32Array(10);
     const n = raw.length;
+    const edges = [0, 0.04, 0.1, 0.18, 0.3, 0.45, 0.6, 0.75, 0.85, 0.93, 1.0];
     for (let b = 0; b < 10; b++) {
-      const i0 = Math.floor((b / 10) * n);
-      const i1 = Math.floor(((b + 1) / 10) * n);
+      const i0 = Math.floor(edges[b] * n);
+      const i1 = Math.max(i0 + 1, Math.floor(edges[b + 1] * n));
       let s = 0;
-      for (let i = i0; i < i1; i++) s += raw[i] ?? 0;
+      for (let i = i0; i < i1 && i < n; i++) s += raw[i] ?? 0;
       out[b] = s / Math.max(1, i1 - i0);
     }
     bins = out;

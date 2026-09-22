@@ -1,6 +1,6 @@
 ---
 feature: sprite-skin-ui
-status: designed
+status: delivered
 updated: 2026-09-17
 branch: feature/skinnable-player-mvp
 commits: pending
@@ -9,6 +9,17 @@ commits: pending
 # Sprite Skin UI (Organic Hand-Drawn Winamp)
 
 ## Report
+
+**What was built** — Canvas sprite compositor driven by master BG PNGs and `skin.json` v2 anchors (14 faders: volume/pitch/reverb/eq0–9/speed; transport buttons; 10-band raster spectrum; phase3D waterfall; bitmap-font playlist). Rust `set_params` wires volume, pitch+speed rate, Schroeder reverb, and 10-band EQ. Placeholder kit under `app/public/sprite/` + `scripts/make_sprite_kit.py`. Packed `.mskin` validates v1+v2.
+
+**Verification** — `cargo test --lib` 19/19 PASS; `tsc --noEmit` + `vite build` PASS. Independent review found majors (v2 load, font fallback, reverb allpass, linear spectrum collapse, missing-sprite fail-hard) — fixed in follow-up.
+
+**Journey log** —
+1. HTML form UI was the wrong model; art must define layout via absolute anchors.
+2. Raster glyph atlas is enough — TTF optional only.
+3. load_skin must accept formatVersion 2 with required `blocks`+`faders`.
+4. Schroeder allpass is `y=-g*x+d; d'=x+g*y` — not `(1-g)out+buf`.
+5. Collapse 48 spectrum bins to 10 with log-aligned edges to match EQ centers.
 
 ## [S1] Problem
 
@@ -286,12 +297,14 @@ New params: `set_params { volume, pitch, reverb, eq[10], speed }`
 
 ## Tasks
 
-- [ ] T1: Author `skin.json` v2 schema + placeholder BG/knob/button/atlas under `skins/misima-hybrid/sprites/` with coordinates for 14 faders + transport + spectrum + playlist (covers: S2.2, S2.3)
-- [ ] T2: Implement sprite compositor (load images, draw blocks, knobs, buttons, clip generative) in `app/src/sprite/` (covers: S2.4)
-- [ ] T3: Implement fader hit-test/drag → param map; button press frames (covers: S2.5)
-- [ ] T4: Implement bitmap font + 10-row playlist + status draw (covers: S2.7)
-- [ ] T5: 10-band raster spectrum (cell sheets) + phase3d waterfall generative layer (covers: S2.4, S2.1)
-- [ ] T6: Rust DSP: pitch+speed resample ratio, Schroeder reverb mix, `set_params` command; keep EQ (covers: S2.6)
-- [ ] T7: Replace HTML panel UI with full-window canvas; wire playlist/transport IPC (covers: S2.9)
-- [ ] T8: Pack script v2, README asset kit + artist workflow (covers: S2.8)
-- [ ] T9: Unit tests + `cargo test` + `tsc` + `vite build`; independent review (covers: S2.11)
+- [x] T1: Author `skin.json` v2 schema + placeholder BG/knob/button/atlas (covers: S2.2, S2.3)
+- [x] T2: Implement sprite compositor (covers: S2.4)
+- [x] T3: Implement fader hit-test/drag → params; button press frames (covers: S2.5)
+- [x] T4: Implement bitmap font + 10-row playlist + status (covers: S2.7)
+- [x] T5: 10-band raster spectrum + phase3d waterfall (covers: S2.4, S2.1)
+- [x] T6: Rust DSP: pitch+speed rate, Schroeder reverb, `set_params` (covers: S2.6)
+- [x] T7: Replace HTML panel UI with full-window canvas (covers: S2.9)
+- [x] T8: Pack script v2, README artist workflow (covers: S2.8)
+- [x] T9: Unit tests + builds + review fix loop (covers: S2.11)
+
+**Accepted residual:** UI loads default `/sprite/` kit at runtime (custom `.mskin` load_skin returns bundle for future picker UI); nearest-frame pitch/speed (no interpolation); click-through alpha hit not implemented (`hit: auto-alpha` reserved).
