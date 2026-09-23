@@ -97,7 +97,9 @@ def write_skin_json() -> dict:
                     "bottomY": 585,
                     "maxHeight": 240,
                     "segmentsPerBand": 10,
-                    "chips": [f"spectrum/chip_{i}.png" for i in range(8)],
+                    # One unique chip per stack LEVEL (10 segments per band).
+                    # Reused across all 10 bands → 10 files, not 100.
+                    "chips": [f"spectrum/chip_{i}.png" for i in range(10)],
                     "overlap": 0.4,
                 },
                 # Filled by auto-layout below (also written for manual tweaks)
@@ -207,7 +209,7 @@ def write_placeholder_segments() -> None:
 
     out = SRC / "spectrum"
     out.mkdir(parents=True, exist_ok=True)
-    for i in range(8):
+    for i in range(10):
         dest = out / f"chip_{i}.png"
         if dest.exists():
             continue
@@ -246,7 +248,7 @@ def auto_layout_bands(skin: dict) -> None:
         segments = []
         cursor_y = float(bottom_y)
         for s in range(per_band):
-            ci = (b * 3 + s) % len(chips)
+            ci = s % len(chips)  # chip index = stack level (same across bands)
             w, h = sizes[ci]
             top_y = cursor_y - h
             jx = jitter[s % len(jitter)]

@@ -46,7 +46,8 @@ export function layoutSpectrumFromPool(
     // Accumulate upward from bottomY (artboard Y grows downward)
     let cursorY = auto.bottomY;
     for (let s = 0; s < perBand; s++) {
-      const chipIndex = (b * 3 + s) % auto.chips.length;
+      // chip index = stack level (s); same piece reused across bands
+      const chipIndex = s % auto.chips.length;
       const path = auto.chips[chipIndex];
       const size = auto.chipSizes?.[chipIndex];
       const h = size?.h ?? 28;

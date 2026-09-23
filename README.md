@@ -106,7 +106,7 @@ Artist measured (2× artboard):
 | Band **left-border X** | `370, 411, 451, 496, 546, 602, 655, 703, 750, 805` |
 | Shared **bottom Y** | `585` |
 
-You do **not** need 100 unique PNGs. Export **~8 unique chips** (`spectrum/chip_0.png`…`chip_7.png`) and use:
+You do **not** need 100 unique PNGs. Export **10 unique chips** — one per **stack level** (`chip_0` = bottom … `chip_9` = top). Each of the 10 bands reuses the same 10 pieces at its own X:
 
 ```json
 "spectrum": {
@@ -117,7 +117,7 @@ You do **not** need 100 unique PNGs. Export **~8 unique chips** (`spectrum/chip_
     "maxHeight": 240,
     "segmentsPerBand": 10,
     "overlap": 0.4,
-    "chips": ["spectrum/chip_0.png", "spectrum/chip_1.png", "…"]
+    "chips": ["spectrum/chip_0.png", "…", "spectrum/chip_9.png"]
   },
   "bands": []
 }
