@@ -127,6 +127,17 @@ Runtime (or `make_sprite_kit.py`) expands `auto` → `bands[]` with absolute ori
 
 **Manual mode:** fill `bands[].segments[]` yourself with `{ image, origin, reveal }` if you want full artistic control per piece.
 
+### Playlist text box
+
+| | |
+|--|--|
+| Top-left | **1024, 1490** |
+| Bottom-right | **1402, 1800** |
+| Size | **378 × 310** |
+| Rows | **10** (`rowHeight` 31) |
+
+Columns inside the box: `index` 48 · `title` 234 · `duration` 96 (right-aligned). Hit + clip stay inside this rect.
+
 ### Font (variable metrics)
 
 Not a rectangular grid or non-overlapping stack. Each of **10 bands** is a set of **freeform PNGs** with absolute origins that **may overlap** and vary in size.

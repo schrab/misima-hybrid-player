@@ -1605,23 +1605,27 @@
     },
     "playlist": {
       "origin": {
-        "x": 980,
-        "y": 1780
+        "x": 1024,
+        "y": 1490
+      },
+      "size": {
+        "w": 378,
+        "h": 310
       },
       "rows": 10,
-      "rowHeight": 36,
+      "rowHeight": 31,
       "columns": [
         {
           "id": "index",
-          "width": 50
+          "width": 48
         },
         {
           "id": "title",
-          "width": 700
+          "width": 234
         },
         {
           "id": "duration",
-          "width": 100,
+          "width": 96,
           "align": "right"
         }
       ]

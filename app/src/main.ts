@@ -150,6 +150,14 @@ function render(time: number) {
   const pl = skin.text.playlist;
   const colX = [pl.origin.x];
   for (let i = 0; i < pl.columns.length - 1; i++) colX.push(colX[i] + pl.columns[i].width);
+  const box = pl.size ?? {
+    w: pl.columns.reduce((s, c) => s + c.width, 0),
+    h: pl.rows * pl.rowHeight,
+  };
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(pl.origin.x, pl.origin.y, box.w, box.h);
+  ctx.clip();
   for (let r = 0; r < pl.rows && r < playlist.length; r++) {
     const row = playlist[r];
     const y = pl.origin.y + r * pl.rowHeight;
@@ -157,8 +165,12 @@ function render(time: number) {
     font.draw(ctx, String(r + 1).padStart(2, "0"), colX[0], y, pl.columns[0].width);
     font.draw(ctx, row.title.toUpperCase().slice(0, 40), colX[1], y, pl.columns[1].width);
     const dur = row.duration ?? "";
-    font.draw(ctx, dur, colX[2], y, pl.columns[2].width);
+    const durW = font.measure(dur);
+    const col = pl.columns[2];
+    const dx = col.align === "right" ? colX[2] + col.width - durW : colX[2];
+    font.draw(ctx, dur, dx, y, col.width);
   }
+  ctx.restore();
   font.draw(ctx, status.toUpperCase(), skin.text.status.origin.x, skin.text.status.origin.y);
   requestAnimationFrame(render);
 }
@@ -215,11 +227,13 @@ canvas.addEventListener("dblclick", (ev: MouseEvent) => {
   void (async () => {
     const p = canvasPoint(ev);
     const pl = skin.text.playlist;
-    const rowW =
-      pl.columns.reduce((s, c) => s + c.width, 0);
+    const box = pl.size ?? {
+      w: pl.columns.reduce((s, c) => s + c.width, 0),
+      h: pl.rows * pl.rowHeight,
+    };
     for (let r = 0; r < pl.rows && r < playlist.length; r++) {
       const y0 = pl.origin.y + r * pl.rowHeight;
-      if (p.y >= y0 && p.y < y0 + pl.rowHeight && p.x >= pl.origin.x && p.x < pl.origin.x + rowW) {
+      if (p.y >= y0 && p.y < y0 + pl.rowHeight && p.x >= pl.origin.x && p.x < pl.origin.x + box.w) {
         const row = playlist[r];
         activeId = row.id;
         await invoke("play_index", { index: playlist.findIndex((x) => x.id === row.id) });

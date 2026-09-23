@@ -116,6 +116,8 @@ export type SkinManifestV2 = {
     font: FontSpec;
     playlist: {
       origin: XY;
+      /** Optional bounding box (top-left origin + size) for clipping/hit. */
+      size?: Size;
       rows: number;
       rowHeight: number;
       columns: Array<{ id: string; width: number; align?: "left" | "right" }>;

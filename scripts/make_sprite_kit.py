@@ -152,13 +152,15 @@ def write_skin_json() -> dict:
                 "fallback": "?",
             },
             "playlist": {
-                "origin": {"x": 980, "y": 1780},
+                # Artist rect (2x artboard): TL 1024,1490  BR 1402,1800  →  378×310, 10 lines
+                "origin": {"x": 1024, "y": 1490},
+                "size": {"w": 378, "h": 310},
                 "rows": 10,
-                "rowHeight": 36,
+                "rowHeight": 31,
                 "columns": [
-                    {"id": "index", "width": 50},
-                    {"id": "title", "width": 700},
-                    {"id": "duration", "width": 100, "align": "right"},
+                    {"id": "index", "width": 48},
+                    {"id": "title", "width": 234},
+                    {"id": "duration", "width": 96, "align": "right"},
                 ],
             },
             "status": {"origin": {"x": 120, "y": 1980}},
