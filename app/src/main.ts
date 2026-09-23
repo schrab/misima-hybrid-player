@@ -229,24 +229,22 @@ function render(_time: number) {
     const active = row.id === activeId;
     if (active) {
       const hl = images.get("ui/active_track.png");
+      // natural strip 373×24 — do not stretch across full box
       if (hl) {
-        ctx.drawImage(hl, pl.origin.x, y, box.w, pl.rowHeight);
+        ctx.drawImage(hl, pl.origin.x, y, hl.width, hl.height);
       } else {
         ctx.fillStyle = "#7dff4a";
-        ctx.fillRect(pl.origin.x, y, box.w, pl.rowHeight);
+        ctx.fillRect(pl.origin.x, y, 373, 24);
       }
     }
-    // dark glyphs on the green bar (as in art)
-    if (active) ctx.filter = "brightness(0.15)";
-    font?.draw(ctx, row.id === activeId ? "*" : " ", pl.origin.x, y, 20);
-    font?.draw(ctx, String(r + 1).padStart(2, "0"), colX[0], y, pl.columns[0].width);
+    if (active) ctx.filter = "brightness(0.12)";
+    // tight row: № + 6 letters + duration (as art)
     const name6 = row.title.replace(/\.[^.]+$/, "").slice(0, 6).toUpperCase();
-    font?.draw(ctx, name6, colX[1], y, pl.columns[1].width);
-    const dur = row.duration ?? "";
-    const durW = font?.measure(dur) ?? 40;
-    const col = pl.columns[2];
-    const dx = col.align === "right" ? colX[2] + col.width - durW : colX[2];
-    font?.draw(ctx, dur, dx, y, col.width);
+    const num = String(r + 1).padStart(2, "0");
+    const dur = row.duration ?? "--:--";
+    font?.draw(ctx, num, pl.origin.x + 4, y, 40);
+    font?.draw(ctx, name6, pl.origin.x + 48, y, 140);
+    font?.draw(ctx, dur, pl.origin.x + 240, y, 80);
     if (active) ctx.filter = "none";
   }
   ctx.restore();
