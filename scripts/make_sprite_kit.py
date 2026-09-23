@@ -178,12 +178,13 @@ def main() -> None:
     ensure_known_measures(skin)
     natural_sizes(skin)
     auto_layout_bands(skin)
-    if not is_placeholder_faders(skin.get("faders") or []):
-        print("LOCK: keeping artist faders/buttons — not regenerating")
+    # NEVER touch faders/buttons here — skins/misima-hybrid/skin.json is source of truth
+    print("LOCK: faders/buttons preserved (edit skins/misima-hybrid/skin.json)")
+    print("preserved faders", len(skin.get("faders") or []), "buttons", len(skin.get("buttons") or []))
+    # only copy to public — do not rewrite artist origins
     (SKIN / "skin.json").write_text(json.dumps(skin, indent=2), encoding="utf-8")
     copy_public()
     pack()
-    print("preserved faders", len(skin.get("faders") or []), "buttons", len(skin.get("buttons") or []))
 
 
 if __name__ == "__main__":

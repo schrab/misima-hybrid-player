@@ -26,7 +26,7 @@
       "param": "volume",
       "orientation": "vertical",
       "origin": {
-        "x": 560,
+        "x": 515,
         "y": 930
       },
       "travel": 110,
@@ -40,14 +40,14 @@
         0,
         1
       ],
-      "value": 1
+      "value": 1.0
     },
     {
       "id": "pitch",
       "param": "pitch",
       "orientation": "vertical",
       "origin": {
-        "x": 611,
+        "x": 571,
         "y": 890
       },
       "travel": 164,
@@ -68,7 +68,7 @@
       "param": "reverb",
       "orientation": "vertical",
       "origin": {
-        "x": 673,
+        "x": 628,
         "y": 904
       },
       "travel": 164,
@@ -82,14 +82,14 @@
         0,
         1
       ],
-      "value": 0
+      "value": 0.0
     },
     {
       "id": "eq1",
       "param": "eq0",
       "orientation": "vertical",
       "origin": {
-        "x": 709,
+        "x": 664,
         "y": 868
       },
       "travel": 177,
@@ -110,7 +110,7 @@
       "param": "eq1",
       "orientation": "vertical",
       "origin": {
-        "x": 769,
+        "x": 719,
         "y": 1018
       },
       "travel": 89,
@@ -131,7 +131,7 @@
       "param": "eq2",
       "orientation": "vertical",
       "origin": {
-        "x": 811,
+        "x": 755,
         "y": 990
       },
       "travel": 108,
@@ -152,7 +152,7 @@
       "param": "eq3",
       "orientation": "vertical",
       "origin": {
-        "x": 860,
+        "x": 856,
         "y": 850
       },
       "travel": 196,
@@ -173,7 +173,7 @@
       "param": "eq4",
       "orientation": "vertical",
       "origin": {
-        "x": 900,
+        "x": 905,
         "y": 855
       },
       "travel": 290,
@@ -194,7 +194,7 @@
       "param": "eq5",
       "orientation": "vertical",
       "origin": {
-        "x": 950,
+        "x": 956,
         "y": 856
       },
       "travel": 280,
@@ -215,7 +215,7 @@
       "param": "eq6",
       "orientation": "vertical",
       "origin": {
-        "x": 1008,
+        "x": 1002,
         "y": 942
       },
       "travel": 219,
@@ -236,7 +236,7 @@
       "param": "eq7",
       "orientation": "vertical",
       "origin": {
-        "x": 1050,
+        "x": 1042,
         "y": 854
       },
       "travel": 292,
@@ -257,7 +257,7 @@
       "param": "eq8",
       "orientation": "vertical",
       "origin": {
-        "x": 1102,
+        "x": 1103,
         "y": 922
       },
       "travel": 236,
@@ -278,7 +278,7 @@
       "param": "eq9",
       "orientation": "vertical",
       "origin": {
-        "x": 1204,
+        "x": 1111,
         "y": 965
       },
       "travel": 190,
@@ -299,7 +299,7 @@
       "param": "speed",
       "orientation": "vertical",
       "origin": {
-        "x": 1226,
+        "x": 1164,
         "y": 936
       },
       "travel": 140,
