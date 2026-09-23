@@ -280,6 +280,23 @@ canvas.addEventListener("pointermove", (ev) => {
   canvas.style.cursor = over ? "ns-resize" : "default";
 });
 
+/** Mouse wheel over a fader: step value (shift = fine). */
+canvas.addEventListener(
+  "wheel",
+  (ev) => {
+    ev.preventDefault();
+    const p = canvasPoint(ev);
+    const fader = findFaderAt(p.x, p.y);
+    if (!fader) return;
+    const [lo, hi] = fader.range;
+    const span = hi - lo;
+    const step = (ev.shiftKey ? span * 0.01 : span * 0.04) * (ev.deltaY < 0 ? 1 : -1);
+    const next = Math.min(hi, Math.max(lo, valueOf(fader.param) + step));
+    setParam(fader.param, next);
+  },
+  { passive: false },
+);
+
 canvas.addEventListener("pointerup", async (ev) => {
   const p = canvasPoint(ev);
   if (pressedButton) {
