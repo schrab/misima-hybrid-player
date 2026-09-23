@@ -97,10 +97,9 @@ def write_skin_json() -> dict:
                     "bottomY": 585,
                     "maxHeight": 240,
                     "segmentsPerBand": 10,
-                    # One unique chip per stack LEVEL (10 segments per band).
-                    # Reused across all 10 bands → 10 files, not 100.
+                    # TOP→BOTTOM in your stack art: chip_0 tip … chip_9 base
                     "chips": [f"spectrum/chip_{i}.png" for i in range(10)],
-                    "overlap": 0.4,
+                    "overlap": 0.5,
                 },
                 # Filled by auto-layout below (also written for manual tweaks)
                 "bands": [],
@@ -225,14 +224,17 @@ def write_placeholder_segments() -> None:
 
 
 def auto_layout_bands(skin: dict) -> None:
-    """Place chips along bandLeftX, stacked from bottomY with vertical overlap."""
+    """
+    Artist stack reference (TOP→BOTTOM): chip_0 (tip) … chip_9 (base).
+    Place base first at bottomY, nest upward; reveal bottom→top.
+    """
     auto = skin["visuals"]["spectrum"]["auto"]
     lefts = auto["bandLeftX"]
     bottom_y = auto["bottomY"]
-    max_h = auto.get("maxHeight", 240)
     per_band = auto.get("segmentsPerBand", 10)
-    overlap = auto.get("overlap", 0.4)
+    overlap = auto.get("overlap", 0.5)
     chips = auto["chips"]
+    n = len(chips)
     sizes = []
     for p in chips:
         fp = SRC / p
@@ -241,29 +243,28 @@ def auto_layout_bands(skin: dict) -> None:
 
             sizes.append(Image.open(fp).size)
         else:
-            sizes.append((72, 28))
-    jitter = [0, 4, -3, 6, -5, 2, -2, 5, -4, 1]
+            sizes.append((42, 32))
+    jitter = [0, 2, -2, 3, -1, 1, -3, 2, -1, 0]
     bands = []
     for b, left_x in enumerate(lefts):
         segments = []
         cursor_y = float(bottom_y)
         for s in range(per_band):
-            ci = s % len(chips)  # chip index = stack level (same across bands)
+            k = n - 1 - s  # chip_9 base first … chip_0 tip last
+            ci = k % n
             w, h = sizes[ci]
             top_y = cursor_y - h
             jx = jitter[s % len(jitter)]
-            band_nudge = (b % 3) * 2
             segments.append(
                 {
                     "image": chips[ci],
-                    "origin": {"x": left_x + jx + band_nudge, "y": int(round(top_y))},
-                    "reveal": round(min(1.0, (s / per_band) * 0.95), 3),
+                    "origin": {"x": left_x + jx, "y": int(round(top_y))},
+                    "reveal": round(min(1.0, s / max(1, per_band - 1)), 3),
                 }
             )
             cursor_y = top_y + h * overlap
         bands.append({"id": b, "segments": segments})
     skin["visuals"]["spectrum"]["bands"] = bands
-    void = max_h  # reserved for future clamp
 
 
 def write_font_atlas() -> None:

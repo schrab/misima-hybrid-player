@@ -27,43 +27,45 @@ export type SpectrumAutoLayout = {
 };
 
 /**
- * Build 10 bands of overlapping pieces from a chip pool.
- * Stack from `bottomY` upward; reveal thresholds are cumulative height / maxHeight.
- * Chips can overlap: next piece y is decreased by less than chip height (`overlap`).
+ * Build 10 bands from a chip pool matching the artist stack reference.
+ *
+ * Reference column is TOP→BOTTOM: chip_0 (small tip) … chip_9 (large base).
+ * Spectrum reveals BOTTOM→TOP (base first), so:
+ *   place chip_9 at bottomY, then chip_8 above it, … chip_0 at top.
+ *   reveal(chip_k) = 1 - k/(n-1)  →  chip_9 ≈ 0, chip_0 ≈ 1.
  */
 export function layoutSpectrumFromPool(
   auto: SpectrumAutoLayout,
-  overlap = 0.35,
+  overlap = 0.5,
 ): SpectrumBand[] {
-  const perBand = auto.segmentsPerBand ?? 10;
+  const n = auto.segmentsPerBand ?? auto.chips.length ?? 10;
   void auto.maxHeight;
-  const jitter = auto.jitterX ?? [0, 4, -3, 6, -5, 2, -2, 5, -4, 1];
+  const jitter = auto.jitterX ?? [0, 2, -2, 3, -1, 1, -3, 2, -1, 0];
   const bands: SpectrumBand[] = [];
+  const chips = auto.chips;
 
   for (let b = 0; b < auto.bandLeftX.length; b++) {
     const leftX = auto.bandLeftX[b];
     const segments: SpectrumSegment[] = [];
-    // Accumulate upward from bottomY (artboard Y grows downward)
     let cursorY = auto.bottomY;
-    for (let s = 0; s < perBand; s++) {
-      // chip index = stack level (s); same piece reused across bands
-      const chipIndex = s % auto.chips.length;
-      const path = auto.chips[chipIndex];
+    // Walk the stack from BASE (bottom) up to TIP (top):
+    // artist index k = n-1-s  (s=0 → k=n-1 base)
+    for (let s = 0; s < n; s++) {
+      const k = n - 1 - s; // chip_9 first, chip_0 last
+      const chipIndex = ((k % chips.length) + chips.length) % chips.length;
+      const path = chips[chipIndex];
       const size = auto.chipSizes?.[chipIndex];
       const h = size?.h ?? 28;
       const w = size?.w ?? 72;
-      // Place so the piece's BOTTOM sits on cursorY, then step up with overlap
       const topY = cursorY - h;
       const jx = jitter[s % jitter.length] ?? 0;
-      // slight per-band lateral offset so columns aren't identical
-      const bandNudge = (b % 3) * 2;
       segments.push({
         image: path,
-        origin: { x: leftX + jx + bandNudge, y: topY },
+        origin: { x: leftX + jx, y: topY },
         size: { w, h },
-        reveal: Math.min(1, (s / perBand) * 0.95),
+        reveal: Math.min(1, s / Math.max(1, n - 1)),
       });
-      cursorY = topY + h * overlap; // allow overlap into previous piece
+      cursorY = topY + h * overlap;
     }
     bands.push({ id: b, segments });
   }
