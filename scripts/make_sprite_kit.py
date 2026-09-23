@@ -14,9 +14,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-SKIN = ROOT / "skins" / "misima-hybrid"
-SRC = SKIN / "sprites"
-PUBLIC = ROOT / "app" / "public" / "sprite"
+SKIN = ROOT / "app" / "public" / "sprite" / "skin.json"  # SINGLE source of truth
 
 CANVAS_W, CANVAS_H = 1500, 2060
 SCALE = 2

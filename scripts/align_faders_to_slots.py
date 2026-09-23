@@ -2,8 +2,8 @@ import json
 from pathlib import Path
 
 REPO = Path(r"C:\Users\schra\Developer\misima-hybrid-winamp\.worktrees\skinnable-player-mvp")
-SKIN = REPO / "skins/misima-hybrid/skin.json"
-PUB = REPO / "app/public/sprite/skin.json"
+SKIN = REPO / "app/public/sprite/skin.json"
+PUB = SKIN
 
 # EXACT X from UI_elements.png (match score 0) — never use bg slot X (those shift right)
 # maxY = track top (unique), travel = stroke, value = your default poses
