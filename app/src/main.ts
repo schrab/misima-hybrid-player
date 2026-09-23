@@ -227,8 +227,10 @@ function render(_time: number) {
     const row = playlist[r];
     const y = pl.origin.y + r * pl.rowHeight;
     font?.draw(ctx, row.id === activeId ? "*" : " ", pl.origin.x, y, 20);
+    // number + first 6 letters of name (as in art)
     font?.draw(ctx, String(r + 1).padStart(2, "0"), colX[0], y, pl.columns[0].width);
-    font?.draw(ctx, row.title.toUpperCase().slice(0, 28), colX[1], y, pl.columns[1].width);
+    const name6 = row.title.replace(/\.[^.]+$/, "").slice(0, 6).toUpperCase();
+    font?.draw(ctx, name6, colX[1], y, pl.columns[1].width);
     const dur = row.duration ?? "";
     const durW = font?.measure(dur) ?? 40;
     const col = pl.columns[2];
