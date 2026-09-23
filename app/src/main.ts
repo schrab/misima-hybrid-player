@@ -26,7 +26,8 @@ const canvas = document.getElementById("ui") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
 
 let skin: SkinManifestV2;
-let font: BitmapFont;
+/** Cryptic bitmap glyphs — decorative only; functional text uses canvas font. */
+let font: BitmapFont | null = null;
 const images = new Map<string, HTMLImageElement>();
 let bg: HTMLImageElement | null = null;
 
@@ -222,17 +223,22 @@ function render(_time: number) {
   ctx.beginPath();
   ctx.rect(pl.origin.x, pl.origin.y, box.w, box.h);
   ctx.clip();
+  ctx.font = "20px monospace";
+  ctx.textBaseline = "top";
   for (let r = 0; r < pl.rows && r < playlist.length; r++) {
     const row = playlist[r];
-    const y = pl.origin.y + r * pl.rowHeight;
-    font.draw(ctx, row.id === activeId ? "*" : " ", pl.origin.x, y, 20);
-    font.draw(ctx, String(r + 1).padStart(2, "0"), colX[0], y, pl.columns[0].width);
-    font.draw(ctx, row.title.toUpperCase().slice(0, 28), colX[1], y, pl.columns[1].width);
-    const dur = row.duration ?? "";
-    const durW = font.measure(dur);
-    const col = pl.columns[2];
-    const dx = col.align === "right" ? colX[2] + col.width - durW : colX[2];
-    font.draw(ctx, dur, dx, y, col.width);
+    const y = pl.origin.y + r * pl.rowHeight + 4;
+    const active = row.id === activeId;
+    ctx.fillStyle = active ? "#3dffb5" : "#c8f5e4";
+    const mark = active ? ">" : " ";
+    const num = String(r + 1).padStart(2, "0");
+    const title = row.title.replace(/\.[^.]+$/, "").slice(0, 28);
+    const dur = row.duration ?? "--:--";
+    ctx.fillText(mark + num, pl.origin.x, y);
+    ctx.fillText(title, pl.origin.x + 56, y);
+    ctx.textAlign = "right";
+    ctx.fillText(dur, pl.origin.x + box.w - 8, y);
+    ctx.textAlign = "left";
   }
   ctx.restore();
   // Status / errors — plain canvas text (always readable)
@@ -411,7 +417,7 @@ async function init() {
       if (n) images.set(b.frames.normal, n);
     }
   }
-  font = await loadFont({ ...skin.text.font, atlas: resolve(skin.text.font.atlas) }, "");
+  font = await loadFont({ ...skin.text.font, atlas: resolve(skin.text.font.atlas) }, "").catch(() => null);
 
   canvas.width = skin.canvas.width;
   canvas.height = skin.canvas.height;
