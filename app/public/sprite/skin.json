@@ -26,7 +26,7 @@
       "param": "volume",
       "orientation": "vertical",
       "origin": {
-        "x": 560,
+        "x": 515,
         "y": 930
       },
       "travel": 110,
@@ -47,10 +47,10 @@
       "param": "pitch",
       "orientation": "vertical",
       "origin": {
-        "x": 611,
-        "y": 890
+        "x": 571,
+        "y": 930
       },
-      "travel": 164,
+      "travel": 106,
       "knob": "ui/knob_pitch.png",
       "knobSize": {
         "w": 51,
@@ -68,10 +68,10 @@
       "param": "reverb",
       "orientation": "vertical",
       "origin": {
-        "x": 673,
-        "y": 904
+        "x": 628,
+        "y": 890
       },
-      "travel": 164,
+      "travel": 154,
       "knob": "ui/knob_reverb.png",
       "knobSize": {
         "w": 25,
@@ -89,10 +89,10 @@
       "param": "eq0",
       "orientation": "vertical",
       "origin": {
-        "x": 709,
-        "y": 868
+        "x": 664,
+        "y": 904
       },
-      "travel": 177,
+      "travel": 179,
       "knob": "ui/knob_eq_1.png",
       "knobSize": {
         "w": 49,
@@ -110,10 +110,10 @@
       "param": "eq1",
       "orientation": "vertical",
       "origin": {
-        "x": 769,
-        "y": 1018
+        "x": 719,
+        "y": 868
       },
-      "travel": 89,
+      "travel": 159,
       "knob": "ui/knob_eq_2.png",
       "knobSize": {
         "w": 41,
@@ -131,10 +131,10 @@
       "param": "eq2",
       "orientation": "vertical",
       "origin": {
-        "x": 811,
-        "y": 990
+        "x": 755,
+        "y": 1018
       },
-      "travel": 108,
+      "travel": 100,
       "knob": "ui/knob_eq_3.png",
       "knobSize": {
         "w": 49,
@@ -152,10 +152,10 @@
       "param": "eq3",
       "orientation": "vertical",
       "origin": {
-        "x": 860,
-        "y": 850
+        "x": 956,
+        "y": 856
       },
-      "travel": 196,
+      "travel": 309,
       "knob": "ui/knob_eq_4.png",
       "knobSize": {
         "w": 28,
@@ -173,10 +173,10 @@
       "param": "eq4",
       "orientation": "vertical",
       "origin": {
-        "x": 900,
-        "y": 855
+        "x": 856,
+        "y": 850
       },
-      "travel": 290,
+      "travel": 169,
       "knob": "ui/knob_eq_5.png",
       "knobSize": {
         "w": 47,
@@ -194,10 +194,10 @@
       "param": "eq5",
       "orientation": "vertical",
       "origin": {
-        "x": 950,
-        "y": 856
+        "x": 905,
+        "y": 855
       },
-      "travel": 280,
+      "travel": 288,
       "knob": "ui/knob_eq_6.png",
       "knobSize": {
         "w": 44,
@@ -215,10 +215,10 @@
       "param": "eq6",
       "orientation": "vertical",
       "origin": {
-        "x": 1008,
-        "y": 942
+        "x": 1127,
+        "y": 922
       },
-      "travel": 219,
+      "travel": 241,
       "knob": "ui/knob_eq_7.png",
       "knobSize": {
         "w": 25,
@@ -236,10 +236,10 @@
       "param": "eq7",
       "orientation": "vertical",
       "origin": {
-        "x": 1050,
-        "y": 854
+        "x": 1002,
+        "y": 942
       },
-      "travel": 292,
+      "travel": 193,
       "knob": "ui/knob_eq_8.png",
       "knobSize": {
         "w": 41,
@@ -257,10 +257,10 @@
       "param": "eq8",
       "orientation": "vertical",
       "origin": {
-        "x": 1102,
-        "y": 922
+        "x": 1042,
+        "y": 854
       },
-      "travel": 236,
+      "travel": 313,
       "knob": "ui/knob_eq_9.png",
       "knobSize": {
         "w": 52,
@@ -278,10 +278,10 @@
       "param": "eq9",
       "orientation": "vertical",
       "origin": {
-        "x": 1204,
-        "y": 965
+        "x": 1103,
+        "y": 922
       },
-      "travel": 190,
+      "travel": 239,
       "knob": "ui/knob_eq_10.png",
       "knobSize": {
         "w": 35,
@@ -299,10 +299,10 @@
       "param": "speed",
       "orientation": "vertical",
       "origin": {
-        "x": 1226,
-        "y": 936
+        "x": 1164,
+        "y": 965
       },
-      "travel": 140,
+      "travel": 183,
       "knob": "ui/knob_tempo.png",
       "knobSize": {
         "w": 100,

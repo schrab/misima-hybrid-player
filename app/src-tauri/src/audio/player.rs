@@ -172,6 +172,7 @@ fn device_sample_rate() -> u32 {
 }
 
 pub fn load_and_play(path: &Path) -> anyhow::Result<()> {
+    // Heavy: call from a worker thread (commands spawn), never the UI thread.
     let audio = decode_file(path)?;
     let shared = shared();
     let device_rate = device_sample_rate();

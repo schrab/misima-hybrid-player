@@ -10,12 +10,16 @@ pub fn open_files(paths: Vec<String>, state: State<'_, AppInner>) -> Result<usiz
     let mut pl = state.playlist.write();
     let before = pl.len();
     pl.add_paths(&paths);
-    // Best-effort duration via decode metadata (full decode skipped for speed on large files).
+    // Duration is optional and must not decode the whole file (UI freeze).
     for entry in pl.entries_mut()[before..].iter_mut() {
-        if let Ok(meta) = crate::audio::decoder::duration_hint(&std::path::Path::new(&entry.path)) {
-            let m = (meta / 60.0).floor() as u64;
-            let s = (meta % 60.0).floor() as u64;
-            entry.duration = Some(format!("{m:02}:{s:02}"));
+        if let Ok(meta) = crate::audio::decoder::duration_hint(std::path::Path::new(&entry.path)) {
+            if meta > 0.0 {
+                let m = (meta / 60.0).floor() as u64;
+                let s = (meta % 60.0).floor() as u64;
+                entry.duration = Some(format!("{m:02}:{s:02}"));
+            } else {
+                entry.duration = Some("--:--".into());
+            }
         }
     }
     Ok(pl.len() - before)
@@ -30,7 +34,19 @@ fn play_index_inner(state: &State<'_, AppInner>, index: usize) -> Result<Option<
     let Some(path) = path else {
         return Ok(None);
     };
-    player::load_and_play(PathBuf::from(&path).as_path()).map_err(|e| e.to_string())?;
+    // Decode off the command thread so the UI never freezes on large MP3s.
+    let handle = std::thread::spawn(move || {
+        player::load_and_play(std::path::Path::new(&path)).map_err(|e| e.to_string())
+    });
+    // Do not join here — stream starts when decode completes.
+    // Surface errors via a detached logger; UI stays responsive.
+    std::thread::spawn(move || {
+        match handle.join() {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => log::error!("load failed: {e}"),
+            Err(_) => log::error!("load thread panicked"),
+        }
+    });
     let id = state.playlist.read().current_id();
     Ok(id)
 }

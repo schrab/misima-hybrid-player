@@ -175,10 +175,33 @@ fn planar_to_interleaved(
     }
 }
 
-/// Cheap duration from headers when possible (full decode only if needed).
+/// Cheap duration: prefer container metadata; fall back without full decode.
 pub fn duration_hint(path: &Path) -> anyhow::Result<f64> {
-    let audio = decode_file(path)?;
-    Ok(audio.duration_secs())
+    // Full decode is too slow for open_files (UI freeze). Probe only.
+    let file = File::open(path)?;
+    let mss = MediaSourceStream::new(Box::new(file), Default::default());
+    let mut hint = Hint::new();
+    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+        hint.with_extension(ext);
+    }
+    let probed = symphonia::default::get_probe()
+        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())?;
+    let track = probed
+        .format
+        .tracks()
+        .iter()
+        .find(|t| t.codec_params.codec != CODEC_TYPE_NULL);
+    if let Some(t) = track {
+        if let (Some(sr), Some(n)) = (
+            t.codec_params.sample_rate,
+            t.codec_params.n_frames,
+        ) {
+            if sr > 0 {
+                return Ok(n as f64 / sr as f64);
+            }
+        }
+    }
+    Ok(0.0)
 }
 
 /// Generate a short mono sine WAV for tests.

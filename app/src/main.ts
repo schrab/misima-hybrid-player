@@ -85,6 +85,7 @@ async function action(name: string) {
       });
       if (!selected) return;
       const paths = Array.isArray(selected) ? selected : [selected];
+      status = "Adding…";
       await invoke("open_files", { paths });
       await pushPlaylist();
       status = `${paths.length} added`;

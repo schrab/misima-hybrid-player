@@ -4,8 +4,60 @@ import numpy as np
 from PIL import Image
 
 REPO = Path(r"C:\Users\schra\Developer\misima-hybrid-winamp\.worktrees\skinnable-player-mvp")
+MAIN = Path(r"C:\Users\schra\Developer\misima-hybrid-winamp")
+UI = REPO / "skins/misima-hybrid/sprites/ui"
+LAYER = np.asarray(Image.open(MAIN / "gfx/UI_elements.png").convert("RGBA"), dtype=np.float32)
 BG = np.asarray(Image.open(REPO / "skins/misima-hybrid/sprites/bg/bg.png").convert("RGBA"), dtype=np.float32)
 
+KNOBS = [
+    ("volume", "volume", "knob_volume.png", [0, 1], 0.8),
+    ("pitch", "pitch", "knob_pitch.png", [-12, 12], 0),
+    ("reverb", "reverb", "knob_reverb.png", [0, 1], 0.15),
+    ("eq1", "eq0", "knob_eq_1.png", [-12, 12], 0),
+    ("eq2", "eq1", "knob_eq_2.png", [-12, 12], 0),
+    ("eq3", "eq2", "knob_eq_3.png", [-12, 12], 0),
+    ("eq4", "eq3", "knob_eq_4.png", [-12, 12], 0),
+    ("eq5", "eq4", "knob_eq_5.png", [-12, 12], 0),
+    ("eq6", "eq5", "knob_eq_6.png", [-12, 12], 0),
+    ("eq7", "eq6", "knob_eq_7.png", [-12, 12], 0),
+    ("eq8", "eq7", "knob_eq_8.png", [-12, 12], 0),
+    ("eq9", "eq8", "knob_eq_9.png", [-12, 12], 0),
+    ("eq10", "eq9", "knob_eq_10.png", [-12, 12], 0),
+    ("tempo", "speed", "knob_tempo.png", [0.5, 2], 1.0),
+]
+
+
+def match(scene: np.ndarray, templ: np.ndarray) -> tuple[int, int]:
+    sh, sw = scene.shape[:2]
+    th, tw = templ.shape[:2]
+    sa = scene[:, :, 3] / 255.0
+    srgb = scene[:, :, :3]
+    ta = templ[:, :, 3] / 255.0
+    trgb = templ[:, :, :3]
+
+    def score_at(x: int, y: int) -> float:
+        m = sa[y : y + th, x : x + tw] * ta
+        if m.sum() < ta.sum() * 0.5:
+            return -1e9
+        d = np.abs(srgb[y : y + th, x : x + tw] - trgb) * m[:, :, None]
+        return -float(d.sum() / (m.sum() * 3 + 1e-6))
+
+    best = (0, 0, -1e18)
+    for y in range(0, sh - th + 1, 2):
+        for x in range(0, sw - tw + 1, 2):
+            s = score_at(x, y)
+            if s > best[2]:
+                best = (x, y, s)
+    bx, by = best[0], best[1]
+    for y in range(max(0, by - 2), min(sh - th, by + 3)):
+        for x in range(max(0, bx - 2), min(sw - tw, bx + 3)):
+            s = score_at(x, y)
+            if s > best[2]:
+                best = (x, y, s)
+    return best[0], best[1]
+
+
+# bg track spans by x
 rgb = BG[:, :, :3].mean(axis=2)
 alpha = BG[:, :, 3] / 255.0
 y0, y1 = 700, 1300
@@ -44,45 +96,72 @@ for t in cands:
         p["h"] = p["y1"] - p["y0"]
     else:
         slots.append(dict(t))
-slots.sort(key=lambda s: s["x"])
-print("slots L→R:")
-for s in slots:
-    print(f"  x={s['x']:4} y0={s['y0']} y1={s['y1']}")
+
+hits = []
+for fid, param, png, rng, val in KNOBS:
+    templ = np.asarray(Image.open(UI / png).convert("RGBA"), dtype=np.float32)
+    x, y = match(LAYER, templ)
+    tw, th = templ.shape[1], templ.shape[0]
+    # nearest slot to this knob (for track top/bottom only — X stays art X)
+    slot = min(slots, key=lambda s: abs(s["x"] - (x + tw // 2)))
+    hits.append(
+        {
+            "id": fid,
+            "param": param,
+            "knob": f"ui/{png}",
+            "range": rng,
+            "value": val,
+            "x": x,
+            "y_art": y,
+            "w": tw,
+            "h": th,
+            "track_y0": slot["y0"],
+            "track_y1": slot["y1"],
+        }
+    )
+    print(f"{fid:8} art=({x:4},{y:4}) track=({slot['y0']}-{slot['y1']}) w={tw} h={th}")
+
+# De-dupe X only if two knobs share nearly the same column (eq4/eq10 bug)
+hits.sort(key=lambda h: h["x"])
+for i in range(1, len(hits)):
+    if hits[i]["x"] - hits[i - 1]["x"] < 18:
+        hits[i]["x"] = hits[i - 1]["x"] + 24
+        print("nudge", hits[i]["id"], "to x", hits[i]["x"])
+
+# origin = TOP of travel (MAX). Art rest Y is often mid/bottom — do not use it as origin.
+faders = []
+by = {h["id"]: h for h in hits}
+for fid, param, png, rng, val in KNOBS:
+    h = by[fid]
+    top = h["track_y0"]
+    travel = max(60, h["track_y1"] - h["track_y0"] - h["h"])
+    faders.append(
+        {
+            "id": fid,
+            "param": param,
+            "orientation": "vertical",
+            "origin": {"x": h["x"], "y": top},
+            "travel": travel,
+            "knob": h["knob"],
+            "knobSize": {"w": h["w"], "h": h["h"]},
+            "knobHotspot": "top-left",
+            "range": rng,
+            "value": val,
+        }
+    )
+    print(f"FINAL {fid:8} origin=({h['x']},{top}) travel={travel}")
 
 skin_path = REPO / "skins/misima-hybrid/skin.json"
-pub_path = REPO / "app/public/sprite/skin.json"
+pub = REPO / "app/public/sprite/skin.json"
 skin = json.loads(skin_path.read_text())
-
-# Order: volume pitch reverb eq1..eq10 tempo  == 14 slots L→R
-order = [
-    "volume", "pitch", "reverb",
-    "eq1", "eq2", "eq3", "eq4", "eq5", "eq6", "eq7", "eq8", "eq9", "eq10",
-    "tempo",
-]
-by = {f["id"]: f for f in skin["faders"]}
-for i, fid in enumerate(order):
-    if i >= len(slots) or fid not in by:
-        continue
-    f = by[fid]
-    s = slots[i]
-    kw, kh = f["knobSize"]["w"], f["knobSize"]["h"]
-    f["origin"] = {"x": s["x"] - kw // 2, "y": s["y0"]}
-    f["travel"] = max(60, s["y1"] - s["y0"] - kh)
-    print(f"{fid:8} -> slot {i} x={s['x']} origin={f['origin']} travel={f['travel']}")
-
-skin["faders"] = [by[i] for i in order if i in by]
+skin["faders"] = faders
 skin["visuals"]["waterfall"] = {
     "origin": {"x": 0, "y": 0},
     "size": {"w": 0, "h": 0},
     "mode": "off",
     "color": "#3dffb5",
 }
-# Keep spectrum strictly in the TOP vis area (y < 700) so it cannot paint EQ
-for band in skin["visuals"]["spectrum"].get("bands") or []:
-    for seg in band.get("segments") or []:
-        if seg["origin"]["y"] > 700:
-            seg["origin"]["y"] = 585 - (seg.get("reveal", 0) * 200)
 text = json.dumps(skin, indent=2)
 skin_path.write_text(text)
-pub_path.write_text(text)
+pub.write_text(text)
 print("saved")
