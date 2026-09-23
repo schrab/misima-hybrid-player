@@ -25,6 +25,14 @@ pub fn open_files(paths: Vec<String>, state: State<'_, AppInner>) -> Result<usiz
     Ok(pl.len() - before)
 }
 
+fn spawn_load(path: String) {
+    std::thread::spawn(move || {
+        if let Err(e) = player::load_and_play(std::path::Path::new(&path)) {
+            log::error!("load failed: {e}");
+        }
+    });
+}
+
 fn play_index_inner(state: &State<'_, AppInner>, index: usize) -> Result<Option<u64>, String> {
     let path = {
         let mut pl = state.playlist.write();
@@ -34,11 +42,7 @@ fn play_index_inner(state: &State<'_, AppInner>, index: usize) -> Result<Option<
     let Some(path) = path else {
         return Ok(None);
     };
-    std::thread::spawn(move || {
-        if let Err(e) = player::load_and_play(std::path::Path::new(&path)) {
-            log::error!("load failed: {e}");
-        }
-    });
+    spawn_load(path);
     Ok(state.playlist.read().current_id())
 }
 
@@ -109,11 +113,7 @@ fn step_track(state: &State<'_, AppInner>, app: &AppHandle, delta: isize) -> Res
         pl.current_id()
     };
     if let Some(path) = state.playlist.read().current_path().map(|s| s.to_string()) {
-        std::thread::spawn(move || {
-            if let Err(e) = player::load_and_play(std::path::Path::new(&path)) {
-                log::error!("load failed: {e}");
-            }
-        });
+        spawn_load(path);
     }
     if let Some(id) = id {
         let _ = app.emit("track_changed", id);

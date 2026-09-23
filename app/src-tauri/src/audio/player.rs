@@ -51,6 +51,8 @@ pub struct SharedPlay {
     pub reverb_mix: Mutex<f32>,
     /// Fractional source frame index (device-rate buffer).
     pub play_pos: Mutex<f64>,
+    /// Bumped on stop so late decode must not autoplay.
+    pub load_gen: std::sync::atomic::AtomicUsize,
 }
 
 impl Default for SharedPlay {
@@ -74,6 +76,7 @@ impl Default for SharedPlay {
             reverb: Mutex::new(Reverb::default()),
             reverb_mix: Mutex::new(0.15),
             play_pos: Mutex::new(0.0),
+            load_gen: std::sync::atomic::AtomicUsize::new(0),
         }
     }
 }
@@ -171,10 +174,14 @@ fn device_sample_rate() -> u32 {
     44_100
 }
 
+/// Decode and start playback only if `gen` is still current (None = current at call).
 pub fn load_and_play(path: &Path) -> anyhow::Result<()> {
-    // Heavy: call from a worker thread (commands spawn), never the UI thread.
-    let audio = decode_file(path)?;
     let shared = shared();
+    let gen = shared.load_gen.load(Ordering::SeqCst);
+    let audio = decode_file(path)?;
+    if shared.load_gen.load(Ordering::SeqCst) != gen {
+        return Ok(()); // user stopped — do not autoplay
+    }
     let device_rate = device_sample_rate();
     shared.device_rate.store(device_rate as usize, Ordering::SeqCst);
 
@@ -225,6 +232,7 @@ pub fn stop() {
     shared.cursor.store(0, Ordering::SeqCst);
     *shared.play_pos.lock() = 0.0;
     shared.ended.store(false, Ordering::SeqCst);
+    shared.load_gen.fetch_add(1, Ordering::SeqCst);
 }
 
 pub fn seek_secs(secs: f64) {
