@@ -89,14 +89,22 @@ def write_skin_json() -> dict:
         ],
         "visuals": {
             "spectrum": {
-                "origin": {"x": 400, "y": 200},
-                "size": {"w": 900, "h": 400},
-                "bands": 10,
-                "cell": {"w": 64, "h": 12},
-                "frames": 12,
-                "sheet": "spectrum/sheet.png",
-                "align": "bottom",
-                "gapPx": 0,
+                "mode": "segments",
+                # Irregular hand-drawn segments: bands[i].segments[0] = bottom.
+                # Each segment has absolute top-left on the 2x artboard.
+                "bands": [
+                    {
+                        "id": i,
+                        "segments": [
+                            {
+                                "image": f"spectrum/band{i}_{j}.png",
+                                "origin": {"x": 420 + i * 90 + (j % 3), "y": 520 - j * 18},
+                            }
+                            for j in range(8)
+                        ],
+                    }
+                    for i in range(10)
+                ],
             },
             "waterfall": {
                 "origin": {"x": 120, "y": 200},
@@ -108,8 +116,41 @@ def write_skin_json() -> dict:
         "text": {
             "font": {
                 "atlas": "font/glyphs.png",
-                "cell": {"w": 10, "h": 18},
-                "map": json.loads((SRC / "font" / "glyphs.json").read_text(encoding="utf-8")),
+                "cell": {"w": 18, "h": 18},
+                "classes": {
+                    # digits ≈ square; letters 2:1 and slightly shorter — bottom-aligned
+                    "digit": {"cell": {"w": 18, "h": 18}, "baseline": "bottom", "atlasOrigin": {"x": 0, "y": 0}},
+                    "letter": {"cell": {"w": 36, "h": 14}, "baseline": "bottom", "atlasOrigin": {"x": 0, "y": 80}},
+                    "symbol": {"cell": {"w": 18, "h": 14}, "baseline": "bottom", "atlasOrigin": {"x": 0, "y": 36}},
+                },
+                "map": {
+                    "0": {"col": 0, "row": 0, "class": "digit"},
+                    "1": {"col": 1, "row": 0, "class": "digit"},
+                    "2": {"col": 2, "row": 0, "class": "digit"},
+                    "3": {"col": 3, "row": 0, "class": "digit"},
+                    "4": {"col": 4, "row": 0, "class": "digit"},
+                    "5": {"col": 5, "row": 0, "class": "digit"},
+                    "6": {"col": 6, "row": 0, "class": "digit"},
+                    "7": {"col": 7, "row": 0, "class": "digit"},
+                    "8": {"col": 8, "row": 0, "class": "digit"},
+                    "9": {"col": 9, "row": 0, "class": "digit"},
+                    " ": {"col": 0, "row": 3, "class": "symbol"},
+                    "-": {"col": 1, "row": 3, "class": "symbol"},
+                    ".": {"col": 2, "row": 3, "class": "symbol"},
+                    ":": {"col": 3, "row": 3, "class": "symbol"},
+                    "?": {"col": 4, "row": 3, "class": "symbol"},
+                }
+                | {
+                    # A–Z as wide letter cells (col 0..7 on letter grid rows 0..3)
+                    **{
+                        chr(ord("A") + i): {
+                            "col": i % 8,
+                            "row": 4 + (i // 8),
+                            "class": "letter",
+                        }
+                        for i in range(26)
+                    }
+                },
                 "fallback": "?",
             },
             "playlist": {
@@ -160,11 +201,71 @@ def pack() -> None:
                 zf.write(p, p.relative_to(SKIN).as_posix())
 
 
+def write_placeholder_segments() -> None:
+    """Irregular organic segment placeholders (replace with hand-drawn pieces)."""
+    from PIL import Image, ImageDraw
+
+    out = SRC / "spectrum"
+    out.mkdir(parents=True, exist_ok=True)
+    for band in range(10):
+        # Different heights per band (taller mid bands, like the sketch)
+        n = 8 + (band % 3)
+        w = 70 + (band % 4) * 8
+        for j in range(n):
+            h = 14 + (j * 2) + (band % 2) * 3
+            img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            d = ImageDraw.Draw(img)
+            # irregular polygon — not a rectangle
+            pts = [
+                (2, h - 2),
+                (w - 3, h - 4),
+                (w - 2, 2),
+                (w // 2, 1),
+                (1, 4),
+            ]
+            e = j / max(1, n - 1)
+            col = (
+                int(60 + 80 * e),
+                int(180 + 60 * e),
+                int(200 - 80 * e),
+                230,
+            )
+            d.polygon(pts, fill=col, outline=(255, 255, 255, 40))
+            img.save(out / f"band{band}_{j}.png")
+
+
+def write_font_atlas() -> None:
+    """Placeholder atlas: digits (square), letters (2:1 shorter), symbols."""
+    from PIL import Image, ImageDraw
+
+    # Layout: rows 0-1 digits 18x18 at (0,0); symbols; letters 36x14 from y=80
+    atlas = Image.new("RGBA", (400, 140), (0, 0, 0, 0))
+    d = ImageDraw.Draw(atlas)
+    # digits 0-9
+    for i in range(10):
+        x, y = i * 18, 0
+        d.rectangle([x + 1, y + 1, x + 16, y + 16], outline=(61, 255, 181, 200), width=1)
+        d.text((x + 5, y + 3), str(i), fill=(255, 79, 216, 255))
+    # symbols
+    for i, s in enumerate([" ", "-", ".", ":", "?"]):
+        x, y = i * 18, 36
+        d.rectangle([x + 1, y + 1, x + 16, y + 32], outline=(94, 200, 255, 120))
+    # letters 36x14 (2:1, shorter) at y=80
+    for i in range(26):
+        col, row = i % 8, i // 8
+        x, y = col * 36, 80 + row * 14
+        d.rectangle([x, y, x + 35, y + 13], outline=(61, 255, 181, 180), width=1)
+        d.text((x + 2, y + 1), chr(ord("A") + i), fill=(61, 255, 181, 220))
+    atlas.save(SRC / "font" / "glyphs.png")
+
+
 def main() -> None:
+    write_placeholder_segments()
+    write_font_atlas()
     write_skin_json()
     copy_public()
     pack()
-    print("skin.json v2 (2x artboard) + public/sprite synced from real assets")
+    print("skin.json v2 (irregular spectrum + font classes) synced")
 
 
 if __name__ == "__main__":

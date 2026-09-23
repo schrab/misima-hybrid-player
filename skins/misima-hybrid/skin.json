@@ -455,23 +455,619 @@
   ],
   "visuals": {
     "spectrum": {
-      "origin": {
-        "x": 400,
-        "y": 200
-      },
-      "size": {
-        "w": 900,
-        "h": 400
-      },
-      "bands": 10,
-      "cell": {
-        "w": 64,
-        "h": 12
-      },
-      "frames": 12,
-      "sheet": "spectrum/sheet.png",
-      "align": "bottom",
-      "gapPx": 0
+      "mode": "segments",
+      "bands": [
+        {
+          "id": 0,
+          "segments": [
+            {
+              "image": "spectrum/band0_0.png",
+              "origin": {
+                "x": 420,
+                "y": 520
+              }
+            },
+            {
+              "image": "spectrum/band0_1.png",
+              "origin": {
+                "x": 421,
+                "y": 502
+              }
+            },
+            {
+              "image": "spectrum/band0_2.png",
+              "origin": {
+                "x": 422,
+                "y": 484
+              }
+            },
+            {
+              "image": "spectrum/band0_3.png",
+              "origin": {
+                "x": 420,
+                "y": 466
+              }
+            },
+            {
+              "image": "spectrum/band0_4.png",
+              "origin": {
+                "x": 421,
+                "y": 448
+              }
+            },
+            {
+              "image": "spectrum/band0_5.png",
+              "origin": {
+                "x": 422,
+                "y": 430
+              }
+            },
+            {
+              "image": "spectrum/band0_6.png",
+              "origin": {
+                "x": 420,
+                "y": 412
+              }
+            },
+            {
+              "image": "spectrum/band0_7.png",
+              "origin": {
+                "x": 421,
+                "y": 394
+              }
+            }
+          ]
+        },
+        {
+          "id": 1,
+          "segments": [
+            {
+              "image": "spectrum/band1_0.png",
+              "origin": {
+                "x": 510,
+                "y": 520
+              }
+            },
+            {
+              "image": "spectrum/band1_1.png",
+              "origin": {
+                "x": 511,
+                "y": 502
+              }
+            },
+            {
+              "image": "spectrum/band1_2.png",
+              "origin": {
+                "x": 512,
+                "y": 484
+              }
+            },
+            {
+              "image": "spectrum/band1_3.png",
+              "origin": {
+                "x": 510,
+                "y": 466
+              }
+            },
+            {
+              "image": "spectrum/band1_4.png",
+              "origin": {
+                "x": 511,
+                "y": 448
+              }
+            },
+            {
+              "image": "spectrum/band1_5.png",
+              "origin": {
+                "x": 512,
+                "y": 430
+              }
+            },
+            {
+              "image": "spectrum/band1_6.png",
+              "origin": {
+                "x": 510,
+                "y": 412
+              }
+            },
+            {
+              "image": "spectrum/band1_7.png",
+              "origin": {
+                "x": 511,
+                "y": 394
+              }
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "segments": [
+            {
+              "image": "spectrum/band2_0.png",
+              "origin": {
+                "x": 600,
+                "y": 520
+              }
+            },
+            {
+              "image": "spectrum/band2_1.png",
+              "origin": {
+                "x": 601,
+                "y": 502
+              }
+            },
+            {
+              "image": "spectrum/band2_2.png",
+              "origin": {
+                "x": 602,
+                "y": 484
+              }
+            },
+            {
+              "image": "spectrum/band2_3.png",
+              "origin": {
+                "x": 600,
+                "y": 466
+              }
+            },
+            {
+              "image": "spectrum/band2_4.png",
+              "origin": {
+                "x": 601,
+                "y": 448
+              }
+            },
+            {
+              "image": "spectrum/band2_5.png",
+              "origin": {
+                "x": 602,
+                "y": 430
+              }
+            },
+            {
+              "image": "spectrum/band2_6.png",
+              "origin": {
+                "x": 600,
+                "y": 412
+              }
+            },
+            {
+              "image": "spectrum/band2_7.png",
+              "origin": {
+                "x": 601,
+                "y": 394
+              }
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "segments": [
+            {
+              "image": "spectrum/band3_0.png",
+              "origin": {
+                "x": 690,
+                "y": 520
+              }
+            },
+            {
+              "image": "spectrum/band3_1.png",
+              "origin": {
+                "x": 691,
+                "y": 502
+              }
+            },
+            {
+              "image": "spectrum/band3_2.png",
+              "origin": {
+                "x": 692,
+                "y": 484
+              }
+            },
+            {
+              "image": "spectrum/band3_3.png",
+              "origin": {
+                "x": 690,
+                "y": 466
+              }
+            },
+            {
+              "image": "spectrum/band3_4.png",
+              "origin": {
+                "x": 691,
+                "y": 448
+              }
+            },
+            {
+              "image": "spectrum/band3_5.png",
+              "origin": {
+                "x": 692,
+                "y": 430
+              }
+            },
+            {
+              "image": "spectrum/band3_6.png",
+              "origin": {
+                "x": 690,
+                "y": 412
+              }
+            },
+            {
+              "image": "spectrum/band3_7.png",
+              "origin": {
+                "x": 691,
+                "y": 394
+              }
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "segments": [
+            {
+              "image": "spectrum/band4_0.png",
+              "origin": {
+                "x": 780,
+                "y": 520
+              }
+            },
+            {
+              "image": "spectrum/band4_1.png",
+              "origin": {
+                "x": 781,
+                "y": 502
+              }
+            },
+            {
+              "image": "spectrum/band4_2.png",
+              "origin": {
+                "x": 782,
+                "y": 484
+              }
+            },
+            {
+              "image": "spectrum/band4_3.png",
+              "origin": {
+                "x": 780,
+                "y": 466
+              }
+            },
+            {
+              "image": "spectrum/band4_4.png",
+              "origin": {
+                "x": 781,
+                "y": 448
+              }
+            },
+            {
+              "image": "spectrum/band4_5.png",
+              "origin": {
+                "x": 782,
+                "y": 430
+              }
+            },
+            {
+              "image": "spectrum/band4_6.png",
+              "origin": {
+                "x": 780,
+                "y": 412
+              }
+            },
+            {
+              "image": "spectrum/band4_7.png",
+              "origin": {
+                "x": 781,
+                "y": 394
+              }
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "segments": [
+            {
+              "image": "spectrum/band5_0.png",
+              "origin": {
+                "x": 870,
+                "y": 520
+              }
+            },
+            {
+              "image": "spectrum/band5_1.png",
+              "origin": {
+                "x": 871,
+                "y": 502
+              }
+            },
+            {
+              "image": "spectrum/band5_2.png",
+              "origin": {
+                "x": 872,
+                "y": 484
+              }
+            },
+            {
+              "image": "spectrum/band5_3.png",
+              "origin": {
+                "x": 870,
+                "y": 466
+              }
+            },
+            {
+              "image": "spectrum/band5_4.png",
+              "origin": {
+                "x": 871,
+                "y": 448
+              }
+            },
+            {
+              "image": "spectrum/band5_5.png",
+              "origin": {
+                "x": 872,
+                "y": 430
+              }
+            },
+            {
+              "image": "spectrum/band5_6.png",
+              "origin": {
+                "x": 870,
+                "y": 412
+              }
+            },
+            {
+              "image": "spectrum/band5_7.png",
+              "origin": {
+                "x": 871,
+                "y": 394
+              }
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "segments": [
+            {
+              "image": "spectrum/band6_0.png",
+              "origin": {
+                "x": 960,
+                "y": 520
+              }
+            },
+            {
+              "image": "spectrum/band6_1.png",
+              "origin": {
+                "x": 961,
+                "y": 502
+              }
+            },
+            {
+              "image": "spectrum/band6_2.png",
+              "origin": {
+                "x": 962,
+                "y": 484
+              }
+            },
+            {
+              "image": "spectrum/band6_3.png",
+              "origin": {
+                "x": 960,
+                "y": 466
+              }
+            },
+            {
+              "image": "spectrum/band6_4.png",
+              "origin": {
+                "x": 961,
+                "y": 448
+              }
+            },
+            {
+              "image": "spectrum/band6_5.png",
+              "origin": {
+                "x": 962,
+                "y": 430
+              }
+            },
+            {
+              "image": "spectrum/band6_6.png",
+              "origin": {
+                "x": 960,
+                "y": 412
+              }
+            },
+            {
+              "image": "spectrum/band6_7.png",
+              "origin": {
+                "x": 961,
+                "y": 394
+              }
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "segments": [
+            {
+              "image": "spectrum/band7_0.png",
+              "origin": {
+                "x": 1050,
+                "y": 520
+              }
+            },
+            {
+              "image": "spectrum/band7_1.png",
+              "origin": {
+                "x": 1051,
+                "y": 502
+              }
+            },
+            {
+              "image": "spectrum/band7_2.png",
+              "origin": {
+                "x": 1052,
+                "y": 484
+              }
+            },
+            {
+              "image": "spectrum/band7_3.png",
+              "origin": {
+                "x": 1050,
+                "y": 466
+              }
+            },
+            {
+              "image": "spectrum/band7_4.png",
+              "origin": {
+                "x": 1051,
+                "y": 448
+              }
+            },
+            {
+              "image": "spectrum/band7_5.png",
+              "origin": {
+                "x": 1052,
+                "y": 430
+              }
+            },
+            {
+              "image": "spectrum/band7_6.png",
+              "origin": {
+                "x": 1050,
+                "y": 412
+              }
+            },
+            {
+              "image": "spectrum/band7_7.png",
+              "origin": {
+                "x": 1051,
+                "y": 394
+              }
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "segments": [
+            {
+              "image": "spectrum/band8_0.png",
+              "origin": {
+                "x": 1140,
+                "y": 520
+              }
+            },
+            {
+              "image": "spectrum/band8_1.png",
+              "origin": {
+                "x": 1141,
+                "y": 502
+              }
+            },
+            {
+              "image": "spectrum/band8_2.png",
+              "origin": {
+                "x": 1142,
+                "y": 484
+              }
+            },
+            {
+              "image": "spectrum/band8_3.png",
+              "origin": {
+                "x": 1140,
+                "y": 466
+              }
+            },
+            {
+              "image": "spectrum/band8_4.png",
+              "origin": {
+                "x": 1141,
+                "y": 448
+              }
+            },
+            {
+              "image": "spectrum/band8_5.png",
+              "origin": {
+                "x": 1142,
+                "y": 430
+              }
+            },
+            {
+              "image": "spectrum/band8_6.png",
+              "origin": {
+                "x": 1140,
+                "y": 412
+              }
+            },
+            {
+              "image": "spectrum/band8_7.png",
+              "origin": {
+                "x": 1141,
+                "y": 394
+              }
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "segments": [
+            {
+              "image": "spectrum/band9_0.png",
+              "origin": {
+                "x": 1230,
+                "y": 520
+              }
+            },
+            {
+              "image": "spectrum/band9_1.png",
+              "origin": {
+                "x": 1231,
+                "y": 502
+              }
+            },
+            {
+              "image": "spectrum/band9_2.png",
+              "origin": {
+                "x": 1232,
+                "y": 484
+              }
+            },
+            {
+              "image": "spectrum/band9_3.png",
+              "origin": {
+                "x": 1230,
+                "y": 466
+              }
+            },
+            {
+              "image": "spectrum/band9_4.png",
+              "origin": {
+                "x": 1231,
+                "y": 448
+              }
+            },
+            {
+              "image": "spectrum/band9_5.png",
+              "origin": {
+                "x": 1232,
+                "y": 430
+              }
+            },
+            {
+              "image": "spectrum/band9_6.png",
+              "origin": {
+                "x": 1230,
+                "y": 412
+              }
+            },
+            {
+              "image": "spectrum/band9_7.png",
+              "origin": {
+                "x": 1231,
+                "y": 394
+              }
+            }
+          ]
+        }
+      ]
     },
     "waterfall": {
       "origin": {
@@ -490,306 +1086,250 @@
     "font": {
       "atlas": "font/glyphs.png",
       "cell": {
-        "w": 10,
+        "w": 18,
         "h": 18
       },
+      "classes": {
+        "digit": {
+          "cell": {
+            "w": 18,
+            "h": 18
+          },
+          "baseline": "bottom",
+          "atlasOrigin": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        "letter": {
+          "cell": {
+            "w": 36,
+            "h": 14
+          },
+          "baseline": "bottom",
+          "atlasOrigin": {
+            "x": 0,
+            "y": 80
+          }
+        },
+        "symbol": {
+          "cell": {
+            "w": 18,
+            "h": 14
+          },
+          "baseline": "bottom",
+          "atlasOrigin": {
+            "x": 0,
+            "y": 36
+          }
+        }
+      },
       "map": {
-        "A": [
-          0,
-          0
-        ],
-        "a": [
-          0,
-          0
-        ],
-        "B": [
-          1,
-          0
-        ],
-        "b": [
-          1,
-          0
-        ],
-        "C": [
-          2,
-          0
-        ],
-        "c": [
-          2,
-          0
-        ],
-        "D": [
-          3,
-          0
-        ],
-        "d": [
-          3,
-          0
-        ],
-        "E": [
-          4,
-          0
-        ],
-        "e": [
-          4,
-          0
-        ],
-        "F": [
-          5,
-          0
-        ],
-        "f": [
-          5,
-          0
-        ],
-        "G": [
-          6,
-          0
-        ],
-        "g": [
-          6,
-          0
-        ],
-        "H": [
-          7,
-          0
-        ],
-        "h": [
-          7,
-          0
-        ],
-        "I": [
-          8,
-          0
-        ],
-        "i": [
-          8,
-          0
-        ],
-        "J": [
-          9,
-          0
-        ],
-        "j": [
-          9,
-          0
-        ],
-        "K": [
-          10,
-          0
-        ],
-        "k": [
-          10,
-          0
-        ],
-        "L": [
-          11,
-          0
-        ],
-        "l": [
-          11,
-          0
-        ],
-        "M": [
-          12,
-          0
-        ],
-        "m": [
-          12,
-          0
-        ],
-        "N": [
-          13,
-          0
-        ],
-        "n": [
-          13,
-          0
-        ],
-        "O": [
-          14,
-          0
-        ],
-        "o": [
-          14,
-          0
-        ],
-        "P": [
-          15,
-          0
-        ],
-        "p": [
-          15,
-          0
-        ],
-        "Q": [
-          16,
-          0
-        ],
-        "q": [
-          16,
-          0
-        ],
-        "R": [
-          17,
-          0
-        ],
-        "r": [
-          17,
-          0
-        ],
-        "S": [
-          18,
-          0
-        ],
-        "s": [
-          18,
-          0
-        ],
-        "T": [
-          19,
-          0
-        ],
-        "t": [
-          19,
-          0
-        ],
-        "U": [
-          20,
-          0
-        ],
-        "u": [
-          20,
-          0
-        ],
-        "V": [
-          21,
-          0
-        ],
-        "v": [
-          21,
-          0
-        ],
-        "W": [
-          22,
-          0
-        ],
-        "w": [
-          22,
-          0
-        ],
-        "X": [
-          23,
-          0
-        ],
-        "x": [
-          23,
-          0
-        ],
-        "Y": [
-          24,
-          0
-        ],
-        "y": [
-          24,
-          0
-        ],
-        "Z": [
-          25,
-          0
-        ],
-        "z": [
-          25,
-          0
-        ],
-        "0": [
-          26,
-          0
-        ],
-        "1": [
-          27,
-          0
-        ],
-        "2": [
-          28,
-          0
-        ],
-        "3": [
-          29,
-          0
-        ],
-        "4": [
-          30,
-          0
-        ],
-        "5": [
-          31,
-          0
-        ],
-        "6": [
-          0,
-          1
-        ],
-        "7": [
-          1,
-          1
-        ],
-        "8": [
-          2,
-          1
-        ],
-        "9": [
-          3,
-          1
-        ],
-        " ": [
-          4,
-          1
-        ],
-        ".": [
-          5,
-          1
-        ],
-        "-": [
-          6,
-          1
-        ],
-        ":": [
-          7,
-          1
-        ],
-        "+": [
-          8,
-          1
-        ],
-        "*": [
-          9,
-          1
-        ],
-        "#": [
-          10,
-          1
-        ],
-        "_": [
-          11,
-          1
-        ],
-        "[": [
-          12,
-          1
-        ],
-        "]": [
-          13,
-          1
-        ],
-        "(": [
-          14,
-          1
-        ],
-        ")": [
-          15,
-          1
-        ]
+        "0": {
+          "col": 0,
+          "row": 0,
+          "class": "digit"
+        },
+        "1": {
+          "col": 1,
+          "row": 0,
+          "class": "digit"
+        },
+        "2": {
+          "col": 2,
+          "row": 0,
+          "class": "digit"
+        },
+        "3": {
+          "col": 3,
+          "row": 0,
+          "class": "digit"
+        },
+        "4": {
+          "col": 4,
+          "row": 0,
+          "class": "digit"
+        },
+        "5": {
+          "col": 5,
+          "row": 0,
+          "class": "digit"
+        },
+        "6": {
+          "col": 6,
+          "row": 0,
+          "class": "digit"
+        },
+        "7": {
+          "col": 7,
+          "row": 0,
+          "class": "digit"
+        },
+        "8": {
+          "col": 8,
+          "row": 0,
+          "class": "digit"
+        },
+        "9": {
+          "col": 9,
+          "row": 0,
+          "class": "digit"
+        },
+        " ": {
+          "col": 0,
+          "row": 3,
+          "class": "symbol"
+        },
+        "-": {
+          "col": 1,
+          "row": 3,
+          "class": "symbol"
+        },
+        ".": {
+          "col": 2,
+          "row": 3,
+          "class": "symbol"
+        },
+        ":": {
+          "col": 3,
+          "row": 3,
+          "class": "symbol"
+        },
+        "?": {
+          "col": 4,
+          "row": 3,
+          "class": "symbol"
+        },
+        "A": {
+          "col": 0,
+          "row": 4,
+          "class": "letter"
+        },
+        "B": {
+          "col": 1,
+          "row": 4,
+          "class": "letter"
+        },
+        "C": {
+          "col": 2,
+          "row": 4,
+          "class": "letter"
+        },
+        "D": {
+          "col": 3,
+          "row": 4,
+          "class": "letter"
+        },
+        "E": {
+          "col": 4,
+          "row": 4,
+          "class": "letter"
+        },
+        "F": {
+          "col": 5,
+          "row": 4,
+          "class": "letter"
+        },
+        "G": {
+          "col": 6,
+          "row": 4,
+          "class": "letter"
+        },
+        "H": {
+          "col": 7,
+          "row": 4,
+          "class": "letter"
+        },
+        "I": {
+          "col": 0,
+          "row": 5,
+          "class": "letter"
+        },
+        "J": {
+          "col": 1,
+          "row": 5,
+          "class": "letter"
+        },
+        "K": {
+          "col": 2,
+          "row": 5,
+          "class": "letter"
+        },
+        "L": {
+          "col": 3,
+          "row": 5,
+          "class": "letter"
+        },
+        "M": {
+          "col": 4,
+          "row": 5,
+          "class": "letter"
+        },
+        "N": {
+          "col": 5,
+          "row": 5,
+          "class": "letter"
+        },
+        "O": {
+          "col": 6,
+          "row": 5,
+          "class": "letter"
+        },
+        "P": {
+          "col": 7,
+          "row": 5,
+          "class": "letter"
+        },
+        "Q": {
+          "col": 0,
+          "row": 6,
+          "class": "letter"
+        },
+        "R": {
+          "col": 1,
+          "row": 6,
+          "class": "letter"
+        },
+        "S": {
+          "col": 2,
+          "row": 6,
+          "class": "letter"
+        },
+        "T": {
+          "col": 3,
+          "row": 6,
+          "class": "letter"
+        },
+        "U": {
+          "col": 4,
+          "row": 6,
+          "class": "letter"
+        },
+        "V": {
+          "col": 5,
+          "row": 6,
+          "class": "letter"
+        },
+        "W": {
+          "col": 6,
+          "row": 6,
+          "class": "letter"
+        },
+        "X": {
+          "col": 7,
+          "row": 6,
+          "class": "letter"
+        },
+        "Y": {
+          "col": 0,
+          "row": 7,
+          "class": "letter"
+        },
+        "Z": {
+          "col": 1,
+          "row": 7,
+          "class": "letter"
+        }
       },
       "fallback": "?"
     },

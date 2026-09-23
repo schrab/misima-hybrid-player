@@ -1,37 +1,53 @@
-import type { SkinManifestV2, XY } from "./types";
+import type { SpectrumBand, SkinManifestV2, XY } from "./types";
 import { loadImage } from "./layout";
 
-/** 10-band spectrum using a cell sheet: row 0 empty … row frames-1 full. */
-export function drawSpectrum(
+/**
+ * Irregular spectrum: each band is a stack of hand-drawn (non-rect) segment PNGs.
+ * segments[0] is the BOTTOM piece (lights first). Reveals by energy 0..1.
+ */
+export function drawSpectrumSegments(
   ctx: CanvasRenderingContext2D,
-  sheet: HTMLImageElement,
-  spec: SkinManifestV2["visuals"]["spectrum"],
-  bands: Float32Array | number[],
+  images: Map<string, HTMLImageElement>,
+  bands: SpectrumBand[],
+  energies: Float32Array | number[],
 ) {
-  const n = spec.bands;
-  const { w: cw, h: ch } = spec.cell;
-  const frames = spec.frames;
-  const bandW = spec.size.w / n;
-  const maxStack = Math.floor(spec.size.h / ch);
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(spec.origin.x, spec.origin.y, spec.size.w, spec.size.h);
-  ctx.clip();
-  for (let i = 0; i < n; i++) {
-    const energy = Math.min(1, Math.max(0, bands[i] ?? 0));
-    const lit = Math.max(energy > 0.02 ? 1 : 0, Math.round(energy * maxStack));
-    for (let k = 0; k < lit; k++) {
-      const dx = spec.origin.x + i * bandW + (bandW - cw) / 2;
-      const dy = spec.origin.y + spec.size.h - (k + 1) * ch;
-      const cellE = (k + 1) / maxStack;
-      const cellFrame = Math.max(1, Math.floor(cellE * (frames - 1)));
-      ctx.drawImage(sheet, i * cw, cellFrame * ch, cw, ch, dx, dy, cw, ch);
+  for (let b = 0; b < bands.length; b++) {
+    const band = bands[b];
+    const e = Math.min(1, Math.max(0, energies[b] ?? 0));
+    const n = band.segments.length;
+    if (n === 0) continue;
+    // How many segments lit: at least 1 when energy > 0
+    const lit = e <= 0.002 ? 0 : Math.max(1, Math.round(e * n));
+    for (let i = 0; i < lit && i < n; i++) {
+      const seg = band.segments[i];
+      const img = images.get(seg.image);
+      if (!img) continue;
+      const w = seg.size?.w ?? img.width;
+      const h = seg.size?.h ?? img.height;
+      const ox = seg.origin.x + (band.origin?.x ?? 0) - (band.origin?.x ?? 0);
+      const oy = seg.origin.y + (band.origin?.y ?? 0) - (band.origin?.y ?? 0);
+      ctx.drawImage(img, seg.origin.x, seg.origin.y, w, h);
+      void ox;
+      void oy;
     }
   }
+}
+
+/** Clip helper if a band region must stay clean. */
+export function clipSpectrumRegion(
+  ctx: CanvasRenderingContext2D,
+  origin: XY,
+  size: { w: number; h: number },
+  fn: () => void,
+) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(origin.x, origin.y, size.w, size.h);
+  ctx.clip();
+  fn();
   ctx.restore();
 }
 
-/** Generative phase / pseudo-3D waterfall inside a rect. */
 export function drawWaterfall(
   ctx: CanvasRenderingContext2D,
   spec: SkinManifestV2["visuals"]["waterfall"],
@@ -57,7 +73,7 @@ export function drawWaterfall(
     ctx.beginPath();
     for (let c = 0; c <= cols; c++) {
       const t = c / cols;
-      const bi = Math.floor(t * (bands.length - 1));
+      const bi = Math.floor(t * Math.max(1, bands.length - 1));
       const e = bands[bi] ?? 0;
       const px = x + 12 + t * (w - 24) * scale + (w * (1 - scale)) / 2;
       const py = yy - e * 36 * scale + wob;
@@ -65,18 +81,21 @@ export function drawWaterfall(
       else ctx.lineTo(px, py);
     }
     const a = 0.15 + depth * 0.55;
-    ctx.strokeStyle = `rgba(61,255,181,${a})`;
+    ctx.strokeStyle = spec.color
+      ? hexToRgba(spec.color, a)
+      : `rgba(61,255,181,${a})`;
     ctx.lineWidth = 1;
     ctx.stroke();
   }
-  ctx.strokeStyle = "rgba(94,200,255,0.35)";
-  ctx.beginPath();
-  ctx.moveTo(x + w / 2, y + 8);
-  ctx.lineTo(x + w / 2, y + h - 8);
-  ctx.moveTo(x + 8, y + h / 2);
-  ctx.lineTo(x + w - 8, y + h / 2);
-  ctx.stroke();
   ctx.restore();
+}
+
+function hexToRgba(hex: string, a: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${a})`;
 }
 
 export async function loadSpectrumSheet(url: string): Promise<HTMLImageElement> {

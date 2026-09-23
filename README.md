@@ -97,6 +97,59 @@ Per-control **knob sizes and travels are independent** (your PNGs already differ
 
 Buttons: **idle state is only in `bg.png`**. Separate `button_*.png` are **active/pressed overlays** at the same `origin`.
 
+### Spectrum (irregular segments)
+
+Not a rectangular grid. Each of **10 bands** is a stack of **hand-drawn PNG segments** (any silhouette):
+
+```json
+"visuals": {
+  "spectrum": {
+    "mode": "segments",
+    "bands": [
+      {
+        "id": 0,
+        "segments": [
+          { "image": "spectrum/band0_0.png", "origin": { "x": 420, "y": 520 } },
+          { "image": "spectrum/band0_1.png", "origin": { "x": 418, "y": 500 } }
+        ]
+      }
+    ]
+  }
+}
+```
+
+- `segments[0]` = **bottom** piece (first to light).
+- `origin` = **top-left of that segment PNG** on the 2× artboard.
+- Band **heights can differ** — just use more/fewer segments per band.
+- Engine reveals count ≈ `energy * segments.length` from the bottom.
+
+### Font (variable metrics)
+
+| Class | Typical | Aspect |
+|-------|---------|--------|
+| `digit` | 18×18 | ~1:1 square |
+| `letter` | 36×14 | **2:1**, **shorter than digits** |
+| `symbol` | 18×14 | shorter |
+
+- Glyphs are **bottom-aligned** on a shared baseline (shorter letters sit with digits).
+- `map` entries: `{ "col", "row", "class": "letter" }` index that class’s atlas grid.
+- Optional `atlasOrigin` per class so one PNG can hold all classes.
+
+```json
+"font": {
+  "atlas": "font/glyphs.png",
+  "cell": { "w": 18, "h": 18 },
+  "classes": {
+    "digit":  { "cell": { "w": 18, "h": 18 }, "atlasOrigin": { "x": 0, "y": 0 } },
+    "letter": { "cell": { "w": 36, "h": 14 }, "atlasOrigin": { "x": 0, "y": 80 } }
+  },
+  "map": {
+    "0": { "col": 0, "row": 0, "class": "digit" },
+    "A": { "col": 0, "row": 0, "class": "letter" }
+  }
+}
+```
+
 ### Fader row (left → right)
 
 `volume` · `pitch` · `reverb` · `eq1`…`eq10` · `tempo` (speed)

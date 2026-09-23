@@ -17,7 +17,7 @@ import {
   loadImage,
 } from "./sprite/layout";
 import { loadFont, type BitmapFont } from "./sprite/font";
-import { drawSpectrum, drawWaterfall } from "./sprite/visuals";
+import { drawSpectrumSegments, drawWaterfall } from "./sprite/visuals";
 
 const BASE = "/sprite/";
 
@@ -28,7 +28,6 @@ let skin: SkinManifestV2;
 let font: BitmapFont;
 const images = new Map<string, HTMLImageElement>();
 let bg: HTMLImageElement | null = null;
-let spectrumSheet: HTMLImageElement | null = null;
 
 const params: AudioParams = {
   volume: 0.8,
@@ -135,7 +134,7 @@ function render(time: number) {
   if (bg) ctx.drawImage(bg, skin.background.origin.x, skin.background.origin.y);
 
   drawWaterfall(ctx, skin.visuals.waterfall, [...bins], time);
-  if (spectrumSheet) drawSpectrum(ctx, spectrumSheet, skin.visuals.spectrum, bins);
+  drawSpectrumSegments(ctx, images, skin.visuals.spectrum.bands, bins);
 
   for (const f of skin.faders) drawFader(f);
 
@@ -243,7 +242,16 @@ async function init() {
   const resolve = (p: string) => BASE + p.replace(/^\/?/, "");
 
   bg = await loadImageSafe(resolve(skin.background.image));
-  spectrumSheet = await loadImageSafe(resolve(skin.visuals.spectrum.sheet));
+  // spectrum segments
+  for (const band of skin.visuals.spectrum.bands) {
+    for (const seg of band.segments) {
+      const img = await loadImageSafe(resolve(seg.image));
+      if (img) {
+        images.set(seg.image, img);
+        seg.size = { w: img.width, h: img.height };
+      }
+    }
+  }
 
   for (const f of skin.faders) {
     const img = await loadImageSafe(resolve(f.knob));

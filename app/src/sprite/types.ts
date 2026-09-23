@@ -5,9 +5,7 @@ export type FaderDef = {
   id: string;
   param: string;
   orientation: "vertical" | "horizontal";
-  /** TOP-LEFT of knob at MAX value (Photoshop 2x artboard px). */
   origin: XY;
-  /** Y distance to top-left at MIN value (vertical). */
   travel: number;
   knob: string;
   knobSize?: Size;
@@ -20,7 +18,6 @@ export type FaderDef = {
 export type ButtonDef = {
   id: string;
   action: string;
-  /** TOP-LEFT of button PNG (idle art lives in bg.png). */
   origin: XY;
   size: Size;
   frames: { normal?: string; pressed: string };
@@ -32,6 +29,50 @@ export type BackgroundDef = {
   size: Size;
 };
 
+/** One organic (non-rectangular) bar piece. Drawn at absolute artboard top-left. */
+export type SpectrumSegment = {
+  image: string;
+  origin: XY;
+  size?: Size;
+};
+
+/** A spectrum column: stack of irregular segments, bottom-up in `segments`. */
+export type SpectrumBand = {
+  id: string | number;
+  /** Optional x override if segments already have absolute origins. */
+  origin?: XY;
+  /** Paint order / reveal order: index 0 = bottom (first to light). */
+  segments: SpectrumSegment[];
+};
+
+export type FontClass = {
+  /** Glyph box in artboard px. Letters are typically 2:1 and shorter than digits. */
+  cell: Size;
+  /** Vertical align within the line box: baseline is bottom of tallest class. */
+  baseline?: "bottom" | "center";
+  /** Optional atlas grid origin for this class (when classes share one PNG). */
+  atlasOrigin?: XY;
+};
+
+export type GlyphDef =
+  | [number, number]
+  | {
+      col: number;
+      row: number;
+      class?: string;
+      w?: number;
+      h?: number;
+    };
+
+export type FontSpec = {
+  atlas: string;
+  /** Default class cell (fallback). */
+  cell: Size;
+  classes?: Record<string, FontClass>;
+  map: Record<string, GlyphDef>;
+  fallback: string;
+};
+
 export type SkinManifestV2 = {
   formatVersion: 2;
   id: string;
@@ -39,20 +80,14 @@ export type SkinManifestV2 = {
   units?: string;
   canvas: { width: number; height: number; scale?: number };
   background: BackgroundDef;
-  /** Optional extra plates; primary art is `background`. */
   blocks?: Record<string, BackgroundDef>;
   faders: FaderDef[];
   buttons: ButtonDef[];
   visuals: {
     spectrum: {
-      origin: XY;
-      size: Size;
-      bands: number;
-      cell: Size;
-      frames: number;
-      sheet: string;
-      align: "bottom";
-      gapPx: number;
+      mode: "segments";
+      /** 10 bands of irregular stacked sprites (not a rectangular grid). */
+      bands: SpectrumBand[];
     };
     waterfall: {
       origin: XY;
@@ -62,12 +97,7 @@ export type SkinManifestV2 = {
     };
   };
   text: {
-    font: {
-      atlas: string;
-      cell: Size;
-      map: Record<string, [number, number]>;
-      fallback: string;
-    };
+    font: FontSpec;
     playlist: {
       origin: XY;
       rows: number;
