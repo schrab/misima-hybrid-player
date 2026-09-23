@@ -50,6 +50,9 @@ export function drawWaterfall(
   bands: number[],
   time: number,
 ) {
+  if (!spec || spec.mode === "off" || !spec.size || spec.size.w <= 0 || spec.size.h <= 0) {
+    return;
+  }
   const { x, y } = spec.origin;
   const { w, h } = spec.size;
   ctx.save();

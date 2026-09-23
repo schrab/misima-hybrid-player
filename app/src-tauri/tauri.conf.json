@@ -13,12 +13,14 @@
     "windows": [
       {
         "title": "Misima Hybrid Player",
-        "width": 980,
-        "height": 760,
+        "width": 900,
+        "height": 1236,
         "resizable": true,
         "decorations": false,
         "transparent": true,
-        "center": true
+        "shadow": false,
+        "center": true,
+        "focus": true
       }
     ],
     "security": {

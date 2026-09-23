@@ -134,12 +134,16 @@ function render(time: number) {
 
   if (bg) ctx.drawImage(bg, skin.background.origin.x, skin.background.origin.y);
 
-  drawWaterfall(ctx, skin.visuals.waterfall, [...bins], time);
+  // Waterfall is opt-in (mode !== "off"); was drawing a green-line square
+  const wf = skin.visuals.waterfall;
+  if (wf && wf.mode !== "off" && wf.size && wf.size.w > 0) {
+    drawWaterfall(ctx, wf, [...bins], time);
+  }
   drawSpectrumSegments(ctx, images, skin.visuals.spectrum.bands, bins);
 
   for (const f of skin.faders) drawFader(f);
 
-  // Buttons: idle is in bg; draw ACTIVE overlay only
+  // Buttons: idle art lives in bg.png; draw ACTIVE overlay only while pressed
   for (const b of skin.buttons) {
     if (pressedButton !== b.id) continue;
     const key = b.frames.pressed;

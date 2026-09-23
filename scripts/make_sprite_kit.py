@@ -46,8 +46,19 @@ def button_def(btn_id: str, action: str, png: str, origin: tuple[int, int], w: i
 
 
 def write_skin_json() -> dict:
-    # Coordinates are PLACEHOLDERS in 2x artboard space — replace with Photoshop values.
-    # Measure origin as TOP-LEFT of the layer bounds (Photoshop Info / W,H).
+    """
+    Build/update skin.json.
+    IMPORTANT: if an existing skin.json has faders/buttons/playlist/text origins,
+    those artist-measured anchors are PRESERVED (merge, do not clobber).
+    """
+    existing_path = SKIN / "skin.json"
+    existing = {}
+    if existing_path.exists():
+        try:
+            existing = json.loads(existing_path.read_text(encoding="utf-8"))
+        except Exception:
+            existing = {}
+
     skin = {
         "formatVersion": 2,
         "id": "misima-hybrid",
@@ -105,9 +116,10 @@ def write_skin_json() -> dict:
                 "bands": [],
             },
             "waterfall": {
-                "origin": {"x": 120, "y": 200},
-                "size": {"w": 240, "h": 360},
-                "mode": "phase3d",
+                # off by default — green-line square until artist places it
+                "origin": {"x": 0, "y": 0},
+                "size": {"w": 0, "h": 0},
+                "mode": "off",
                 "color": "#3dffb5",
             },
         },
@@ -182,6 +194,50 @@ def write_skin_json() -> dict:
         rel = b["frames"]["pressed"]
         w, h = natural(rel)
         b["size"] = {"w": w, "h": h}
+
+    # Merge artist-measured anchors from existing skin.json
+    def merge_list_by_id(new_list, old_list, keys):
+        if not old_list:
+            return new_list
+        old_by = {item.get("id"): item for item in old_list if isinstance(item, dict)}
+        out = []
+        for item in new_list:
+            old = old_by.get(item.get("id"))
+            if not old:
+                out.append(item)
+                continue
+            merged = dict(item)
+            for k in keys:
+                if k in old and old[k] is not None:
+                    merged[k] = old[k]
+            out.append(merged)
+        return out
+
+    if existing:
+        skin["faders"] = merge_list_by_id(
+            skin["faders"],
+            existing.get("faders") or [],
+            ["origin", "travel", "range", "value", "knobSize", "knob"],
+        )
+        skin["buttons"] = merge_list_by_id(
+            skin["buttons"],
+            existing.get("buttons") or [],
+            ["origin", "size", "action", "frames"],
+        )
+        old_pl = (existing.get("text") or {}).get("playlist")
+        if old_pl:
+            skin["text"]["playlist"].update(
+                {k: old_pl[k] for k in ("origin", "size", "rows", "rowHeight", "columns") if k in old_pl}
+            )
+        old_status = (existing.get("text") or {}).get("status")
+        if old_status and "origin" in old_status:
+            skin["text"]["status"] = old_status
+        old_wf = (existing.get("visuals") or {}).get("waterfall")
+        if old_wf:
+            skin["visuals"]["waterfall"] = old_wf
+        old_auto = (existing.get("visuals") or {}).get("spectrum", {}).get("auto")
+        if old_auto:
+            skin["visuals"]["spectrum"]["auto"].update(old_auto)
 
     (SKIN / "skin.json").write_text(json.dumps(skin, indent=2), encoding="utf-8")
     return skin
