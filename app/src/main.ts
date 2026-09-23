@@ -223,34 +223,22 @@ function render(_time: number) {
   ctx.beginPath();
   ctx.rect(pl.origin.x, pl.origin.y, box.w, box.h);
   ctx.clip();
-  ctx.font = "20px monospace";
-  ctx.textBaseline = "top";
   for (let r = 0; r < pl.rows && r < playlist.length; r++) {
     const row = playlist[r];
-    const y = pl.origin.y + r * pl.rowHeight + 4;
-    const active = row.id === activeId;
-    ctx.fillStyle = active ? "#3dffb5" : "#c8f5e4";
-    const mark = active ? ">" : " ";
-    const num = String(r + 1).padStart(2, "0");
-    const title = row.title.replace(/\.[^.]+$/, "").slice(0, 28);
-    const dur = row.duration ?? "--:--";
-    ctx.fillText(mark + num, pl.origin.x, y);
-    ctx.fillText(title, pl.origin.x + 56, y);
-    ctx.textAlign = "right";
-    ctx.fillText(dur, pl.origin.x + box.w - 8, y);
-    ctx.textAlign = "left";
+    const y = pl.origin.y + r * pl.rowHeight;
+    font?.draw(ctx, row.id === activeId ? "*" : " ", pl.origin.x, y, 20);
+    font?.draw(ctx, String(r + 1).padStart(2, "0"), colX[0], y, pl.columns[0].width);
+    font?.draw(ctx, row.title.toUpperCase().slice(0, 28), colX[1], y, pl.columns[1].width);
+    const dur = row.duration ?? "";
+    const durW = font?.measure(dur) ?? 40;
+    const col = pl.columns[2];
+    const dx = col.align === "right" ? colX[2] + col.width - durW : colX[2];
+    font?.draw(ctx, dur, dx, y, col.width);
   }
   ctx.restore();
-  // Status / errors — plain canvas text (always readable)
+  // Status via artist bitmap font
   const st = skin.text.status.origin;
-  ctx.save();
-  ctx.font = "bold 22px monospace";
-  ctx.fillStyle = status.startsWith("Load failed") || status.includes("empty")
-    ? "#ff5c7a"
-    : "#3dffb5";
-  ctx.textBaseline = "top";
-  ctx.fillText(status.slice(0, 48), st.x, st.y);
-  ctx.restore();
+  font?.draw(ctx, status.toUpperCase().slice(0, 32), st.x, st.y);
   requestAnimationFrame(render);
 }
 
