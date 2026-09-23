@@ -29,7 +29,7 @@
         "x": 515,
         "y": 834
       },
-      "travel": 48,
+      "travel": 312,
       "knob": "ui/knob_volume.png",
       "knobSize": {
         "w": 56,
@@ -50,7 +50,7 @@
         "x": 571,
         "y": 833
       },
-      "travel": 48,
+      "travel": 309,
       "knob": "ui/knob_pitch.png",
       "knobSize": {
         "w": 51,
@@ -71,7 +71,7 @@
         "x": 628,
         "y": 833
       },
-      "travel": 48,
+      "travel": 299,
       "knob": "ui/knob_reverb.png",
       "knobSize": {
         "w": 25,
@@ -92,7 +92,7 @@
         "x": 664,
         "y": 832
       },
-      "travel": 48,
+      "travel": 315,
       "knob": "ui/knob_eq_1.png",
       "knobSize": {
         "w": 49,
@@ -113,7 +113,7 @@
         "x": 719,
         "y": 833
       },
-      "travel": 48,
+      "travel": 296,
       "knob": "ui/knob_eq_2.png",
       "knobSize": {
         "w": 41,
@@ -134,7 +134,7 @@
         "x": 755,
         "y": 834
       },
-      "travel": 48,
+      "travel": 306,
       "knob": "ui/knob_eq_3.png",
       "knobSize": {
         "w": 49,
@@ -155,7 +155,7 @@
         "x": 956,
         "y": 848
       },
-      "travel": 48,
+      "travel": 305,
       "knob": "ui/knob_eq_4.png",
       "knobSize": {
         "w": 28,
@@ -176,7 +176,7 @@
         "x": 856,
         "y": 835
       },
-      "travel": 48,
+      "travel": 291,
       "knob": "ui/knob_eq_5.png",
       "knobSize": {
         "w": 47,
@@ -197,7 +197,7 @@
         "x": 905,
         "y": 839
       },
-      "travel": 48,
+      "travel": 285,
       "knob": "ui/knob_eq_6.png",
       "knobSize": {
         "w": 44,
@@ -218,7 +218,7 @@
         "x": 1111,
         "y": 912
       },
-      "travel": 48,
+      "travel": 239,
       "knob": "ui/knob_eq_7.png",
       "knobSize": {
         "w": 25,
@@ -239,7 +239,7 @@
         "x": 1002,
         "y": 842
       },
-      "travel": 48,
+      "travel": 283,
       "knob": "ui/knob_eq_8.png",
       "knobSize": {
         "w": 41,
@@ -260,7 +260,7 @@
         "x": 1042,
         "y": 840
       },
-      "travel": 48,
+      "travel": 306,
       "knob": "ui/knob_eq_9.png",
       "knobSize": {
         "w": 52,
@@ -281,7 +281,7 @@
         "x": 953,
         "y": 843
       },
-      "travel": 48,
+      "travel": 306,
       "knob": "ui/knob_eq_10.png",
       "knobSize": {
         "w": 35,
@@ -302,7 +302,7 @@
         "x": 1164,
         "y": 952
       },
-      "travel": 48,
+      "travel": 190,
       "knob": "ui/knob_tempo.png",
       "knobSize": {
         "w": 100,

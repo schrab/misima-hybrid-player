@@ -166,18 +166,24 @@ def pack() -> None:
                 zf.write(p, p.relative_to(SKIN).as_posix())
 
 
+def is_placeholder_faders(faders: list) -> bool:
+    if not faders:
+        return True
+    ys = [f.get("origin", {}).get("y", 0) for f in faders if isinstance(f, dict)]
+    return len(set(ys)) <= 2 and all(y in (1500, 520) for y in ys)
+
+
 def main() -> None:
     skin = load_or_init()
     ensure_known_measures(skin)
     natural_sizes(skin)
     auto_layout_bands(skin)
-    # Write ONLY after merge — faders/buttons come from skin.json or recover_anchors.py
+    if not is_placeholder_faders(skin.get("faders") or []):
+        print("LOCK: keeping artist faders/buttons — not regenerating")
     (SKIN / "skin.json").write_text(json.dumps(skin, indent=2), encoding="utf-8")
     copy_public()
     pack()
     print("preserved faders", len(skin.get("faders") or []), "buttons", len(skin.get("buttons") or []))
-    print("spectrum auto", skin["visuals"]["spectrum"].get("auto", {}).get("bandLeftX"))
-    print("playlist", skin["text"]["playlist"]["origin"])
 
 
 if __name__ == "__main__":
