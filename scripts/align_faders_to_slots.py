@@ -9,7 +9,8 @@ UI = REPO / "skins/misima-hybrid/sprites/ui"
 LAYER = np.asarray(Image.open(MAIN / "gfx/UI_elements.png").convert("RGBA"), dtype=np.float32)
 BG = np.asarray(Image.open(REPO / "skins/misima-hybrid/sprites/bg/bg.png").convert("RGBA"), dtype=np.float32)
 
-KNOBS = [
+# Semantic L→R order on the plate
+ORDER = [
     ("volume", "volume", "knob_volume.png", [0, 1], 0.8),
     ("pitch", "pitch", "knob_pitch.png", [-12, 12], 0),
     ("reverb", "reverb", "knob_reverb.png", [0, 1], 0.15),
@@ -27,7 +28,7 @@ KNOBS = [
 ]
 
 
-def match(scene: np.ndarray, templ: np.ndarray) -> tuple[int, int]:
+def match(scene, templ):
     sh, sw = scene.shape[:2]
     th, tw = templ.shape[:2]
     sa = scene[:, :, 3] / 255.0
@@ -35,7 +36,7 @@ def match(scene: np.ndarray, templ: np.ndarray) -> tuple[int, int]:
     ta = templ[:, :, 3] / 255.0
     trgb = templ[:, :, :3]
 
-    def score_at(x: int, y: int) -> float:
+    def score_at(x, y):
         m = sa[y : y + th, x : x + tw] * ta
         if m.sum() < ta.sum() * 0.5:
             return -1e9
@@ -48,16 +49,21 @@ def match(scene: np.ndarray, templ: np.ndarray) -> tuple[int, int]:
             s = score_at(x, y)
             if s > best[2]:
                 best = (x, y, s)
-    bx, by = best[0], best[1]
-    for y in range(max(0, by - 2), min(sh - th, by + 3)):
-        for x in range(max(0, bx - 2), min(sw - tw, bx + 3)):
-            s = score_at(x, y)
-            if s > best[2]:
-                best = (x, y, s)
-    return best[0], best[1]
+    return best[0], best[1], best[2]
 
 
-# bg track spans by x
+# Collect ALL knob matches, then sort by X and assign names L→R
+found = []
+for fid, param, png, rng, val in ORDER:
+    templ = np.asarray(Image.open(UI / png).convert("RGBA"), dtype=np.float32)
+    x, y, sc = match(LAYER, templ)
+    found.append({"png": png, "x": x, "y": y, "w": templ.shape[1], "h": templ.shape[0], "sc": sc})
+    print(f"match {png:20} ({x:4},{y:4}) sc={sc:.1f}")
+
+found.sort(key=lambda f: f["x"])
+print("L→R order:", [f["png"] for f in found])
+
+# bg tracks
 rgb = BG[:, :, :3].mean(axis=2)
 alpha = BG[:, :, 3] / 255.0
 y0, y1 = 700, 1300
@@ -69,10 +75,8 @@ for x in range(40, 1460):
     gap = np.minimum(np.abs(M - L), np.abs(M - R))
     inside = alpha[y0:y1, x] > 0.15
     is_ch = inside & (gap > 4) & (np.abs(L - R) < 50)
-    best = 0
-    best_y = (y0, y0)
-    yy = 0
-    n = y1 - y0
+    best, best_y = 0, (y0, y0)
+    yy, n = 0, y1 - y0
     while yy < n:
         if is_ch[yy]:
             s = yy
@@ -96,71 +100,36 @@ for t in cands:
         p["h"] = p["y1"] - p["y0"]
     else:
         slots.append(dict(t))
+slots.sort(key=lambda s: s["x"])
 
-hits = []
-for fid, param, png, rng, val in KNOBS:
-    templ = np.asarray(Image.open(UI / png).convert("RGBA"), dtype=np.float32)
-    x, y = match(LAYER, templ)
-    tw, th = templ.shape[1], templ.shape[0]
-    # nearest slot to this knob (for track top/bottom only — X stays art X)
-    slot = min(slots, key=lambda s: abs(s["x"] - (x + tw // 2)))
-    hits.append(
-        {
-            "id": fid,
-            "param": param,
-            "knob": f"ui/{png}",
-            "range": rng,
-            "value": val,
-            "x": x,
-            "y_art": y,
-            "w": tw,
-            "h": th,
-            "track_y0": slot["y0"],
-            "track_y1": slot["y1"],
-        }
-    )
-    print(f"{fid:8} art=({x:4},{y:4}) track=({slot['y0']}-{slot['y1']}) w={tw} h={th}")
-
-# De-dupe X only if two knobs share nearly the same column (eq4/eq10 bug)
-hits.sort(key=lambda h: h["x"])
-for i in range(1, len(hits)):
-    if hits[i]["x"] - hits[i - 1]["x"] < 18:
-        hits[i]["x"] = hits[i - 1]["x"] + 24
-        print("nudge", hits[i]["id"], "to x", hits[i]["x"])
-
-# origin = TOP of travel (MAX). Art rest Y is often mid/bottom — do not use it as origin.
 faders = []
-by = {h["id"]: h for h in hits}
-for fid, param, png, rng, val in KNOBS:
-    h = by[fid]
-    top = h["track_y0"]
-    travel = max(60, h["track_y1"] - h["track_y0"] - h["h"])
+for i, (fid, param, png, rng, val) in enumerate(ORDER):
+    f = found[i]  # i-th from the left
+    slot = min(slots, key=lambda s: abs(s["x"] - (f["x"] + f["w"] // 2)))
+    top = slot["y0"]
+    travel = max(60, slot["y1"] - slot["y0"] - f["h"])
     faders.append(
         {
             "id": fid,
             "param": param,
             "orientation": "vertical",
-            "origin": {"x": h["x"], "y": top},
+            "origin": {"x": f["x"], "y": top},
             "travel": travel,
-            "knob": h["knob"],
-            "knobSize": {"w": h["w"], "h": h["h"]},
+            "knob": f"ui/{png}",
+            "knobSize": {"w": f["w"], "h": f["h"]},
             "knobHotspot": "top-left",
             "range": rng,
             "value": val,
         }
     )
-    print(f"FINAL {fid:8} origin=({h['x']},{top}) travel={travel}")
+    print(f"{fid:8} x={f['x']:4} top={top} travel={travel}")
 
 skin_path = REPO / "skins/misima-hybrid/skin.json"
 pub = REPO / "app/public/sprite/skin.json"
 skin = json.loads(skin_path.read_text())
 skin["faders"] = faders
-skin["visuals"]["waterfall"] = {
-    "origin": {"x": 0, "y": 0},
-    "size": {"w": 0, "h": 0},
-    "mode": "off",
-    "color": "#3dffb5",
-}
+# status must stay on the plate — put it inside playlist header area
+skin["text"]["status"] = {"origin": {"x": 1040, "y": 1455}}
 text = json.dumps(skin, indent=2)
 skin_path.write_text(text)
 pub.write_text(text)

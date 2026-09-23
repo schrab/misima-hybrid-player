@@ -166,9 +166,9 @@ function render(time: number) {
   for (let r = 0; r < pl.rows && r < playlist.length; r++) {
     const row = playlist[r];
     const y = pl.origin.y + r * pl.rowHeight;
-    font.draw(ctx, row.id === activeId ? "*" : " ", pl.origin.x - 14, y);
+    font.draw(ctx, row.id === activeId ? "*" : " ", pl.origin.x, y, 20);
     font.draw(ctx, String(r + 1).padStart(2, "0"), colX[0], y, pl.columns[0].width);
-    font.draw(ctx, row.title.toUpperCase().slice(0, 40), colX[1], y, pl.columns[1].width);
+    font.draw(ctx, row.title.toUpperCase().slice(0, 28), colX[1], y, pl.columns[1].width);
     const dur = row.duration ?? "";
     const durW = font.measure(dur);
     const col = pl.columns[2];
@@ -176,7 +176,14 @@ function render(time: number) {
     font.draw(ctx, dur, dx, y, col.width);
   }
   ctx.restore();
-  font.draw(ctx, status.toUpperCase(), skin.text.status.origin.x, skin.text.status.origin.y);
+  // status only inside playlist header strip (never outside bg)
+  const st = skin.text.status.origin;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(pl.origin.x, pl.origin.y - 28, box.w, 26);
+  ctx.clip();
+  font.draw(ctx, status.toUpperCase().slice(0, 30), st.x, st.y, box.w - 8);
+  ctx.restore();
   requestAnimationFrame(render);
 }
 
