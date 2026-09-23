@@ -226,8 +226,19 @@ function render(_time: number) {
   for (let r = 0; r < pl.rows && r < playlist.length; r++) {
     const row = playlist[r];
     const y = pl.origin.y + r * pl.rowHeight;
+    const active = row.id === activeId;
+    if (active) {
+      const hl = images.get("ui/active_track.png");
+      if (hl) {
+        ctx.drawImage(hl, pl.origin.x, y, box.w, pl.rowHeight);
+      } else {
+        ctx.fillStyle = "#7dff4a";
+        ctx.fillRect(pl.origin.x, y, box.w, pl.rowHeight);
+      }
+    }
+    // dark glyphs on the green bar (as in art)
+    if (active) ctx.filter = "brightness(0.15)";
     font?.draw(ctx, row.id === activeId ? "*" : " ", pl.origin.x, y, 20);
-    // number + first 6 letters of name (as in art)
     font?.draw(ctx, String(r + 1).padStart(2, "0"), colX[0], y, pl.columns[0].width);
     const name6 = row.title.replace(/\.[^.]+$/, "").slice(0, 6).toUpperCase();
     font?.draw(ctx, name6, colX[1], y, pl.columns[1].width);
@@ -236,6 +247,7 @@ function render(_time: number) {
     const col = pl.columns[2];
     const dx = col.align === "right" ? colX[2] + col.width - durW : colX[2];
     font?.draw(ctx, dur, dx, y, col.width);
+    if (active) ctx.filter = "none";
   }
   ctx.restore();
   // Status via artist bitmap font
@@ -407,6 +419,10 @@ async function init() {
       if (n) images.set(b.frames.normal, n);
     }
   }
+  const hl = await loadImageSafe(resolve("ui/active_track.png"));
+  if (hl) images.set("ui/active_track.png", hl);
+  const hl = await loadImageSafe(resolve("ui/active_track.png"));
+  if (hl) images.set("ui/active_track.png", hl);
   font = await loadFont({ ...skin.text.font, atlas: resolve(skin.text.font.atlas) }, "").catch(() => null);
 
   canvas.width = skin.canvas.width;
