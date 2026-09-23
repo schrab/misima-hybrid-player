@@ -10,7 +10,8 @@ export function faderValueToY(
   value: number,
 ): number {
   const [lo, hi] = range;
-  const n = hi === lo ? 0 : (value - lo) / (hi - lo);
+  const n = hi === lo ? 1 : (value - lo) / (hi - lo);
+  // origin = top of travel (MAX); slide down toward MIN
   return origin.y + (1 - n) * travel;
 }
 

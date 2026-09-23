@@ -134,9 +134,9 @@ function render(time: number) {
 
   if (bg) ctx.drawImage(bg, skin.background.origin.x, skin.background.origin.y);
 
-  // Waterfall is opt-in (mode !== "off"); was drawing a green-line square
+  // Waterfall MUST stay off unless artist sets a real rect — green-line square
   const wf = skin.visuals.waterfall;
-  if (wf && wf.mode !== "off" && wf.size && wf.size.w > 0) {
+  if (wf && wf.mode && wf.mode !== "off" && wf.size && wf.size.w > 8 && wf.size.h > 8) {
     drawWaterfall(ctx, wf, [...bins], time);
   }
   drawSpectrumSegments(ctx, images, skin.visuals.spectrum.bands, bins);

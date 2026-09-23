@@ -26,10 +26,10 @@
       "param": "volume",
       "orientation": "vertical",
       "origin": {
-        "x": 515,
-        "y": 834
+        "x": 560,
+        "y": 930
       },
-      "travel": 312,
+      "travel": 110,
       "knob": "ui/knob_volume.png",
       "knobSize": {
         "w": 56,
@@ -47,10 +47,10 @@
       "param": "pitch",
       "orientation": "vertical",
       "origin": {
-        "x": 571,
-        "y": 833
+        "x": 611,
+        "y": 890
       },
-      "travel": 309,
+      "travel": 164,
       "knob": "ui/knob_pitch.png",
       "knobSize": {
         "w": 51,
@@ -68,10 +68,10 @@
       "param": "reverb",
       "orientation": "vertical",
       "origin": {
-        "x": 628,
-        "y": 833
+        "x": 673,
+        "y": 904
       },
-      "travel": 299,
+      "travel": 164,
       "knob": "ui/knob_reverb.png",
       "knobSize": {
         "w": 25,
@@ -89,10 +89,10 @@
       "param": "eq0",
       "orientation": "vertical",
       "origin": {
-        "x": 664,
-        "y": 832
+        "x": 709,
+        "y": 868
       },
-      "travel": 315,
+      "travel": 177,
       "knob": "ui/knob_eq_1.png",
       "knobSize": {
         "w": 49,
@@ -110,10 +110,10 @@
       "param": "eq1",
       "orientation": "vertical",
       "origin": {
-        "x": 719,
-        "y": 833
+        "x": 769,
+        "y": 1018
       },
-      "travel": 296,
+      "travel": 89,
       "knob": "ui/knob_eq_2.png",
       "knobSize": {
         "w": 41,
@@ -131,10 +131,10 @@
       "param": "eq2",
       "orientation": "vertical",
       "origin": {
-        "x": 755,
-        "y": 834
+        "x": 811,
+        "y": 990
       },
-      "travel": 306,
+      "travel": 108,
       "knob": "ui/knob_eq_3.png",
       "knobSize": {
         "w": 49,
@@ -152,10 +152,10 @@
       "param": "eq3",
       "orientation": "vertical",
       "origin": {
-        "x": 956,
-        "y": 848
+        "x": 860,
+        "y": 850
       },
-      "travel": 305,
+      "travel": 196,
       "knob": "ui/knob_eq_4.png",
       "knobSize": {
         "w": 28,
@@ -173,10 +173,10 @@
       "param": "eq4",
       "orientation": "vertical",
       "origin": {
-        "x": 856,
-        "y": 835
+        "x": 900,
+        "y": 855
       },
-      "travel": 291,
+      "travel": 290,
       "knob": "ui/knob_eq_5.png",
       "knobSize": {
         "w": 47,
@@ -194,10 +194,10 @@
       "param": "eq5",
       "orientation": "vertical",
       "origin": {
-        "x": 905,
-        "y": 839
+        "x": 950,
+        "y": 856
       },
-      "travel": 285,
+      "travel": 280,
       "knob": "ui/knob_eq_6.png",
       "knobSize": {
         "w": 44,
@@ -215,10 +215,10 @@
       "param": "eq6",
       "orientation": "vertical",
       "origin": {
-        "x": 1111,
-        "y": 912
+        "x": 1008,
+        "y": 942
       },
-      "travel": 239,
+      "travel": 219,
       "knob": "ui/knob_eq_7.png",
       "knobSize": {
         "w": 25,
@@ -236,10 +236,10 @@
       "param": "eq7",
       "orientation": "vertical",
       "origin": {
-        "x": 1002,
-        "y": 842
+        "x": 1050,
+        "y": 854
       },
-      "travel": 283,
+      "travel": 292,
       "knob": "ui/knob_eq_8.png",
       "knobSize": {
         "w": 41,
@@ -257,10 +257,10 @@
       "param": "eq8",
       "orientation": "vertical",
       "origin": {
-        "x": 1042,
-        "y": 840
+        "x": 1102,
+        "y": 922
       },
-      "travel": 306,
+      "travel": 236,
       "knob": "ui/knob_eq_9.png",
       "knobSize": {
         "w": 52,
@@ -278,10 +278,10 @@
       "param": "eq9",
       "orientation": "vertical",
       "origin": {
-        "x": 953,
-        "y": 843
+        "x": 1204,
+        "y": 965
       },
-      "travel": 306,
+      "travel": 190,
       "knob": "ui/knob_eq_10.png",
       "knobSize": {
         "w": 35,
@@ -299,10 +299,10 @@
       "param": "speed",
       "orientation": "vertical",
       "origin": {
-        "x": 1164,
-        "y": 952
+        "x": 1226,
+        "y": 936
       },
-      "travel": 190,
+      "travel": 140,
       "knob": "ui/knob_tempo.png",
       "knobSize": {
         "w": 100,
@@ -1341,14 +1341,14 @@
     },
     "waterfall": {
       "origin": {
-        "x": 120,
-        "y": 200
+        "x": 0,
+        "y": 0
       },
       "size": {
-        "w": 240,
-        "h": 360
+        "w": 0,
+        "h": 0
       },
-      "mode": "phase3d",
+      "mode": "off",
       "color": "#3dffb5"
     }
   },

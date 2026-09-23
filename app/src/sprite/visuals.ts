@@ -50,9 +50,9 @@ export function drawWaterfall(
   bands: number[],
   time: number,
 ) {
-  if (!spec || spec.mode === "off" || !spec.size || spec.size.w <= 0 || spec.size.h <= 0) {
-    return;
-  }
+  // Hard kill: green-line square overlay. Only runs if artist enables later.
+  if (!spec || spec.mode !== "phase3d") return;
+  if (!spec.size || spec.size.w < 16 || spec.size.h < 16) return;
   const { x, y } = spec.origin;
   const { w, h } = spec.size;
   ctx.save();
