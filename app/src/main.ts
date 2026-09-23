@@ -419,10 +419,8 @@ async function init() {
       if (n) images.set(b.frames.normal, n);
     }
   }
-  const hl = await loadImageSafe(resolve("ui/active_track.png"));
-  if (hl) images.set("ui/active_track.png", hl);
-  const hl = await loadImageSafe(resolve("ui/active_track.png"));
-  if (hl) images.set("ui/active_track.png", hl);
+  const hlImg = await loadImageSafe(resolve("ui/active_track.png"));
+  if (hlImg) images.set("ui/active_track.png", hlImg);
   font = await loadFont({ ...skin.text.font, atlas: resolve(skin.text.font.atlas) }, "").catch(() => null);
 
   canvas.width = skin.canvas.width;
