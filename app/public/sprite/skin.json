@@ -132,9 +132,9 @@
       "orientation": "vertical",
       "origin": {
         "x": 754,
-        "y": 1018
+        "y": 868
       },
-      "travel": 100,
+      "travel": 170,
       "knob": "ui/knob_eq_3.png",
       "knobSize": {
         "w": 49,
@@ -152,14 +152,14 @@
       "param": "eq3",
       "orientation": "vertical",
       "origin": {
-        "x": 856,
-        "y": 850
+        "x": 800,
+        "y": 1018
       },
-      "travel": 169,
+      "travel": 113,
       "knob": "ui/knob_eq_4.png",
       "knobSize": {
-        "w": 47,
-        "h": 54
+        "w": 28,
+        "h": 27
       },
       "knobHotspot": "top-left",
       "range": [
@@ -173,14 +173,14 @@
       "param": "eq4",
       "orientation": "vertical",
       "origin": {
-        "x": 904,
-        "y": 855
+        "x": 856,
+        "y": 850
       },
-      "travel": 288,
+      "travel": 169,
       "knob": "ui/knob_eq_5.png",
       "knobSize": {
-        "w": 44,
-        "h": 56
+        "w": 47,
+        "h": 54
       },
       "knobHotspot": "top-left",
       "range": [
@@ -194,14 +194,14 @@
       "param": "eq5",
       "orientation": "vertical",
       "origin": {
-        "x": 956,
-        "y": 856
+        "x": 904,
+        "y": 855
       },
-      "travel": 309,
+      "travel": 288,
       "knob": "ui/knob_eq_6.png",
       "knobSize": {
-        "w": 28,
-        "h": 27
+        "w": 44,
+        "h": 56
       },
       "knobHotspot": "top-left",
       "range": [
@@ -215,14 +215,14 @@
       "param": "eq6",
       "orientation": "vertical",
       "origin": {
-        "x": 1002,
-        "y": 942
+        "x": 956,
+        "y": 856
       },
-      "travel": 193,
+      "travel": 307,
       "knob": "ui/knob_eq_7.png",
       "knobSize": {
-        "w": 41,
-        "h": 55
+        "w": 25,
+        "h": 29
       },
       "knobHotspot": "top-left",
       "range": [
@@ -236,14 +236,14 @@
       "param": "eq7",
       "orientation": "vertical",
       "origin": {
-        "x": 1042,
-        "y": 854
+        "x": 1002,
+        "y": 942
       },
-      "travel": 313,
+      "travel": 193,
       "knob": "ui/knob_eq_8.png",
       "knobSize": {
-        "w": 52,
-        "h": 34
+        "w": 41,
+        "h": 55
       },
       "knobHotspot": "top-left",
       "range": [
@@ -257,14 +257,14 @@
       "param": "eq8",
       "orientation": "vertical",
       "origin": {
-        "x": 1104,
-        "y": 922
+        "x": 1042,
+        "y": 942
       },
-      "travel": 239,
+      "travel": 214,
       "knob": "ui/knob_eq_9.png",
       "knobSize": {
-        "w": 35,
-        "h": 31
+        "w": 52,
+        "h": 34
       },
       "knobHotspot": "top-left",
       "range": [
@@ -278,14 +278,14 @@
       "param": "eq9",
       "orientation": "vertical",
       "origin": {
-        "x": 1140,
+        "x": 1104,
         "y": 922
       },
-      "travel": 241,
+      "travel": 239,
       "knob": "ui/knob_eq_10.png",
       "knobSize": {
-        "w": 25,
-        "h": 29
+        "w": 35,
+        "h": 31
       },
       "knobHotspot": "top-left",
       "range": [
@@ -299,10 +299,10 @@
       "param": "speed",
       "orientation": "vertical",
       "origin": {
-        "x": 1176,
-        "y": 965
+        "x": 1164,
+        "y": 922
       },
-      "travel": 183,
+      "travel": 232,
       "knob": "ui/knob_tempo.png",
       "knobSize": {
         "w": 100,

@@ -34,21 +34,12 @@ fn play_index_inner(state: &State<'_, AppInner>, index: usize) -> Result<Option<
     let Some(path) = path else {
         return Ok(None);
     };
-    // Decode off the command thread so the UI never freezes on large MP3s.
-    let handle = std::thread::spawn(move || {
-        player::load_and_play(std::path::Path::new(&path)).map_err(|e| e.to_string())
-    });
-    // Do not join here — stream starts when decode completes.
-    // Surface errors via a detached logger; UI stays responsive.
     std::thread::spawn(move || {
-        match handle.join() {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => log::error!("load failed: {e}"),
-            Err(_) => log::error!("load thread panicked"),
+        if let Err(e) = player::load_and_play(std::path::Path::new(&path)) {
+            log::error!("load failed: {e}");
         }
     });
-    let id = state.playlist.read().current_id();
-    Ok(id)
+    Ok(state.playlist.read().current_id())
 }
 
 #[tauri::command]
@@ -111,7 +102,20 @@ fn step_track(state: &State<'_, AppInner>, app: &AppHandle, delta: isize) -> Res
             n as usize
         }
     };
-    if let Some(id) = play_index_inner(&state, next)? {
+    // set index immediately so UI can update even while decode runs
+    let id = {
+        let mut pl = state.playlist.write();
+        pl.set_current(Some(next));
+        pl.current_id()
+    };
+    if let Some(path) = state.playlist.read().current_path().map(|s| s.to_string()) {
+        std::thread::spawn(move || {
+            if let Err(e) = player::load_and_play(std::path::Path::new(&path)) {
+                log::error!("load failed: {e}");
+            }
+        });
+    }
+    if let Some(id) = id {
         let _ = app.emit("track_changed", id);
     }
     Ok(())

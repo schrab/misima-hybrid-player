@@ -44,6 +44,10 @@ let status = "Ready";
 let bins = new Float32Array(10);
 let pressedButton: string | null = null;
 let dragFader: string | null = null;
+let playing = false;
+/** fx_enable master: off = EQ + reverb bypass */
+let fxOn = true;
+let lastParams: AudioParams = { ...params, eq: [...params.eq] };
 
 function setParam(key: string, value: number) {
   if (key.startsWith("eq")) {
@@ -53,11 +57,18 @@ function setParam(key: string, value: number) {
   else if (key === "pitch") params.pitch = value;
   else if (key === "reverb") params.reverb = value;
   else if (key === "speed") params.speed = value;
+  pushParams();
+}
+
+function pushParams() {
+  const eq = fxOn ? params.eq : new Array(10).fill(0);
+  const reverb = fxOn ? params.reverb : 0;
+  lastParams = { ...params, eq: [...eq], reverb };
   void invoke("set_params", {
     volume: params.volume,
-    pitch: params.pitch,
-    reverb: params.reverb,
-    eq: params.eq,
+    pitch: fxOn ? params.pitch : 0,
+    reverb,
+    eq,
     speed: params.speed,
   }).catch(() => {});
 }
@@ -91,18 +102,44 @@ async function action(name: string) {
       status = `${paths.length} added`;
       break;
     }
-    case "play":
-    case "pause":
-    case "stop":
-    case "prev":
-    case "next":
-      await invoke(name);
+    case "play": {
+      if (playing) {
+        await invoke("pause");
+        playing = false;
+        status = "Paused";
+      } else {
+        await invoke("play");
+        playing = true;
+        status = "Playing";
+      }
       await pushPlaylist();
-      status = name.toUpperCase();
       break;
+    }
+    case "pause":
+      await invoke("pause");
+      playing = false;
+      status = "Paused";
+      break;
+    case "stop":
+      await invoke("stop");
+      playing = false;
+      status = "Stopped";
+      break;
+    case "prev":
+    case "next": {
+      await invoke(name);
+      playing = true;
+      await pushPlaylist();
+      const rows = await invoke<{ id: number; title: string }[]>("get_playlist");
+      const cur = rows.find((r) => r.id === activeId);
+      status = name === "next" ? "Next" : "Prev";
+      if (cur) status += ` ${cur.title}`;
+      break;
+    }
     case "clear":
       await invoke("clear_playlist");
       activeId = null;
+      playing = false;
       await pushPlaylist();
       status = "Cleared";
       break;
@@ -111,6 +148,20 @@ async function action(name: string) {
       setParam("eq0", 0);
       status = "EQ reset";
       break;
+    case "fx_enable":
+    case "fx_reset": {
+      if (name === "fx_enable") {
+        fxOn = !fxOn;
+        status = fxOn ? "FX on" : "FX off";
+      } else {
+        for (let i = 0; i < 10; i++) params.eq[i] = 0;
+        params.reverb = 0;
+        params.pitch = 0;
+        status = "FX reset";
+      }
+      pushParams();
+      break;
+    }
     default:
       break;
   }
@@ -119,10 +170,11 @@ async function action(name: string) {
 function drawFader(f: FaderDef) {
   const knob = images.get(f.knob);
   const y = faderValueToY(f.origin, f.travel, f.range, valueOf(f.param));
-  const kw = f.knobSize?.w ?? knob?.width ?? 24;
-  const kh = f.knobSize?.h ?? knob?.height ?? 24;
+  // Natural pixel size — never scale knobs
+  const kw = knob?.width ?? f.knobSize?.w ?? 24;
+  const kh = knob?.height ?? f.knobSize?.h ?? 24;
   if (knob) {
-    ctx.drawImage(knob, f.origin.x, y, kw, kh);
+    ctx.drawImage(knob, Math.round(f.origin.x), Math.round(y));
   } else {
     ctx.fillStyle = "#ff4fd8";
     ctx.fillRect(f.origin.x, y, kw, kh);
@@ -144,12 +196,17 @@ function render(time: number) {
 
   for (const f of skin.faders) drawFader(f);
 
-  // Buttons: idle art lives in bg.png; draw ACTIVE overlay only while pressed
+  // Buttons: idle art in bg; ACTIVE overlay when pressed OR when state is on
   for (const b of skin.buttons) {
-    if (pressedButton !== b.id) continue;
-    const key = b.frames.pressed;
-    const img = images.get(key);
-    if (img) ctx.drawImage(img, b.origin.x, b.origin.y, b.size.w, b.size.h);
+    const isActive =
+      pressedButton === b.id ||
+      (b.id === "play" && playing) ||
+      (b.id === "fx_enable" && fxOn);
+    if (!isActive) continue;
+    const img = images.get(b.frames.pressed);
+    if (img) {
+      ctx.drawImage(img, b.origin.x, b.origin.y);
+    }
   }
 
   const pl = skin.text.playlist;
@@ -238,6 +295,14 @@ canvas.addEventListener("pointerup", async (ev) => {
 canvas.addEventListener("dblclick", (ev: MouseEvent) => {
   void (async () => {
     const p = canvasPoint(ev);
+    await playRowAt(p);
+  })();
+});
+
+canvas.addEventListener("click", (ev: MouseEvent) => {
+  void (async () => {
+    const p = canvasPoint(ev);
+    // single click on playlist row selects + plays
     const pl = skin.text.playlist;
     const box = pl.size ?? {
       w: pl.columns.reduce((s, c) => s + c.width, 0),
@@ -246,16 +311,32 @@ canvas.addEventListener("dblclick", (ev: MouseEvent) => {
     for (let r = 0; r < pl.rows && r < playlist.length; r++) {
       const y0 = pl.origin.y + r * pl.rowHeight;
       if (p.y >= y0 && p.y < y0 + pl.rowHeight && p.x >= pl.origin.x && p.x < pl.origin.x + box.w) {
-        const row = playlist[r];
-        activeId = row.id;
-        await invoke("play_index", { index: playlist.findIndex((x) => x.id === row.id) });
-        await pushPlaylist();
-        status = `PLAY ${row.title}`;
-        break;
+        await playRowAt(p);
+        return;
       }
     }
   })();
 });
+
+async function playRowAt(p: { x: number; y: number }) {
+  const pl = skin.text.playlist;
+  const box = pl.size ?? {
+    w: pl.columns.reduce((s, c) => s + c.width, 0),
+    h: pl.rows * pl.rowHeight,
+  };
+  for (let r = 0; r < pl.rows && r < playlist.length; r++) {
+    const y0 = pl.origin.y + r * pl.rowHeight;
+    if (p.y >= y0 && p.y < y0 + pl.rowHeight && p.x >= pl.origin.x && p.x < pl.origin.x + box.w) {
+      const row = playlist[r];
+      activeId = row.id;
+      await invoke("play_index", { index: playlist.findIndex((x) => x.id === row.id) });
+      playing = true;
+      await pushPlaylist();
+      status = `PLAY ${row.title}`;
+      break;
+    }
+  }
+}
 
 function loadImageSafe(url: string): Promise<HTMLImageElement | null> {
   return loadImage(url).catch((err) => {
@@ -335,14 +416,17 @@ async function init() {
   });
   await listen<number>("track_changed", (e) => {
     activeId = e.payload;
+    playing = true;
     void pushPlaylist();
   });
   await listen("track_ended", async () => {
     try {
       await invoke("next");
       await pushPlaylist();
+      playing = true;
     } catch {
       status = "ENDED";
+      playing = false;
     }
   });
 
