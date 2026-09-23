@@ -1,0 +1,1640 @@
+{
+  "formatVersion": 2,
+  "id": "misima-hybrid",
+  "name": "Misima Hybrid",
+  "author": "Misima",
+  "units": "artboard-2x-px",
+  "canvas": {
+    "width": 1500,
+    "height": 2060,
+    "scale": 2
+  },
+  "background": {
+    "image": "bg/bg.png",
+    "origin": {
+      "x": 0,
+      "y": 0
+    },
+    "size": {
+      "w": 1500,
+      "h": 2060
+    }
+  },
+  "faders": [
+    {
+      "id": "volume",
+      "param": "volume",
+      "orientation": "vertical",
+      "origin": {
+        "x": 120,
+        "y": 1500
+      },
+      "travel": 180,
+      "knob": "ui/knob_volume.png",
+      "range": [
+        0,
+        1
+      ],
+      "value": 0.8,
+      "knobSize": {
+        "w": 56,
+        "h": 34
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "pitch",
+      "param": "pitch",
+      "orientation": "vertical",
+      "origin": {
+        "x": 260,
+        "y": 1500
+      },
+      "travel": 180,
+      "knob": "ui/knob_pitch.png",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0,
+      "knobSize": {
+        "w": 51,
+        "h": 38
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "reverb",
+      "param": "reverb",
+      "orientation": "vertical",
+      "origin": {
+        "x": 400,
+        "y": 1500
+      },
+      "travel": 180,
+      "knob": "ui/knob_reverb.png",
+      "range": [
+        0,
+        1
+      ],
+      "value": 0.15,
+      "knobSize": {
+        "w": 25,
+        "h": 48
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "eq1",
+      "param": "eq0",
+      "orientation": "vertical",
+      "origin": {
+        "x": 560,
+        "y": 1500
+      },
+      "travel": 160,
+      "knob": "ui/knob_eq_1.png",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0,
+      "knobSize": {
+        "w": 49,
+        "h": 33
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "eq2",
+      "param": "eq1",
+      "orientation": "vertical",
+      "origin": {
+        "x": 640,
+        "y": 1500
+      },
+      "travel": 160,
+      "knob": "ui/knob_eq_2.png",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0,
+      "knobSize": {
+        "w": 41,
+        "h": 51
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "eq3",
+      "param": "eq2",
+      "orientation": "vertical",
+      "origin": {
+        "x": 720,
+        "y": 1500
+      },
+      "travel": 160,
+      "knob": "ui/knob_eq_3.png",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0,
+      "knobSize": {
+        "w": 49,
+        "h": 40
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "eq4",
+      "param": "eq3",
+      "orientation": "vertical",
+      "origin": {
+        "x": 800,
+        "y": 1500
+      },
+      "travel": 160,
+      "knob": "ui/knob_eq_4.png",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0,
+      "knobSize": {
+        "w": 28,
+        "h": 27
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "eq5",
+      "param": "eq4",
+      "orientation": "vertical",
+      "origin": {
+        "x": 880,
+        "y": 1500
+      },
+      "travel": 160,
+      "knob": "ui/knob_eq_5.png",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0,
+      "knobSize": {
+        "w": 47,
+        "h": 54
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "eq6",
+      "param": "eq5",
+      "orientation": "vertical",
+      "origin": {
+        "x": 960,
+        "y": 1500
+      },
+      "travel": 160,
+      "knob": "ui/knob_eq_6.png",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0,
+      "knobSize": {
+        "w": 44,
+        "h": 56
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "eq7",
+      "param": "eq6",
+      "orientation": "vertical",
+      "origin": {
+        "x": 1040,
+        "y": 1500
+      },
+      "travel": 160,
+      "knob": "ui/knob_eq_7.png",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0,
+      "knobSize": {
+        "w": 25,
+        "h": 29
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "eq8",
+      "param": "eq7",
+      "orientation": "vertical",
+      "origin": {
+        "x": 1120,
+        "y": 1500
+      },
+      "travel": 160,
+      "knob": "ui/knob_eq_8.png",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0,
+      "knobSize": {
+        "w": 41,
+        "h": 55
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "eq9",
+      "param": "eq8",
+      "orientation": "vertical",
+      "origin": {
+        "x": 1200,
+        "y": 1500
+      },
+      "travel": 160,
+      "knob": "ui/knob_eq_9.png",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0,
+      "knobSize": {
+        "w": 52,
+        "h": 34
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "eq10",
+      "param": "eq9",
+      "orientation": "vertical",
+      "origin": {
+        "x": 1280,
+        "y": 1500
+      },
+      "travel": 160,
+      "knob": "ui/knob_eq_10.png",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0,
+      "knobSize": {
+        "w": 35,
+        "h": 31
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "tempo",
+      "param": "speed",
+      "orientation": "vertical",
+      "origin": {
+        "x": 1360,
+        "y": 1500
+      },
+      "travel": 180,
+      "knob": "ui/knob_tempo.png",
+      "range": [
+        0.5,
+        2
+      ],
+      "value": 1,
+      "knobSize": {
+        "w": 100,
+        "h": 38
+      },
+      "knobHotspot": "top-left"
+    }
+  ],
+  "buttons": [
+    {
+      "id": "prev",
+      "action": "prev",
+      "origin": {
+        "x": 80,
+        "y": 300
+      },
+      "size": {
+        "w": 33,
+        "h": 71
+      },
+      "frames": {
+        "pressed": "ui/button_prev.png"
+      }
+    },
+    {
+      "id": "play",
+      "action": "play",
+      "origin": {
+        "x": 130,
+        "y": 300
+      },
+      "size": {
+        "w": 57,
+        "h": 63
+      },
+      "frames": {
+        "pressed": "ui/button_play.png"
+      }
+    },
+    {
+      "id": "stop",
+      "action": "stop",
+      "origin": {
+        "x": 200,
+        "y": 300
+      },
+      "size": {
+        "w": 42,
+        "h": 129
+      },
+      "frames": {
+        "pressed": "ui/button_stop.png"
+      }
+    },
+    {
+      "id": "next",
+      "action": "next",
+      "origin": {
+        "x": 260,
+        "y": 300
+      },
+      "size": {
+        "w": 45,
+        "h": 51
+      },
+      "frames": {
+        "pressed": "ui/button_next.png"
+      }
+    },
+    {
+      "id": "power",
+      "action": "stop",
+      "origin": {
+        "x": 1400,
+        "y": 80
+      },
+      "size": {
+        "w": 45,
+        "h": 106
+      },
+      "frames": {
+        "pressed": "ui/button_power.png"
+      }
+    },
+    {
+      "id": "fx_enable",
+      "action": "reset_eq",
+      "origin": {
+        "x": 80,
+        "y": 700
+      },
+      "size": {
+        "w": 136,
+        "h": 103
+      },
+      "frames": {
+        "pressed": "ui/button_fx_enable.png"
+      }
+    },
+    {
+      "id": "fx_reset",
+      "action": "reset_eq",
+      "origin": {
+        "x": 230,
+        "y": 700
+      },
+      "size": {
+        "w": 91,
+        "h": 53
+      },
+      "frames": {
+        "pressed": "ui/button_fx_reset.png"
+      }
+    },
+    {
+      "id": "playlist_open",
+      "action": "open",
+      "origin": {
+        "x": 900,
+        "y": 1700
+      },
+      "size": {
+        "w": 22,
+        "h": 64
+      },
+      "frames": {
+        "pressed": "ui/button_playlist_open.png"
+      }
+    },
+    {
+      "id": "playlist_shuffle",
+      "action": "next",
+      "origin": {
+        "x": 940,
+        "y": 1700
+      },
+      "size": {
+        "w": 29,
+        "h": 74
+      },
+      "frames": {
+        "pressed": "ui/button_playlist_shuffle.png"
+      }
+    }
+  ],
+  "visuals": {
+    "spectrum": {
+      "mode": "segments",
+      "auto": {
+        "bandLeftX": [
+          370,
+          411,
+          451,
+          496,
+          546,
+          602,
+          655,
+          703,
+          750,
+          805
+        ],
+        "bottomY": 585,
+        "maxHeight": 240,
+        "segmentsPerBand": 10,
+        "chips": [
+          "spectrum/chip_0.png",
+          "spectrum/chip_1.png",
+          "spectrum/chip_2.png",
+          "spectrum/chip_3.png",
+          "spectrum/chip_4.png",
+          "spectrum/chip_5.png",
+          "spectrum/chip_6.png",
+          "spectrum/chip_7.png",
+          "spectrum/chip_8.png",
+          "spectrum/chip_9.png"
+        ],
+        "overlap": 0.5
+      },
+      "bands": [
+        {
+          "id": 0,
+          "segments": [
+            {
+              "image": "spectrum/chip_0.png",
+              "origin": {
+                "x": 370,
+                "y": 552
+              },
+              "reveal": 0.0
+            },
+            {
+              "image": "spectrum/chip_1.png",
+              "origin": {
+                "x": 372,
+                "y": 526
+              },
+              "reveal": 0.111
+            },
+            {
+              "image": "spectrum/chip_2.png",
+              "origin": {
+                "x": 368,
+                "y": 524
+              },
+              "reveal": 0.222
+            },
+            {
+              "image": "spectrum/chip_3.png",
+              "origin": {
+                "x": 373,
+                "y": 494
+              },
+              "reveal": 0.333
+            },
+            {
+              "image": "spectrum/chip_4.png",
+              "origin": {
+                "x": 369,
+                "y": 478
+              },
+              "reveal": 0.444
+            },
+            {
+              "image": "spectrum/chip_5.png",
+              "origin": {
+                "x": 371,
+                "y": 465
+              },
+              "reveal": 0.556
+            },
+            {
+              "image": "spectrum/chip_6.png",
+              "origin": {
+                "x": 367,
+                "y": 446
+              },
+              "reveal": 0.667
+            },
+            {
+              "image": "spectrum/chip_7.png",
+              "origin": {
+                "x": 372,
+                "y": 442
+              },
+              "reveal": 0.778
+            },
+            {
+              "image": "spectrum/chip_8.png",
+              "origin": {
+                "x": 369,
+                "y": 418
+              },
+              "reveal": 0.889
+            },
+            {
+              "image": "spectrum/chip_9.png",
+              "origin": {
+                "x": 370,
+                "y": 408
+              },
+              "reveal": 1.0
+            }
+          ]
+        },
+        {
+          "id": 1,
+          "segments": [
+            {
+              "image": "spectrum/chip_0.png",
+              "origin": {
+                "x": 411,
+                "y": 552
+              },
+              "reveal": 0.0
+            },
+            {
+              "image": "spectrum/chip_1.png",
+              "origin": {
+                "x": 413,
+                "y": 526
+              },
+              "reveal": 0.111
+            },
+            {
+              "image": "spectrum/chip_2.png",
+              "origin": {
+                "x": 409,
+                "y": 524
+              },
+              "reveal": 0.222
+            },
+            {
+              "image": "spectrum/chip_3.png",
+              "origin": {
+                "x": 414,
+                "y": 494
+              },
+              "reveal": 0.333
+            },
+            {
+              "image": "spectrum/chip_4.png",
+              "origin": {
+                "x": 410,
+                "y": 478
+              },
+              "reveal": 0.444
+            },
+            {
+              "image": "spectrum/chip_5.png",
+              "origin": {
+                "x": 412,
+                "y": 465
+              },
+              "reveal": 0.556
+            },
+            {
+              "image": "spectrum/chip_6.png",
+              "origin": {
+                "x": 408,
+                "y": 446
+              },
+              "reveal": 0.667
+            },
+            {
+              "image": "spectrum/chip_7.png",
+              "origin": {
+                "x": 413,
+                "y": 442
+              },
+              "reveal": 0.778
+            },
+            {
+              "image": "spectrum/chip_8.png",
+              "origin": {
+                "x": 410,
+                "y": 418
+              },
+              "reveal": 0.889
+            },
+            {
+              "image": "spectrum/chip_9.png",
+              "origin": {
+                "x": 411,
+                "y": 408
+              },
+              "reveal": 1.0
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "segments": [
+            {
+              "image": "spectrum/chip_0.png",
+              "origin": {
+                "x": 451,
+                "y": 552
+              },
+              "reveal": 0.0
+            },
+            {
+              "image": "spectrum/chip_1.png",
+              "origin": {
+                "x": 453,
+                "y": 526
+              },
+              "reveal": 0.111
+            },
+            {
+              "image": "spectrum/chip_2.png",
+              "origin": {
+                "x": 449,
+                "y": 524
+              },
+              "reveal": 0.222
+            },
+            {
+              "image": "spectrum/chip_3.png",
+              "origin": {
+                "x": 454,
+                "y": 494
+              },
+              "reveal": 0.333
+            },
+            {
+              "image": "spectrum/chip_4.png",
+              "origin": {
+                "x": 450,
+                "y": 478
+              },
+              "reveal": 0.444
+            },
+            {
+              "image": "spectrum/chip_5.png",
+              "origin": {
+                "x": 452,
+                "y": 465
+              },
+              "reveal": 0.556
+            },
+            {
+              "image": "spectrum/chip_6.png",
+              "origin": {
+                "x": 448,
+                "y": 446
+              },
+              "reveal": 0.667
+            },
+            {
+              "image": "spectrum/chip_7.png",
+              "origin": {
+                "x": 453,
+                "y": 442
+              },
+              "reveal": 0.778
+            },
+            {
+              "image": "spectrum/chip_8.png",
+              "origin": {
+                "x": 450,
+                "y": 418
+              },
+              "reveal": 0.889
+            },
+            {
+              "image": "spectrum/chip_9.png",
+              "origin": {
+                "x": 451,
+                "y": 408
+              },
+              "reveal": 1.0
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "segments": [
+            {
+              "image": "spectrum/chip_0.png",
+              "origin": {
+                "x": 496,
+                "y": 552
+              },
+              "reveal": 0.0
+            },
+            {
+              "image": "spectrum/chip_1.png",
+              "origin": {
+                "x": 498,
+                "y": 526
+              },
+              "reveal": 0.111
+            },
+            {
+              "image": "spectrum/chip_2.png",
+              "origin": {
+                "x": 494,
+                "y": 524
+              },
+              "reveal": 0.222
+            },
+            {
+              "image": "spectrum/chip_3.png",
+              "origin": {
+                "x": 499,
+                "y": 494
+              },
+              "reveal": 0.333
+            },
+            {
+              "image": "spectrum/chip_4.png",
+              "origin": {
+                "x": 495,
+                "y": 478
+              },
+              "reveal": 0.444
+            },
+            {
+              "image": "spectrum/chip_5.png",
+              "origin": {
+                "x": 497,
+                "y": 465
+              },
+              "reveal": 0.556
+            },
+            {
+              "image": "spectrum/chip_6.png",
+              "origin": {
+                "x": 493,
+                "y": 446
+              },
+              "reveal": 0.667
+            },
+            {
+              "image": "spectrum/chip_7.png",
+              "origin": {
+                "x": 498,
+                "y": 442
+              },
+              "reveal": 0.778
+            },
+            {
+              "image": "spectrum/chip_8.png",
+              "origin": {
+                "x": 495,
+                "y": 418
+              },
+              "reveal": 0.889
+            },
+            {
+              "image": "spectrum/chip_9.png",
+              "origin": {
+                "x": 496,
+                "y": 408
+              },
+              "reveal": 1.0
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "segments": [
+            {
+              "image": "spectrum/chip_0.png",
+              "origin": {
+                "x": 546,
+                "y": 552
+              },
+              "reveal": 0.0
+            },
+            {
+              "image": "spectrum/chip_1.png",
+              "origin": {
+                "x": 548,
+                "y": 526
+              },
+              "reveal": 0.111
+            },
+            {
+              "image": "spectrum/chip_2.png",
+              "origin": {
+                "x": 544,
+                "y": 524
+              },
+              "reveal": 0.222
+            },
+            {
+              "image": "spectrum/chip_3.png",
+              "origin": {
+                "x": 549,
+                "y": 494
+              },
+              "reveal": 0.333
+            },
+            {
+              "image": "spectrum/chip_4.png",
+              "origin": {
+                "x": 545,
+                "y": 478
+              },
+              "reveal": 0.444
+            },
+            {
+              "image": "spectrum/chip_5.png",
+              "origin": {
+                "x": 547,
+                "y": 465
+              },
+              "reveal": 0.556
+            },
+            {
+              "image": "spectrum/chip_6.png",
+              "origin": {
+                "x": 543,
+                "y": 446
+              },
+              "reveal": 0.667
+            },
+            {
+              "image": "spectrum/chip_7.png",
+              "origin": {
+                "x": 548,
+                "y": 442
+              },
+              "reveal": 0.778
+            },
+            {
+              "image": "spectrum/chip_8.png",
+              "origin": {
+                "x": 545,
+                "y": 418
+              },
+              "reveal": 0.889
+            },
+            {
+              "image": "spectrum/chip_9.png",
+              "origin": {
+                "x": 546,
+                "y": 408
+              },
+              "reveal": 1.0
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "segments": [
+            {
+              "image": "spectrum/chip_0.png",
+              "origin": {
+                "x": 602,
+                "y": 552
+              },
+              "reveal": 0.0
+            },
+            {
+              "image": "spectrum/chip_1.png",
+              "origin": {
+                "x": 604,
+                "y": 526
+              },
+              "reveal": 0.111
+            },
+            {
+              "image": "spectrum/chip_2.png",
+              "origin": {
+                "x": 600,
+                "y": 524
+              },
+              "reveal": 0.222
+            },
+            {
+              "image": "spectrum/chip_3.png",
+              "origin": {
+                "x": 605,
+                "y": 494
+              },
+              "reveal": 0.333
+            },
+            {
+              "image": "spectrum/chip_4.png",
+              "origin": {
+                "x": 601,
+                "y": 478
+              },
+              "reveal": 0.444
+            },
+            {
+              "image": "spectrum/chip_5.png",
+              "origin": {
+                "x": 603,
+                "y": 465
+              },
+              "reveal": 0.556
+            },
+            {
+              "image": "spectrum/chip_6.png",
+              "origin": {
+                "x": 599,
+                "y": 446
+              },
+              "reveal": 0.667
+            },
+            {
+              "image": "spectrum/chip_7.png",
+              "origin": {
+                "x": 604,
+                "y": 442
+              },
+              "reveal": 0.778
+            },
+            {
+              "image": "spectrum/chip_8.png",
+              "origin": {
+                "x": 601,
+                "y": 418
+              },
+              "reveal": 0.889
+            },
+            {
+              "image": "spectrum/chip_9.png",
+              "origin": {
+                "x": 602,
+                "y": 408
+              },
+              "reveal": 1.0
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "segments": [
+            {
+              "image": "spectrum/chip_0.png",
+              "origin": {
+                "x": 655,
+                "y": 552
+              },
+              "reveal": 0.0
+            },
+            {
+              "image": "spectrum/chip_1.png",
+              "origin": {
+                "x": 657,
+                "y": 526
+              },
+              "reveal": 0.111
+            },
+            {
+              "image": "spectrum/chip_2.png",
+              "origin": {
+                "x": 653,
+                "y": 524
+              },
+              "reveal": 0.222
+            },
+            {
+              "image": "spectrum/chip_3.png",
+              "origin": {
+                "x": 658,
+                "y": 494
+              },
+              "reveal": 0.333
+            },
+            {
+              "image": "spectrum/chip_4.png",
+              "origin": {
+                "x": 654,
+                "y": 478
+              },
+              "reveal": 0.444
+            },
+            {
+              "image": "spectrum/chip_5.png",
+              "origin": {
+                "x": 656,
+                "y": 465
+              },
+              "reveal": 0.556
+            },
+            {
+              "image": "spectrum/chip_6.png",
+              "origin": {
+                "x": 652,
+                "y": 446
+              },
+              "reveal": 0.667
+            },
+            {
+              "image": "spectrum/chip_7.png",
+              "origin": {
+                "x": 657,
+                "y": 442
+              },
+              "reveal": 0.778
+            },
+            {
+              "image": "spectrum/chip_8.png",
+              "origin": {
+                "x": 654,
+                "y": 418
+              },
+              "reveal": 0.889
+            },
+            {
+              "image": "spectrum/chip_9.png",
+              "origin": {
+                "x": 655,
+                "y": 408
+              },
+              "reveal": 1.0
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "segments": [
+            {
+              "image": "spectrum/chip_0.png",
+              "origin": {
+                "x": 703,
+                "y": 552
+              },
+              "reveal": 0.0
+            },
+            {
+              "image": "spectrum/chip_1.png",
+              "origin": {
+                "x": 705,
+                "y": 526
+              },
+              "reveal": 0.111
+            },
+            {
+              "image": "spectrum/chip_2.png",
+              "origin": {
+                "x": 701,
+                "y": 524
+              },
+              "reveal": 0.222
+            },
+            {
+              "image": "spectrum/chip_3.png",
+              "origin": {
+                "x": 706,
+                "y": 494
+              },
+              "reveal": 0.333
+            },
+            {
+              "image": "spectrum/chip_4.png",
+              "origin": {
+                "x": 702,
+                "y": 478
+              },
+              "reveal": 0.444
+            },
+            {
+              "image": "spectrum/chip_5.png",
+              "origin": {
+                "x": 704,
+                "y": 465
+              },
+              "reveal": 0.556
+            },
+            {
+              "image": "spectrum/chip_6.png",
+              "origin": {
+                "x": 700,
+                "y": 446
+              },
+              "reveal": 0.667
+            },
+            {
+              "image": "spectrum/chip_7.png",
+              "origin": {
+                "x": 705,
+                "y": 442
+              },
+              "reveal": 0.778
+            },
+            {
+              "image": "spectrum/chip_8.png",
+              "origin": {
+                "x": 702,
+                "y": 418
+              },
+              "reveal": 0.889
+            },
+            {
+              "image": "spectrum/chip_9.png",
+              "origin": {
+                "x": 703,
+                "y": 408
+              },
+              "reveal": 1.0
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "segments": [
+            {
+              "image": "spectrum/chip_0.png",
+              "origin": {
+                "x": 750,
+                "y": 552
+              },
+              "reveal": 0.0
+            },
+            {
+              "image": "spectrum/chip_1.png",
+              "origin": {
+                "x": 752,
+                "y": 526
+              },
+              "reveal": 0.111
+            },
+            {
+              "image": "spectrum/chip_2.png",
+              "origin": {
+                "x": 748,
+                "y": 524
+              },
+              "reveal": 0.222
+            },
+            {
+              "image": "spectrum/chip_3.png",
+              "origin": {
+                "x": 753,
+                "y": 494
+              },
+              "reveal": 0.333
+            },
+            {
+              "image": "spectrum/chip_4.png",
+              "origin": {
+                "x": 749,
+                "y": 478
+              },
+              "reveal": 0.444
+            },
+            {
+              "image": "spectrum/chip_5.png",
+              "origin": {
+                "x": 751,
+                "y": 465
+              },
+              "reveal": 0.556
+            },
+            {
+              "image": "spectrum/chip_6.png",
+              "origin": {
+                "x": 747,
+                "y": 446
+              },
+              "reveal": 0.667
+            },
+            {
+              "image": "spectrum/chip_7.png",
+              "origin": {
+                "x": 752,
+                "y": 442
+              },
+              "reveal": 0.778
+            },
+            {
+              "image": "spectrum/chip_8.png",
+              "origin": {
+                "x": 749,
+                "y": 418
+              },
+              "reveal": 0.889
+            },
+            {
+              "image": "spectrum/chip_9.png",
+              "origin": {
+                "x": 750,
+                "y": 408
+              },
+              "reveal": 1.0
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "segments": [
+            {
+              "image": "spectrum/chip_0.png",
+              "origin": {
+                "x": 805,
+                "y": 552
+              },
+              "reveal": 0.0
+            },
+            {
+              "image": "spectrum/chip_1.png",
+              "origin": {
+                "x": 807,
+                "y": 526
+              },
+              "reveal": 0.111
+            },
+            {
+              "image": "spectrum/chip_2.png",
+              "origin": {
+                "x": 803,
+                "y": 524
+              },
+              "reveal": 0.222
+            },
+            {
+              "image": "spectrum/chip_3.png",
+              "origin": {
+                "x": 808,
+                "y": 494
+              },
+              "reveal": 0.333
+            },
+            {
+              "image": "spectrum/chip_4.png",
+              "origin": {
+                "x": 804,
+                "y": 478
+              },
+              "reveal": 0.444
+            },
+            {
+              "image": "spectrum/chip_5.png",
+              "origin": {
+                "x": 806,
+                "y": 465
+              },
+              "reveal": 0.556
+            },
+            {
+              "image": "spectrum/chip_6.png",
+              "origin": {
+                "x": 802,
+                "y": 446
+              },
+              "reveal": 0.667
+            },
+            {
+              "image": "spectrum/chip_7.png",
+              "origin": {
+                "x": 807,
+                "y": 442
+              },
+              "reveal": 0.778
+            },
+            {
+              "image": "spectrum/chip_8.png",
+              "origin": {
+                "x": 804,
+                "y": 418
+              },
+              "reveal": 0.889
+            },
+            {
+              "image": "spectrum/chip_9.png",
+              "origin": {
+                "x": 805,
+                "y": 408
+              },
+              "reveal": 1.0
+            }
+          ]
+        }
+      ]
+    },
+    "waterfall": {
+      "origin": {
+        "x": 120,
+        "y": 200
+      },
+      "size": {
+        "w": 240,
+        "h": 360
+      },
+      "mode": "phase3d",
+      "color": "#3dffb5"
+    }
+  },
+  "text": {
+    "font": {
+      "atlas": "font/glyphs.png",
+      "cell": {
+        "w": 18,
+        "h": 18
+      },
+      "classes": {
+        "digit": {
+          "cell": {
+            "w": 24,
+            "h": 24
+          },
+          "baseline": "bottom",
+          "atlasOrigin": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        "letter": {
+          "cell": {
+            "w": 36,
+            "h": 18
+          },
+          "baseline": "bottom",
+          "atlasOrigin": {
+            "x": 0,
+            "y": 120
+          }
+        },
+        "symbol": {
+          "cell": {
+            "w": 24,
+            "h": 18
+          },
+          "baseline": "bottom",
+          "atlasOrigin": {
+            "x": 0,
+            "y": 72
+          }
+        }
+      },
+      "map": {
+        "0": {
+          "col": 0,
+          "row": 0,
+          "class": "digit"
+        },
+        "1": {
+          "col": 1,
+          "row": 0,
+          "class": "digit"
+        },
+        "2": {
+          "col": 2,
+          "row": 0,
+          "class": "digit"
+        },
+        "3": {
+          "col": 3,
+          "row": 0,
+          "class": "digit"
+        },
+        "4": {
+          "col": 4,
+          "row": 0,
+          "class": "digit"
+        },
+        "5": {
+          "col": 5,
+          "row": 0,
+          "class": "digit"
+        },
+        "6": {
+          "col": 6,
+          "row": 0,
+          "class": "digit"
+        },
+        "7": {
+          "col": 7,
+          "row": 0,
+          "class": "digit"
+        },
+        "8": {
+          "col": 8,
+          "row": 0,
+          "class": "digit"
+        },
+        "9": {
+          "col": 9,
+          "row": 0,
+          "class": "digit"
+        },
+        " ": {
+          "col": 0,
+          "row": 3,
+          "class": "symbol"
+        },
+        "-": {
+          "col": 1,
+          "row": 3,
+          "class": "symbol"
+        },
+        ".": {
+          "col": 2,
+          "row": 3,
+          "class": "symbol"
+        },
+        ":": {
+          "col": 3,
+          "row": 3,
+          "class": "symbol"
+        },
+        "?": {
+          "col": 4,
+          "row": 3,
+          "class": "symbol"
+        },
+        "A": {
+          "col": 0,
+          "row": 4,
+          "class": "letter"
+        },
+        "B": {
+          "col": 1,
+          "row": 4,
+          "class": "letter"
+        },
+        "C": {
+          "col": 2,
+          "row": 4,
+          "class": "letter"
+        },
+        "D": {
+          "col": 3,
+          "row": 4,
+          "class": "letter"
+        },
+        "E": {
+          "col": 4,
+          "row": 4,
+          "class": "letter"
+        },
+        "F": {
+          "col": 5,
+          "row": 4,
+          "class": "letter"
+        },
+        "G": {
+          "col": 6,
+          "row": 4,
+          "class": "letter"
+        },
+        "H": {
+          "col": 7,
+          "row": 4,
+          "class": "letter"
+        },
+        "I": {
+          "col": 0,
+          "row": 5,
+          "class": "letter"
+        },
+        "J": {
+          "col": 1,
+          "row": 5,
+          "class": "letter"
+        },
+        "K": {
+          "col": 2,
+          "row": 5,
+          "class": "letter"
+        },
+        "L": {
+          "col": 3,
+          "row": 5,
+          "class": "letter"
+        },
+        "M": {
+          "col": 4,
+          "row": 5,
+          "class": "letter"
+        },
+        "N": {
+          "col": 5,
+          "row": 5,
+          "class": "letter"
+        },
+        "O": {
+          "col": 6,
+          "row": 5,
+          "class": "letter"
+        },
+        "P": {
+          "col": 7,
+          "row": 5,
+          "class": "letter"
+        },
+        "Q": {
+          "col": 0,
+          "row": 6,
+          "class": "letter"
+        },
+        "R": {
+          "col": 1,
+          "row": 6,
+          "class": "letter"
+        },
+        "S": {
+          "col": 2,
+          "row": 6,
+          "class": "letter"
+        },
+        "T": {
+          "col": 3,
+          "row": 6,
+          "class": "letter"
+        },
+        "U": {
+          "col": 4,
+          "row": 6,
+          "class": "letter"
+        },
+        "V": {
+          "col": 5,
+          "row": 6,
+          "class": "letter"
+        },
+        "W": {
+          "col": 6,
+          "row": 6,
+          "class": "letter"
+        },
+        "X": {
+          "col": 7,
+          "row": 6,
+          "class": "letter"
+        },
+        "Y": {
+          "col": 0,
+          "row": 7,
+          "class": "letter"
+        },
+        "Z": {
+          "col": 1,
+          "row": 7,
+          "class": "letter"
+        }
+      },
+      "fallback": "?"
+    },
+    "playlist": {
+      "origin": {
+        "x": 1024,
+        "y": 1490
+      },
+      "size": {
+        "w": 378,
+        "h": 310
+      },
+      "rows": 10,
+      "rowHeight": 31,
+      "columns": [
+        {
+          "id": "index",
+          "width": 48
+        },
+        {
+          "id": "title",
+          "width": 234
+        },
+        {
+          "id": "duration",
+          "width": 96,
+          "align": "right"
+        }
+      ]
+    },
+    "status": {
+      "origin": {
+        "x": 120,
+        "y": 1980
+      }
+    }
+  }
+}

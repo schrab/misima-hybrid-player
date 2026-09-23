@@ -24,6 +24,8 @@ export type SpectrumAutoLayout = {
   segmentsPerBand?: number;
   /** Horizontal nudge per segment (organic scatter), default 0. */
   jitterX?: number[];
+  /** Vertical nest factor 0..1 (default 0.5). */
+  overlap?: number;
 };
 
 /**

@@ -191,6 +191,10 @@ def copy_public() -> None:
     if PUBLIC.exists():
         shutil.rmtree(PUBLIC)
     shutil.copytree(SRC, PUBLIC)
+    # Runtime fetches /sprite/skin.json — copy manifest next to assets
+    src_manifest = SKIN / "skin.json"
+    if src_manifest.exists():
+        shutil.copy2(src_manifest, PUBLIC / "skin.json")
 
 
 def pack() -> None:
