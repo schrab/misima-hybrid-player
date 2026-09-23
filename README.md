@@ -69,11 +69,40 @@ A skin is a ZIP (`.mskin`) containing master **background PNGs**, **knob/button 
 7. `python scripts/make_sprite_kit.py` (placeholders) or your pack script → `.mskin`.
 8. Drag faders in the player to verify hit boxes; tweak JSON integers.
 
+### Coordinate system (2× artboard)
+
+| Rule | Value |
+|------|--------|
+| Artboard | `bg/bg.png` = **1500 × 2060** (Photoshop pixels) |
+| JSON units | **Same as Photoshop Info** — use the numbers you see, **do not divide by 2** |
+| `canvas` | `{ "width": 1500, "height": 2060, "scale": 2 }` |
+| Origin of canvas | **Top-left** of `bg.png` = (0, 0) |
+
+**What to measure (Photoshop → layer bounds top-left):**
+
+| Control | `origin` means | `travel` / `size` |
+|---------|----------------|-------------------|
+| **Knob** (vertical fader) | **Top-left of the knob PNG at MAXIMUM value** (cap at the top of its slot) | `travel` = Y of top-left at **MINIMUM** value − Y at max (always positive; slides downward as value falls) |
+| **Button** | **Top-left of the button PNG** — same rectangle as the idle art already in `bg.png` | `size` = that PNG’s W×H (auto-read from file) |
+| **Spectrum / waterfall / text** | **Top-left** of the draw rectangle / first baseline row | `size` / `rowHeight` in artboard px |
+
+Draw math (vertical):
+
+```text
+knobY(value) = origin.y + (1 - normalized) * travel
+x stays origin.x
+```
+
+Per-control **knob sizes and travels are independent** (your PNGs already differ; JSON allows different `travel` per fader).
+
+Buttons: **idle state is only in `bg.png`**. Separate `button_*.png` are **active/pressed overlays** at the same `origin`.
+
 ### Fader row (left → right)
 
-`volume` · `pitch` · `reverb` · `eq0`…`eq9` · `speed`
+`volume` · `pitch` · `reverb` · `eq1`…`eq10` · `tempo` (speed)
 
-Positions are defined **only** by your background art + JSON `origin`/`travel`.
+Filnames: `knob_volume.png`, `knob_pitch.png`, `knob_reverb.png`, `knob_eq_1.png`…`knob_eq_10.png`, `knob_tempo.png`.
+
 
 ### DSP
 

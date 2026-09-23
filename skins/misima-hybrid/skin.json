@@ -3,71 +3,21 @@
   "id": "misima-hybrid",
   "name": "Misima Hybrid",
   "author": "Misima",
+  "units": "artboard-2x-px",
   "canvas": {
-    "width": 1280,
-    "height": 980,
-    "scale": 1
+    "width": 1500,
+    "height": 2060,
+    "scale": 2
   },
-  "blocks": {
-    "visualizer": {
-      "image": "sprites/bg/visualizer.png",
-      "origin": {
-        "x": 0,
-        "y": 0
-      },
-      "size": {
-        "w": 1280,
-        "h": 400
-      },
-      "hit": "auto-alpha",
-      "drag": [
-        {
-          "x": 24,
-          "y": 12,
-          "w": 420,
-          "h": 36
-        }
-      ]
+  "background": {
+    "image": "bg/bg.png",
+    "origin": {
+      "x": 0,
+      "y": 0
     },
-    "eq": {
-      "image": "sprites/bg/eq.png",
-      "origin": {
-        "x": 0,
-        "y": 410
-      },
-      "size": {
-        "w": 1280,
-        "h": 240
-      },
-      "hit": "auto-alpha",
-      "drag": [
-        {
-          "x": 24,
-          "y": 12,
-          "w": 300,
-          "h": 32
-        }
-      ]
-    },
-    "playlist": {
-      "image": "sprites/bg/playlist.png",
-      "origin": {
-        "x": 620,
-        "y": 660
-      },
-      "size": {
-        "w": 560,
-        "h": 300
-      },
-      "hit": "auto-alpha",
-      "drag": [
-        {
-          "x": 24,
-          "y": 12,
-          "w": 240,
-          "h": 32
-        }
-      ]
+    "size": {
+      "w": 1500,
+      "h": 2060
     }
   },
   "faders": [
@@ -76,237 +26,294 @@
       "param": "volume",
       "orientation": "vertical",
       "origin": {
-        "x": 220,
-        "y": 520
+        "x": 120,
+        "y": 1500
       },
-      "travel": 120,
-      "knob": "sprites/ui/knob_magenta.png",
-      "knobHotspot": "center",
+      "travel": 180,
+      "knob": "ui/knob_volume.png",
       "range": [
         0,
         1
       ],
-      "value": 0.8
+      "value": 0.8,
+      "knobSize": {
+        "w": 56,
+        "h": 34
+      },
+      "knobHotspot": "top-left"
     },
     {
       "id": "pitch",
       "param": "pitch",
       "orientation": "vertical",
       "origin": {
-        "x": 300,
-        "y": 520
+        "x": 260,
+        "y": 1500
       },
-      "travel": 120,
-      "knob": "sprites/ui/knob_magenta.png",
+      "travel": 180,
+      "knob": "ui/knob_pitch.png",
       "range": [
         -12,
         12
       ],
       "value": 0,
-      "unit": "st"
+      "knobSize": {
+        "w": 51,
+        "h": 38
+      },
+      "knobHotspot": "top-left"
     },
     {
       "id": "reverb",
       "param": "reverb",
       "orientation": "vertical",
       "origin": {
-        "x": 380,
-        "y": 520
+        "x": 400,
+        "y": 1500
       },
-      "travel": 120,
-      "knob": "sprites/ui/knob_magenta.png",
+      "travel": 180,
+      "knob": "ui/knob_reverb.png",
       "range": [
         0,
         1
       ],
-      "value": 0.15
-    },
-    {
-      "id": "eq0",
-      "param": "eq0",
-      "orientation": "vertical",
-      "origin": {
-        "x": 480,
-        "y": 520
+      "value": 0.15,
+      "knobSize": {
+        "w": 25,
+        "h": 48
       },
-      "travel": 120,
-      "knob": "sprites/ui/knob_magenta.png",
-      "range": [
-        -12,
-        12
-      ],
-      "value": 0,
-      "unit": "db"
+      "knobHotspot": "top-left"
     },
     {
       "id": "eq1",
-      "param": "eq1",
+      "param": "eq0",
       "orientation": "vertical",
       "origin": {
-        "x": 550,
-        "y": 520
+        "x": 560,
+        "y": 1500
       },
-      "travel": 120,
-      "knob": "sprites/ui/knob_magenta.png",
+      "travel": 160,
+      "knob": "ui/knob_eq_1.png",
       "range": [
         -12,
         12
       ],
       "value": 0,
-      "unit": "db"
+      "knobSize": {
+        "w": 49,
+        "h": 33
+      },
+      "knobHotspot": "top-left"
     },
     {
       "id": "eq2",
-      "param": "eq2",
+      "param": "eq1",
       "orientation": "vertical",
       "origin": {
-        "x": 620,
-        "y": 520
+        "x": 640,
+        "y": 1500
       },
-      "travel": 120,
-      "knob": "sprites/ui/knob_magenta.png",
+      "travel": 160,
+      "knob": "ui/knob_eq_2.png",
       "range": [
         -12,
         12
       ],
       "value": 0,
-      "unit": "db"
+      "knobSize": {
+        "w": 41,
+        "h": 51
+      },
+      "knobHotspot": "top-left"
     },
     {
       "id": "eq3",
-      "param": "eq3",
+      "param": "eq2",
       "orientation": "vertical",
       "origin": {
-        "x": 690,
-        "y": 520
+        "x": 720,
+        "y": 1500
       },
-      "travel": 120,
-      "knob": "sprites/ui/knob_magenta.png",
+      "travel": 160,
+      "knob": "ui/knob_eq_3.png",
       "range": [
         -12,
         12
       ],
       "value": 0,
-      "unit": "db"
+      "knobSize": {
+        "w": 49,
+        "h": 40
+      },
+      "knobHotspot": "top-left"
     },
     {
       "id": "eq4",
-      "param": "eq4",
+      "param": "eq3",
       "orientation": "vertical",
       "origin": {
-        "x": 760,
-        "y": 520
+        "x": 800,
+        "y": 1500
       },
-      "travel": 120,
-      "knob": "sprites/ui/knob_magenta.png",
+      "travel": 160,
+      "knob": "ui/knob_eq_4.png",
       "range": [
         -12,
         12
       ],
       "value": 0,
-      "unit": "db"
+      "knobSize": {
+        "w": 28,
+        "h": 27
+      },
+      "knobHotspot": "top-left"
     },
     {
       "id": "eq5",
-      "param": "eq5",
+      "param": "eq4",
       "orientation": "vertical",
       "origin": {
-        "x": 830,
-        "y": 520
+        "x": 880,
+        "y": 1500
       },
-      "travel": 120,
-      "knob": "sprites/ui/knob_magenta.png",
+      "travel": 160,
+      "knob": "ui/knob_eq_5.png",
       "range": [
         -12,
         12
       ],
       "value": 0,
-      "unit": "db"
+      "knobSize": {
+        "w": 47,
+        "h": 54
+      },
+      "knobHotspot": "top-left"
     },
     {
       "id": "eq6",
-      "param": "eq6",
+      "param": "eq5",
       "orientation": "vertical",
       "origin": {
-        "x": 900,
-        "y": 520
+        "x": 960,
+        "y": 1500
       },
-      "travel": 120,
-      "knob": "sprites/ui/knob_magenta.png",
+      "travel": 160,
+      "knob": "ui/knob_eq_6.png",
       "range": [
         -12,
         12
       ],
       "value": 0,
-      "unit": "db"
+      "knobSize": {
+        "w": 44,
+        "h": 56
+      },
+      "knobHotspot": "top-left"
     },
     {
       "id": "eq7",
-      "param": "eq7",
-      "orientation": "vertical",
-      "origin": {
-        "x": 970,
-        "y": 520
-      },
-      "travel": 120,
-      "knob": "sprites/ui/knob_magenta.png",
-      "range": [
-        -12,
-        12
-      ],
-      "value": 0,
-      "unit": "db"
-    },
-    {
-      "id": "eq8",
-      "param": "eq8",
+      "param": "eq6",
       "orientation": "vertical",
       "origin": {
         "x": 1040,
-        "y": 520
+        "y": 1500
       },
-      "travel": 120,
-      "knob": "sprites/ui/knob_magenta.png",
+      "travel": 160,
+      "knob": "ui/knob_eq_7.png",
       "range": [
         -12,
         12
       ],
       "value": 0,
-      "unit": "db"
+      "knobSize": {
+        "w": 25,
+        "h": 29
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "eq8",
+      "param": "eq7",
+      "orientation": "vertical",
+      "origin": {
+        "x": 1120,
+        "y": 1500
+      },
+      "travel": 160,
+      "knob": "ui/knob_eq_8.png",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0,
+      "knobSize": {
+        "w": 41,
+        "h": 55
+      },
+      "knobHotspot": "top-left"
     },
     {
       "id": "eq9",
-      "param": "eq9",
+      "param": "eq8",
       "orientation": "vertical",
       "origin": {
-        "x": 1110,
-        "y": 520
+        "x": 1200,
+        "y": 1500
       },
-      "travel": 120,
-      "knob": "sprites/ui/knob_magenta.png",
+      "travel": 160,
+      "knob": "ui/knob_eq_9.png",
       "range": [
         -12,
         12
       ],
       "value": 0,
-      "unit": "db"
+      "knobSize": {
+        "w": 52,
+        "h": 34
+      },
+      "knobHotspot": "top-left"
     },
     {
-      "id": "speed",
+      "id": "eq10",
+      "param": "eq9",
+      "orientation": "vertical",
+      "origin": {
+        "x": 1280,
+        "y": 1500
+      },
+      "travel": 160,
+      "knob": "ui/knob_eq_10.png",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0,
+      "knobSize": {
+        "w": 35,
+        "h": 31
+      },
+      "knobHotspot": "top-left"
+    },
+    {
+      "id": "tempo",
       "param": "speed",
       "orientation": "vertical",
       "origin": {
-        "x": 1220,
-        "y": 520
+        "x": 1360,
+        "y": 1500
       },
-      "travel": 120,
-      "knob": "sprites/ui/knob_magenta.png",
+      "travel": 180,
+      "knob": "ui/knob_tempo.png",
       "range": [
         0.5,
         2
       ],
-      "value": 1.0,
-      "unit": "x"
+      "value": 1,
+      "knobSize": {
+        "w": 100,
+        "h": 38
+      },
+      "knobHotspot": "top-left"
     }
   ],
   "buttons": [
@@ -314,140 +321,147 @@
       "id": "prev",
       "action": "prev",
       "origin": {
-        "x": 40,
-        "y": 330
+        "x": 80,
+        "y": 300
       },
       "size": {
-        "w": 52,
-        "h": 40
+        "w": 33,
+        "h": 71
       },
       "frames": {
-        "normal": "sprites/ui/btn_normal.png",
-        "pressed": "sprites/ui/btn_pressed.png"
+        "pressed": "ui/button_prev.png"
       }
     },
     {
       "id": "play",
       "action": "play",
       "origin": {
-        "x": 104,
-        "y": 330
+        "x": 130,
+        "y": 300
       },
       "size": {
-        "w": 52,
-        "h": 40
+        "w": 57,
+        "h": 63
       },
       "frames": {
-        "normal": "sprites/ui/btn_normal.png",
-        "pressed": "sprites/ui/btn_pressed.png"
-      }
-    },
-    {
-      "id": "pause",
-      "action": "pause",
-      "origin": {
-        "x": 168,
-        "y": 330
-      },
-      "size": {
-        "w": 52,
-        "h": 40
-      },
-      "frames": {
-        "normal": "sprites/ui/btn_normal.png",
-        "pressed": "sprites/ui/btn_pressed.png"
+        "pressed": "ui/button_play.png"
       }
     },
     {
       "id": "stop",
       "action": "stop",
       "origin": {
-        "x": 232,
-        "y": 330
+        "x": 200,
+        "y": 300
       },
       "size": {
-        "w": 52,
-        "h": 40
+        "w": 42,
+        "h": 129
       },
       "frames": {
-        "normal": "sprites/ui/btn_normal.png",
-        "pressed": "sprites/ui/btn_pressed.png"
+        "pressed": "ui/button_stop.png"
       }
     },
     {
       "id": "next",
       "action": "next",
       "origin": {
-        "x": 296,
-        "y": 330
+        "x": 260,
+        "y": 300
       },
       "size": {
-        "w": 52,
-        "h": 40
+        "w": 45,
+        "h": 51
       },
       "frames": {
-        "normal": "sprites/ui/btn_normal.png",
-        "pressed": "sprites/ui/btn_pressed.png"
+        "pressed": "ui/button_next.png"
       }
     },
     {
-      "id": "open",
-      "action": "open",
+      "id": "power",
+      "action": "stop",
       "origin": {
-        "x": 364,
-        "y": 330
+        "x": 1400,
+        "y": 80
       },
       "size": {
-        "w": 72,
-        "h": 40
+        "w": 45,
+        "h": 106
       },
       "frames": {
-        "normal": "sprites/ui/btn_normal.png",
-        "pressed": "sprites/ui/btn_pressed.png"
+        "pressed": "ui/button_power.png"
       }
     },
     {
-      "id": "reset_eq",
+      "id": "fx_enable",
       "action": "reset_eq",
       "origin": {
-        "x": 1180,
-        "y": 430
+        "x": 80,
+        "y": 700
       },
       "size": {
-        "w": 72,
-        "h": 32
+        "w": 136,
+        "h": 103
       },
       "frames": {
-        "normal": "sprites/ui/btn_normal.png",
-        "pressed": "sprites/ui/btn_pressed.png"
+        "pressed": "ui/button_fx_enable.png"
       }
     },
     {
-      "id": "clear",
-      "action": "clear",
+      "id": "fx_reset",
+      "action": "reset_eq",
       "origin": {
-        "x": 1120,
-        "y": 680
+        "x": 230,
+        "y": 700
       },
       "size": {
-        "w": 64,
-        "h": 32
+        "w": 91,
+        "h": 53
       },
       "frames": {
-        "normal": "sprites/ui/btn_normal.png",
-        "pressed": "sprites/ui/btn_pressed.png"
+        "pressed": "ui/button_fx_reset.png"
+      }
+    },
+    {
+      "id": "playlist_open",
+      "action": "open",
+      "origin": {
+        "x": 900,
+        "y": 1700
+      },
+      "size": {
+        "w": 22,
+        "h": 64
+      },
+      "frames": {
+        "pressed": "ui/button_playlist_open.png"
+      }
+    },
+    {
+      "id": "playlist_shuffle",
+      "action": "next",
+      "origin": {
+        "x": 940,
+        "y": 1700
+      },
+      "size": {
+        "w": 29,
+        "h": 74
+      },
+      "frames": {
+        "pressed": "ui/button_playlist_shuffle.png"
       }
     }
   ],
   "visuals": {
     "spectrum": {
       "origin": {
-        "x": 360,
-        "y": 80
+        "x": 400,
+        "y": 200
       },
       "size": {
-        "w": 820,
-        "h": 200
+        "w": 900,
+        "h": 400
       },
       "bands": 10,
       "cell": {
@@ -455,18 +469,18 @@
         "h": 12
       },
       "frames": 12,
-      "sheet": "sprites/spectrum/sheet.png",
+      "sheet": "spectrum/sheet.png",
       "align": "bottom",
-      "gapPx": 8
+      "gapPx": 0
     },
     "waterfall": {
       "origin": {
         "x": 120,
-        "y": 90
+        "y": 200
       },
       "size": {
-        "w": 200,
-        "h": 160
+        "w": 240,
+        "h": 360
       },
       "mode": "phase3d",
       "color": "#3dffb5"
@@ -474,7 +488,7 @@
   },
   "text": {
     "font": {
-      "atlas": "sprites/font/glyphs.png",
+      "atlas": "font/glyphs.png",
       "cell": {
         "w": 10,
         "h": 18
@@ -781,31 +795,31 @@
     },
     "playlist": {
       "origin": {
-        "x": 680,
-        "y": 740
+        "x": 980,
+        "y": 1780
       },
       "rows": 10,
-      "rowHeight": 20,
+      "rowHeight": 36,
       "columns": [
         {
           "id": "index",
-          "width": 28
+          "width": 50
         },
         {
           "id": "title",
-          "width": 380
+          "width": 700
         },
         {
           "id": "duration",
-          "width": 56,
+          "width": 100,
           "align": "right"
         }
       ]
     },
     "status": {
       "origin": {
-        "x": 40,
-        "y": 375
+        "x": 120,
+        "y": 1980
       }
     }
   }

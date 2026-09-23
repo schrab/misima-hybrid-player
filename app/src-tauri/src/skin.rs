@@ -76,6 +76,8 @@ pub struct SkinManifest {
     #[serde(default)]
     pub blocks: Option<serde_json::Map<String, serde_json::Value>>,
     #[serde(default)]
+    pub background: Option<serde_json::Value>,
+    #[serde(default)]
     pub faders: Option<Vec<serde_json::Value>>,
     #[serde(default)]
     pub visualizer: Option<Visualizer>,
@@ -149,10 +151,13 @@ pub fn parse_skin_zip(bytes: &[u8]) -> Result<LoadedSkin, SkinError> {
                 return Err(SkinError::Invalid("id and name required".into()));
             }
             if m.format_version == 2 {
-                let has_blocks = m.blocks.as_ref().map(|b| !b.is_empty()).unwrap_or(false);
+                let has_bg = m.background.is_some()
+                    || m.blocks.as_ref().map(|b| !b.is_empty()).unwrap_or(false);
                 let has_faders = m.faders.as_ref().map(|f| !f.is_empty()).unwrap_or(false);
-                if !has_blocks {
-                    return Err(SkinError::Invalid("v2 skin requires blocks".into()));
+                if !has_bg {
+                    return Err(SkinError::Invalid(
+                        "v2 skin requires background or blocks".into(),
+                    ));
                 }
                 if !has_faders {
                     return Err(SkinError::Invalid("v2 skin requires faders".into()));
@@ -186,6 +191,7 @@ pub fn default_skin_manifest() -> SkinManifest {
         author: "Misima".into(),
         panels: serde_json::Map::new(),
         blocks: None,
+        background: None,
         faders: None,
         visualizer: Some(Visualizer {
             panel: "main".into(),
@@ -230,17 +236,24 @@ mod tests {
 
     #[test]
     fn rejects_v2_without_faders() {
-        let manifest = br#"{"formatVersion":2,"id":"x","name":"x","blocks":{"a":{}},"faders":[]}"#;
+        let manifest = br#"{"formatVersion":2,"id":"x","name":"x","background":{"image":"bg.png"},"faders":[]}"#;
         let bytes = build_zip(&[("skin.json", manifest)]);
         assert!(parse_skin_zip(&bytes).is_err());
     }
 
     #[test]
     fn loads_valid_v2() {
-        let manifest = br#"{"formatVersion":2,"id":"x","name":"x","blocks":{"a":{"image":"a.png"}},"faders":[{"id":"volume"}]}"#;
-        let bytes = build_zip(&[("skin.json", manifest), ("a.png", &[1, 2, 3])]);
+        let manifest = br#"{"formatVersion":2,"id":"x","name":"x","background":{"image":"bg.png"},"faders":[{"id":"volume"}]}"#;
+        let bytes = build_zip(&[("skin.json", manifest), ("bg.png", &[1, 2, 3])]);
         let skin = parse_skin_zip(&bytes).expect("v2");
         assert_eq!(skin.manifest.format_version, 2);
+    }
+
+    #[test]
+    fn rejects_v2_without_background() {
+        let manifest = br#"{"formatVersion":2,"id":"x","name":"x","faders":[{"id":"volume"}]}"#;
+        let bytes = build_zip(&[("skin.json", manifest)]);
+        assert!(parse_skin_zip(&bytes).is_err());
     }
 
     #[test]

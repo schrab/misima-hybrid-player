@@ -1,6 +1,8 @@
-import type { SkinManifestV2, XY } from "./types";
+export type { XY, Size, FaderDef, ButtonDef, SkinManifestV2, PlaylistRow, AudioParams, BackgroundDef } from "./types";
 
-/** Map fader value (in range) to knob origin Y for vertical travel. */
+import type { FaderDef, XY } from "./types";
+
+/** Map fader value (in range) to knob TOP-LEFT Y (origin = max value). */
 export function faderValueToY(
   origin: XY,
   travel: number,
@@ -24,16 +26,6 @@ export function faderYToValue(
   return lo + n * (hi - lo);
 }
 
-export function canvasPointFrom(
-  ev: MouseEvent | PointerEvent,
-  canvas: HTMLCanvasElement,
-): XY {
-  const rect = canvas.getBoundingClientRect();
-  const sx = canvas.width / rect.width;
-  const sy = canvas.height / rect.height;
-  return { x: (ev.clientX - rect.left) * sx, y: (ev.clientY - rect.top) * sy };
-}
-
 export function hitRect(
   x: number,
   y: number,
@@ -47,19 +39,19 @@ export function hitBox(x: number, y: number, box: { x: number; y: number; w: num
   return x >= box.x && y >= box.y && x < box.x + box.w && y < box.y + box.h;
 }
 
+/** Hit corridor along vertical travel including knob size. */
 export function faderHit(
   x: number,
   y: number,
-  origin: XY,
-  travel: number,
-  knobW = 22,
-  knobH = 28,
+  fader: FaderDef,
 ): boolean {
+  const kw = fader.knobSize?.w ?? 24;
+  const kh = fader.knobSize?.h ?? 24;
   return (
-    x >= origin.x - knobW / 2 &&
-    x <= origin.x + knobW / 2 &&
-    y >= origin.y - knobH / 2 &&
-    y <= origin.y + travel + knobH / 2
+    x >= fader.origin.x - kw * 0.35 &&
+    x <= fader.origin.x + kw * 1.35 &&
+    y >= fader.origin.y - kh * 0.2 &&
+    y <= fader.origin.y + fader.travel + kh * 0.2
   );
 }
 
@@ -67,10 +59,10 @@ export function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
 
-export async function loadJson(url: string): Promise<SkinManifestV2> {
+export async function loadJson(url: string): Promise<import("./types").SkinManifestV2> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`skin load failed: ${url}`);
-  return (await res.json()) as SkinManifestV2;
+  return (await res.json()) as import("./types").SkinManifestV2;
 }
 
 export function loadImage(url: string): Promise<HTMLImageElement> {
@@ -80,4 +72,14 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
     img.onerror = () => reject(new Error(`image ${url}`));
     img.src = url;
   });
+}
+
+export function canvasPointFrom(
+  ev: MouseEvent | PointerEvent,
+  canvas: HTMLCanvasElement,
+): XY {
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width / rect.width;
+  const sy = canvas.height / rect.height;
+  return { x: (ev.clientX - rect.left) * sx, y: (ev.clientY - rect.top) * sy };
 }

@@ -5,9 +5,13 @@ export type FaderDef = {
   id: string;
   param: string;
   orientation: "vertical" | "horizontal";
+  /** TOP-LEFT of knob at MAX value (Photoshop 2x artboard px). */
   origin: XY;
+  /** Y distance to top-left at MIN value (vertical). */
   travel: number;
   knob: string;
+  knobSize?: Size;
+  knobHotspot?: string;
   range: [number, number];
   value: number;
   unit?: string;
@@ -16,25 +20,27 @@ export type FaderDef = {
 export type ButtonDef = {
   id: string;
   action: string;
+  /** TOP-LEFT of button PNG (idle art lives in bg.png). */
   origin: XY;
   size: Size;
-  frames: { normal: string; pressed?: string };
+  frames: { normal?: string; pressed: string };
 };
 
-export type BlockDef = {
+export type BackgroundDef = {
   image: string;
   origin: XY;
   size: Size;
-  hit?: string;
-  drag?: Array<{ x: number; y: number; w: number; h: number }>;
 };
 
 export type SkinManifestV2 = {
   formatVersion: 2;
   id: string;
   name: string;
+  units?: string;
   canvas: { width: number; height: number; scale?: number };
-  blocks: Record<string, BlockDef>;
+  background: BackgroundDef;
+  /** Optional extra plates; primary art is `background`. */
+  blocks?: Record<string, BackgroundDef>;
   faders: FaderDef[];
   buttons: ButtonDef[];
   visuals: {

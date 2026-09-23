@@ -1,3 +1,7 @@
+/**
+ * Misima Hybrid — sprite UI entry.
+ * Coordinates are Photoshop 2x artboard pixels (see README "Coordinate system").
+ */
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -8,7 +12,6 @@ import {
   faderHit,
   faderValueToY,
   faderYToValue,
-  hitBox,
   hitRect,
   loadJson,
   loadImage,
@@ -24,7 +27,8 @@ const ctx = canvas.getContext("2d")!;
 let skin: SkinManifestV2;
 let font: BitmapFont;
 const images = new Map<string, HTMLImageElement>();
-let spectrumSheet: HTMLImageElement;
+let bg: HTMLImageElement | null = null;
+let spectrumSheet: HTMLImageElement | null = null;
 
 const params: AudioParams = {
   volume: 0.8,
@@ -40,7 +44,6 @@ let status = "Ready";
 let bins = new Float32Array(10);
 let pressedButton: string | null = null;
 let dragFader: string | null = null;
-let hoverFader: string | null = null;
 
 function setParam(key: string, value: number) {
   if (key.startsWith("eq")) {
@@ -59,15 +62,18 @@ function setParam(key: string, value: number) {
   }).catch(() => {});
 }
 
+function valueOf(param: string): number {
+  if (param.startsWith("eq")) return params.eq[Number(param.slice(2))] ?? 0;
+  if (param === "volume") return params.volume;
+  if (param === "pitch") return params.pitch;
+  if (param === "reverb") return params.reverb;
+  if (param === "speed") return params.speed;
+  return 0;
+}
+
 async function pushPlaylist() {
-  const rows = await invoke<{ id: number; path: string; title: string; duration?: string }[]>(
-    "get_playlist",
-  );
-  playlist = rows.map((r) => ({
-    id: r.id,
-    title: r.title,
-    duration: r.duration ?? "--:--",
-  }));
+  const rows = await invoke<{ id: number; title: string; duration?: string }[]>("get_playlist");
+  playlist = rows.map((r) => ({ id: r.id, title: r.title, duration: r.duration ?? "--:--" }));
 }
 
 async function action(name: string) {
@@ -100,9 +106,7 @@ async function action(name: string) {
       status = "Cleared";
       break;
     case "reset_eq":
-      for (let i = 0; i < 10; i++) {
-        params.eq[i] = 0;
-      }
+      for (let i = 0; i < 10; i++) params.eq[i] = 0;
       setParam("eq0", 0);
       status = "EQ reset";
       break;
@@ -114,85 +118,48 @@ async function action(name: string) {
 function drawFader(f: FaderDef) {
   const knob = images.get(f.knob);
   const y = faderValueToY(f.origin, f.travel, f.range, valueOf(f.param));
-  const kx = f.origin.x - (knob?.width ?? 22) / 2;
+  const kw = f.knobSize?.w ?? knob?.width ?? 24;
+  const kh = f.knobSize?.h ?? knob?.height ?? 24;
   if (knob) {
-    ctx.drawImage(knob, kx, y - (knob.height ?? 28) / 2);
+    ctx.drawImage(knob, f.origin.x, y, kw, kh);
   } else {
     ctx.fillStyle = "#ff4fd8";
-    ctx.fillRect(f.origin.x - 8, y - 6, 16, 12);
+    ctx.fillRect(f.origin.x, y, kw, kh);
   }
-}
-
-function valueOf(param: string): number {
-  if (param.startsWith("eq")) return params.eq[Number(param.slice(2))] ?? 0;
-  if (param === "volume") return params.volume;
-  if (param === "pitch") return params.pitch;
-  if (param === "reverb") return params.reverb;
-  if (param === "speed") return params.speed;
-  return 0;
-}
-
-function drawButton(id: string, origin: { x: number; y: number }, size: { w: number; h: number }, frames: { normal: string; pressed?: string }) {
-  const pressed = pressedButton === id;
-  const key = pressed && frames.pressed ? frames.pressed : frames.normal;
-  const img = images.get(key);
-  if (img) ctx.drawImage(img, origin.x, origin.y, size.w, size.h);
-  else {
-    ctx.fillStyle = pressed ? "#2a8f6f" : "#1a3034";
-    ctx.fillRect(origin.x, origin.y, size.w, size.h);
-  }
-  font.draw(ctx, id.toUpperCase().slice(0, 4), origin.x + 6, origin.y + 10);
 }
 
 function render(time: number) {
   const { width, height } = skin.canvas;
   ctx.clearRect(0, 0, width, height);
 
-  // blocks
-  for (const block of Object.values(skin.blocks)) {
-    const img = images.get(block.image);
-    if (img) ctx.drawImage(img, block.origin.x, block.origin.y, block.size.w, block.size.h);
-  }
+  if (bg) ctx.drawImage(bg, skin.background.origin.x, skin.background.origin.y);
 
-  // generative
   drawWaterfall(ctx, skin.visuals.waterfall, [...bins], time);
-  if (spectrumSheet) {
-    drawSpectrum(ctx, spectrumSheet, skin.visuals.spectrum, bins);
-  }
+  if (spectrumSheet) drawSpectrum(ctx, spectrumSheet, skin.visuals.spectrum, bins);
 
-  // faders
   for (const f of skin.faders) drawFader(f);
 
-  // buttons
+  // Buttons: idle is in bg; draw ACTIVE overlay only
   for (const b of skin.buttons) {
-    drawButton(b.id, b.origin, b.size, b.frames);
+    if (pressedButton !== b.id) continue;
+    const key = b.frames.pressed;
+    const img = images.get(key);
+    if (img) ctx.drawImage(img, b.origin.x, b.origin.y, b.size.w, b.size.h);
   }
 
-  // playlist text
   const pl = skin.text.playlist;
   const colX = [pl.origin.x];
-  for (let i = 0; i < pl.columns.length - 1; i++) {
-    colX.push(colX[i] + pl.columns[i].width);
-  }
+  for (let i = 0; i < pl.columns.length - 1; i++) colX.push(colX[i] + pl.columns[i].width);
   for (let r = 0; r < pl.rows && r < playlist.length; r++) {
     const row = playlist[r];
     const y = pl.origin.y + r * pl.rowHeight;
-    const mark = row.id === activeId ? "*" : " ";
-    font.draw(ctx, mark, pl.origin.x - 12, y, 12);
+    font.draw(ctx, row.id === activeId ? "*" : " ", pl.origin.x - 14, y);
     font.draw(ctx, String(r + 1).padStart(2, "0"), colX[0], y, pl.columns[0].width);
-    font.draw(ctx, row.title.toUpperCase().slice(0, 36), colX[1], y, pl.columns[1].width);
+    font.draw(ctx, row.title.toUpperCase().slice(0, 40), colX[1], y, pl.columns[1].width);
     const dur = row.duration ?? "";
-    font.draw(
-      ctx,
-      dur,
-      colX[2] + pl.columns[2].width - dur.length * font.cell.w,
-      y,
-      pl.columns[2].width,
-    );
+    font.draw(ctx, dur, colX[2], y, pl.columns[2].width);
   }
-
   font.draw(ctx, status.toUpperCase(), skin.text.status.origin.x, skin.text.status.origin.y);
-
   requestAnimationFrame(render);
 }
 
@@ -201,10 +168,7 @@ function canvasPoint(ev: PointerEvent | MouseEvent) {
 }
 
 function findFaderAt(x: number, y: number) {
-  for (const f of skin.faders) {
-    if (faderHit(x, y, f.origin, f.travel)) return f;
-  }
-  return null;
+  return skin.faders.find((f) => faderHit(x, y, f)) ?? null;
 }
 
 canvas.addEventListener("pointerdown", (ev) => {
@@ -223,16 +187,7 @@ canvas.addEventListener("pointerdown", (ev) => {
     setParam(fader.param, faderYToValue(fader.origin, fader.travel, fader.range, p.y));
     return;
   }
-  // drag window from block drag zones
-  for (const block of Object.values(skin.blocks)) {
-    for (const d of block.drag ?? []) {
-      const box = { x: block.origin.x + d.x, y: block.origin.y + d.y, w: d.w, h: d.h };
-      if (hitBox(p.x, p.y, box)) {
-        void getCurrentWindow().startDragging();
-        return;
-      }
-    }
-  }
+  void getCurrentWindow().startDragging();
 });
 
 canvas.addEventListener("pointermove", (ev) => {
@@ -242,8 +197,8 @@ canvas.addEventListener("pointermove", (ev) => {
     if (fader) setParam(fader.param, faderYToValue(fader.origin, fader.travel, fader.range, p.y));
     return;
   }
-  hoverFader = findFaderAt(p.x, p.y)?.id ?? null;
-  canvas.style.cursor = hoverFader ? "ns-resize" : "default";
+  const over = findFaderAt(p.x, p.y);
+  canvas.style.cursor = over ? "ns-resize" : "default";
 });
 
 canvas.addEventListener("pointerup", async (ev) => {
@@ -260,13 +215,14 @@ canvas.addEventListener("dblclick", (ev: MouseEvent) => {
   void (async () => {
     const p = canvasPoint(ev);
     const pl = skin.text.playlist;
+    const rowW =
+      pl.columns.reduce((s, c) => s + c.width, 0);
     for (let r = 0; r < pl.rows && r < playlist.length; r++) {
       const y0 = pl.origin.y + r * pl.rowHeight;
-      if (p.y >= y0 && p.y < y0 + pl.rowHeight && p.x >= pl.origin.x - 16) {
+      if (p.y >= y0 && p.y < y0 + pl.rowHeight && p.x >= pl.origin.x && p.x < pl.origin.x + rowW) {
         const row = playlist[r];
         activeId = row.id;
-        const idx = playlist.findIndex((x) => x.id === row.id);
-        await invoke("play_index", { index: idx });
+        await invoke("play_index", { index: playlist.findIndex((x) => x.id === row.id) });
         await pushPlaylist();
         status = `PLAY ${row.title}`;
         break;
@@ -286,28 +242,32 @@ async function init() {
   skin = await loadJson(BASE + "skin.json");
   const resolve = (p: string) => BASE + p.replace(/^\/?/, "");
 
-  for (const block of Object.values(skin.blocks)) {
-    images.set(block.image, (await loadImageSafe(resolve(block.image))) as HTMLImageElement);
-  }
+  bg = await loadImageSafe(resolve(skin.background.image));
+  spectrumSheet = await loadImageSafe(resolve(skin.visuals.spectrum.sheet));
+
   for (const f of skin.faders) {
     const img = await loadImageSafe(resolve(f.knob));
-    if (img) images.set(f.knob, img);
-  }
-  for (const b of skin.buttons) {
-    const n = await loadImageSafe(resolve(b.frames.normal));
-    if (n) images.set(b.frames.normal, n);
-    if (b.frames.pressed) {
-      const p = await loadImageSafe(resolve(b.frames.pressed));
-      if (p) images.set(b.frames.pressed, p);
+    if (img) {
+      images.set(f.knob, img);
+      if (!f.knobSize) f.knobSize = { w: img.width, h: img.height };
     }
   }
-  spectrumSheet = (await loadImageSafe(resolve(skin.visuals.spectrum.sheet))) as HTMLImageElement;
+  for (const b of skin.buttons) {
+    const p = await loadImageSafe(resolve(b.frames.pressed));
+    if (p) {
+      images.set(b.frames.pressed, p);
+      b.size = { w: p.width, h: p.height };
+    }
+    if (b.frames.normal) {
+      const n = await loadImageSafe(resolve(b.frames.normal));
+      if (n) images.set(b.frames.normal, n);
+    }
+  }
   font = await loadFont({ ...skin.text.font, atlas: resolve(skin.text.font.atlas) }, "");
 
   canvas.width = skin.canvas.width;
   canvas.height = skin.canvas.height;
 
-  // seed fader values
   for (const f of skin.faders) {
     const v = typeof f.value === "number" ? f.value : (f.range[0] + f.range[1]) / 2;
     setParam(f.param, v);
@@ -315,7 +275,6 @@ async function init() {
 
   await listen<Float32Array>("spectrum", (e) => {
     const raw = Float32Array.from(e.payload);
-    // 10 log bands aligned to EQ centers (approx 60…16k) over 48 log-ish bins
     const out = new Float32Array(10);
     const n = raw.length;
     const edges = [0, 0.04, 0.1, 0.18, 0.3, 0.45, 0.6, 0.75, 0.85, 0.93, 1.0];

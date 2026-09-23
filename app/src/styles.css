@@ -5,12 +5,14 @@ body {
   background: transparent;
   overflow: hidden;
   user-select: none;
-  cursor: default;
 }
 
+/* Artboard is 2x (1500x2060). CSS fits width; height follows aspect. */
 #ui {
   display: block;
   width: 100vw;
-  height: 100vh;
+  height: auto;
+  max-height: 100vh;
+  margin: 0 auto;
   background: transparent;
 }
