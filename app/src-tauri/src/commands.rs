@@ -91,13 +91,13 @@ pub fn stop() {
 fn step_track(state: &State<'_, AppInner>, app: &AppHandle, delta: isize) -> Result<(), String> {
     let len = state.playlist.read().len();
     if len == 0 {
-        return Ok(());
+        return Err("empty playlist".into());
     }
     let cur = state.playlist.read().current;
     let next = match cur {
         None => 0,
         Some(c) => {
-            let mut n = c as isize + delta;
+            let mut n = (c as isize) + delta;
             if n < 0 {
                 n = len as isize - 1;
             } else if n >= len as isize {
@@ -106,13 +106,13 @@ fn step_track(state: &State<'_, AppInner>, app: &AppHandle, delta: isize) -> Res
             n as usize
         }
     };
-    // set index immediately so UI can update even while decode runs
-    let id = {
+    let path = {
         let mut pl = state.playlist.write();
         pl.set_current(Some(next));
-        pl.current_id()
+        pl.current_path().map(|s| s.to_string())
     };
-    if let Some(path) = state.playlist.read().current_path().map(|s| s.to_string()) {
+    let id = state.playlist.read().current_id();
+    if let Some(path) = path {
         spawn_load(path);
     }
     if let Some(id) = id {
@@ -123,11 +123,13 @@ fn step_track(state: &State<'_, AppInner>, app: &AppHandle, delta: isize) -> Res
 
 #[tauri::command]
 pub fn next(state: State<'_, AppInner>, app: AppHandle) -> Result<(), String> {
+    log::info!("next track");
     step_track(&state, &app, 1)
 }
 
 #[tauri::command]
 pub fn prev(state: State<'_, AppInner>, app: AppHandle) -> Result<(), String> {
+    log::info!("prev track");
     step_track(&state, &app, -1)
 }
 

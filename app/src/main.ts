@@ -31,9 +31,9 @@ const images = new Map<string, HTMLImageElement>();
 let bg: HTMLImageElement | null = null;
 
 const params: AudioParams = {
-  volume: 0.8,
+  volume: 1.0,
   pitch: 0,
-  reverb: 0.15,
+  reverb: 0,
   eq: new Array(10).fill(0),
   speed: 1,
 };
@@ -125,7 +125,7 @@ async function action(name: string) {
       break;
     case "prev":
     case "next": {
-      await invoke(name);
+      await invoke(name === "next" ? "next" : "prev");
       playing = true;
       await pushPlaylist();
       const rows = await invoke<{ id: number; title: string }[]>("get_playlist");
@@ -160,6 +160,9 @@ async function action(name: string) {
       pushParams();
       break;
     }
+    case "power":
+      await getCurrentWindow().close();
+      break;
     default:
       break;
   }

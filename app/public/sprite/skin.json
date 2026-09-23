@@ -26,10 +26,10 @@
       "param": "volume",
       "orientation": "vertical",
       "origin": {
-        "x": 515,
-        "y": 794
+        "x": 560,
+        "y": 930
       },
-      "travel": 200,
+      "travel": 110,
       "knob": "ui/knob_volume.png",
       "knobSize": {
         "w": 56,
@@ -40,17 +40,17 @@
         0,
         1
       ],
-      "value": 0.8
+      "value": 1
     },
     {
       "id": "pitch",
       "param": "pitch",
       "orientation": "vertical",
       "origin": {
-        "x": 571,
-        "y": 723
+        "x": 611,
+        "y": 890
       },
-      "travel": 220,
+      "travel": 164,
       "knob": "ui/knob_pitch.png",
       "knobSize": {
         "w": 51,
@@ -61,17 +61,17 @@
         -12,
         12
       ],
-      "value": 0
+      "value": 0.0
     },
     {
       "id": "reverb",
       "param": "reverb",
       "orientation": "vertical",
       "origin": {
-        "x": 628,
-        "y": 646
+        "x": 673,
+        "y": 904
       },
-      "travel": 220,
+      "travel": 164,
       "knob": "ui/knob_reverb.png",
       "knobSize": {
         "w": 25,
@@ -82,17 +82,17 @@
         0,
         1
       ],
-      "value": 0.15
+      "value": 0
     },
     {
       "id": "eq1",
       "param": "eq0",
       "orientation": "vertical",
       "origin": {
-        "x": 664,
-        "y": 712
+        "x": 709,
+        "y": 868
       },
-      "travel": 240,
+      "travel": 177,
       "knob": "ui/knob_eq_1.png",
       "knobSize": {
         "w": 49,
@@ -103,17 +103,17 @@
         -12,
         12
       ],
-      "value": 0
+      "value": 0.0
     },
     {
       "id": "eq2",
       "param": "eq1",
       "orientation": "vertical",
       "origin": {
-        "x": 719,
-        "y": 713
+        "x": 769,
+        "y": 1018
       },
-      "travel": 240,
+      "travel": 89,
       "knob": "ui/knob_eq_2.png",
       "knobSize": {
         "w": 41,
@@ -124,17 +124,17 @@
         -12,
         12
       ],
-      "value": 0
+      "value": 0.0
     },
     {
       "id": "eq3",
       "param": "eq2",
       "orientation": "vertical",
       "origin": {
-        "x": 755,
-        "y": 714
+        "x": 811,
+        "y": 990
       },
-      "travel": 240,
+      "travel": 108,
       "knob": "ui/knob_eq_3.png",
       "knobSize": {
         "w": 49,
@@ -145,17 +145,17 @@
         -12,
         12
       ],
-      "value": 0
+      "value": 0.0
     },
     {
       "id": "eq4",
       "param": "eq3",
       "orientation": "vertical",
       "origin": {
-        "x": 856,
-        "y": 715
+        "x": 860,
+        "y": 850
       },
-      "travel": 240,
+      "travel": 196,
       "knob": "ui/knob_eq_4.png",
       "knobSize": {
         "w": 28,
@@ -166,17 +166,17 @@
         -12,
         12
       ],
-      "value": 0
+      "value": 0.0
     },
     {
       "id": "eq5",
       "param": "eq4",
       "orientation": "vertical",
       "origin": {
-        "x": 905,
-        "y": 711
+        "x": 900,
+        "y": 855
       },
-      "travel": 256,
+      "travel": 290,
       "knob": "ui/knob_eq_5.png",
       "knobSize": {
         "w": 47,
@@ -187,17 +187,17 @@
         -12,
         12
       ],
-      "value": 0
+      "value": 0.0
     },
     {
       "id": "eq6",
       "param": "eq5",
       "orientation": "vertical",
       "origin": {
-        "x": 956,
-        "y": 720
+        "x": 950,
+        "y": 856
       },
-      "travel": 256,
+      "travel": 280,
       "knob": "ui/knob_eq_6.png",
       "knobSize": {
         "w": 44,
@@ -208,17 +208,17 @@
         -12,
         12
       ],
-      "value": 0
+      "value": 0.0
     },
     {
       "id": "eq7",
       "param": "eq6",
       "orientation": "vertical",
       "origin": {
-        "x": 1002,
-        "y": 717
+        "x": 1008,
+        "y": 942
       },
-      "travel": 250,
+      "travel": 219,
       "knob": "ui/knob_eq_7.png",
       "knobSize": {
         "w": 25,
@@ -229,17 +229,17 @@
         -12,
         12
       ],
-      "value": 0
+      "value": 0.0
     },
     {
       "id": "eq8",
       "param": "eq7",
       "orientation": "vertical",
       "origin": {
-        "x": 1042,
-        "y": 709
+        "x": 1050,
+        "y": 854
       },
-      "travel": 262,
+      "travel": 292,
       "knob": "ui/knob_eq_8.png",
       "knobSize": {
         "w": 41,
@@ -250,17 +250,17 @@
         -12,
         12
       ],
-      "value": 0
+      "value": 0.0
     },
     {
       "id": "eq9",
       "param": "eq8",
       "orientation": "vertical",
       "origin": {
-        "x": 1103,
-        "y": 800
+        "x": 1102,
+        "y": 922
       },
-      "travel": 220,
+      "travel": 236,
       "knob": "ui/knob_eq_9.png",
       "knobSize": {
         "w": 52,
@@ -271,17 +271,17 @@
         -12,
         12
       ],
-      "value": 0
+      "value": 0.0
     },
     {
       "id": "eq10",
       "param": "eq9",
       "orientation": "vertical",
       "origin": {
-        "x": 1111,
-        "y": 802
+        "x": 1204,
+        "y": 965
       },
-      "travel": 220,
+      "travel": 190,
       "knob": "ui/knob_eq_10.png",
       "knobSize": {
         "w": 35,
@@ -292,17 +292,17 @@
         -12,
         12
       ],
-      "value": 0
+      "value": 0.0
     },
     {
       "id": "tempo",
       "param": "speed",
       "orientation": "vertical",
       "origin": {
-        "x": 1164,
-        "y": 832
+        "x": 1226,
+        "y": 936
       },
-      "travel": 180,
+      "travel": 140,
       "knob": "ui/knob_tempo.png",
       "knobSize": {
         "w": 100,
@@ -379,7 +379,7 @@
     },
     {
       "id": "power",
-      "action": "stop",
+      "action": "power",
       "origin": {
         "x": 1398,
         "y": 728
