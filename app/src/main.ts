@@ -106,9 +106,13 @@ async function action(name: string) {
         playing = false;
         status = "Paused";
       } else {
-        await invoke("play");
-        playing = true;
-        status = "Playing";
+        try {
+          await invoke("play");
+          status = "Loading…";
+        } catch (err) {
+          playing = false;
+          status = String(err);
+        }
       }
       await pushPlaylist();
       break;
@@ -428,6 +432,14 @@ async function init() {
       out[b] = s / Math.max(1, i1 - i0);
     }
     bins = out;
+  });
+  await listen("play_started", () => {
+    playing = true;
+    status = "Playing";
+  });
+  await listen<string>("error", (e) => {
+    playing = false;
+    status = e.payload;
   });
   await listen<number>("track_changed", (e) => {
     activeId = e.payload;

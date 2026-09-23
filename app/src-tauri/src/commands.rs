@@ -25,15 +25,25 @@ pub fn open_files(paths: Vec<String>, state: State<'_, AppInner>) -> Result<usiz
     Ok(pl.len() - before)
 }
 
-fn spawn_load(path: String) {
+fn spawn_load(path: String, app: AppHandle) {
     std::thread::spawn(move || {
-        if let Err(e) = player::load_and_play(std::path::Path::new(&path)) {
-            log::error!("load failed: {e}");
+        match player::load_and_play(std::path::Path::new(&path)) {
+            Ok(()) => {
+                let _ = app.emit("play_started", ());
+            }
+            Err(e) => {
+                log::error!("load failed: {e}");
+                let _ = app.emit("error", format!("Load failed: {e}"));
+            }
         }
     });
 }
 
-fn play_index_inner(state: &State<'_, AppInner>, index: usize) -> Result<Option<u64>, String> {
+fn play_index_inner(
+    state: &State<'_, AppInner>,
+    index: usize,
+    app: &AppHandle,
+) -> Result<Option<u64>, String> {
     let path = {
         let mut pl = state.playlist.write();
         pl.set_current(Some(index));
@@ -42,13 +52,13 @@ fn play_index_inner(state: &State<'_, AppInner>, index: usize) -> Result<Option<
     let Some(path) = path else {
         return Ok(None);
     };
-    spawn_load(path);
+    spawn_load(path, app.clone());
     Ok(state.playlist.read().current_id())
 }
 
 #[tauri::command]
 pub fn play_index(index: usize, state: State<'_, AppInner>, app: AppHandle) -> Result<(), String> {
-    if let Some(id) = play_index_inner(&state, index)? {
+    if let Some(id) = play_index_inner(&state, index, &app)? {
         let _ = app.emit("track_changed", id);
     }
     Ok(())
@@ -56,25 +66,20 @@ pub fn play_index(index: usize, state: State<'_, AppInner>, app: AppHandle) -> R
 
 #[tauri::command]
 pub fn play(state: State<'_, AppInner>, app: AppHandle) -> Result<(), String> {
-    {
-        let pl = state.playlist.read();
-        if pl.current.is_some() && player::shared().samples.read().is_empty() {
-            drop(pl);
-            let idx = state.playlist.read().current.unwrap_or(0);
-            if let Some(id) = play_index_inner(&state, idx)? {
-                let _ = app.emit("track_changed", id);
-            }
-            return Ok(());
-        }
-        if pl.current.is_none() && !pl.is_empty() {
-            drop(pl);
-            if let Some(id) = play_index_inner(&state, 0)? {
-                let _ = app.emit("track_changed", id);
-            }
-            return Ok(());
-        }
+    let has_audio = !player::shared().samples.read().is_empty();
+    if has_audio {
+        player::play();
+        return Ok(());
     }
-    player::play();
+    // Nothing decoded yet — load current (or first) track then play
+    let len = state.playlist.read().len();
+    if len == 0 {
+        return Err("playlist is empty — OPEN a file first".into());
+    }
+    let idx = state.playlist.read().current.unwrap_or(0).min(len - 1);
+    if let Some(id) = play_index_inner(&state, idx, &app)? {
+        let _ = app.emit("track_changed", id);
+    }
     Ok(())
 }
 
@@ -113,7 +118,7 @@ fn step_track(state: &State<'_, AppInner>, app: &AppHandle, delta: isize) -> Res
     };
     let id = state.playlist.read().current_id();
     if let Some(path) = path {
-        spawn_load(path);
+        spawn_load(path, app.clone());
     }
     if let Some(id) = id {
         let _ = app.emit("track_changed", id);

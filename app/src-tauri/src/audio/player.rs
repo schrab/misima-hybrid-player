@@ -288,12 +288,17 @@ pub fn take_ended() -> bool {
 
 fn ensure_stream() {
     static STARTED: OnceLock<()> = OnceLock::new();
+    // Retry if the first attempt failed (device not ready, etc.)
     if STARTED.get().is_some() {
         return;
     }
-    let _ = STARTED.set(());
-    if let Err(e) = start_output_stream() {
-        log::error!("audio device error: {e}");
+    match start_output_stream() {
+        Ok(()) => {
+            let _ = STARTED.set(());
+        }
+        Err(e) => {
+            log::error!("audio device error (will retry): {e}");
+        }
     }
 }
 
