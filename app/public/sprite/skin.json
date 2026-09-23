@@ -278,7 +278,7 @@
       "param": "eq9",
       "orientation": "vertical",
       "origin": {
-        "x": 1112,
+        "x": 1140,
         "y": 922
       },
       "travel": 241,
@@ -299,7 +299,7 @@
       "param": "speed",
       "orientation": "vertical",
       "origin": {
-        "x": 1164,
+        "x": 1176,
         "y": 965
       },
       "travel": 183,

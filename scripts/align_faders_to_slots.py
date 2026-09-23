@@ -62,6 +62,10 @@ for fid, param, png, rng, val in ORDER:
 
 found.sort(key=lambda f: f["x"])
 print("L→R order:", [f["png"] for f in found])
+# enforce unique columns (min 36px) so two knobs never share a line
+for i in range(1, len(found)):
+    if found[i]["x"] - found[i - 1]["x"] < 36:
+        found[i]["x"] = found[i - 1]["x"] + 36
 
 # bg tracks
 rgb = BG[:, :, :3].mean(axis=2)
