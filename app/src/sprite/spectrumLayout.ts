@@ -27,12 +27,12 @@ export type SpectrumAutoLayout = {
 };
 
 /**
- * Build 10 bands from a chip pool matching the artist stack reference.
+ * Build 10 bands from a chip pool.
  *
- * Reference column is TOP→BOTTOM: chip_0 (small tip) … chip_9 (large base).
- * Spectrum reveals BOTTOM→TOP (base first), so:
- *   place chip_9 at bottomY, then chip_8 above it, … chip_0 at top.
- *   reveal(chip_k) = 1 - k/(n-1)  →  chip_9 ≈ 0, chip_0 ≈ 1.
+ * Naming (as created by artist):
+ *   chip_0 = BOTTOM / large base (first to light)
+ *   chip_9 = TOP / small tip (last to light)
+ * Pieces nest with vertical overlap (not a grid).
  */
 export function layoutSpectrumFromPool(
   auto: SpectrumAutoLayout,
@@ -48,11 +48,9 @@ export function layoutSpectrumFromPool(
     const leftX = auto.bandLeftX[b];
     const segments: SpectrumSegment[] = [];
     let cursorY = auto.bottomY;
-    // Walk the stack from BASE (bottom) up to TIP (top):
-    // artist index k = n-1-s  (s=0 → k=n-1 base)
+    // s=0 → chip_0 base at bottomY; s=n-1 → tip at top
     for (let s = 0; s < n; s++) {
-      const k = n - 1 - s; // chip_9 first, chip_0 last
-      const chipIndex = ((k % chips.length) + chips.length) % chips.length;
+      const chipIndex = s % chips.length;
       const path = chips[chipIndex];
       const size = auto.chipSizes?.[chipIndex];
       const h = size?.h ?? 28;

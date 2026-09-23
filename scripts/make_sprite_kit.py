@@ -97,7 +97,7 @@ def write_skin_json() -> dict:
                     "bottomY": 585,
                     "maxHeight": 240,
                     "segmentsPerBand": 10,
-                    # TOP→BOTTOM in your stack art: chip_0 tip … chip_9 base
+                    # chip_0 = bottom base … chip_9 = top tip (artist export order)
                     "chips": [f"spectrum/chip_{i}.png" for i in range(10)],
                     "overlap": 0.5,
                 },
@@ -224,17 +224,13 @@ def write_placeholder_segments() -> None:
 
 
 def auto_layout_bands(skin: dict) -> None:
-    """
-    Artist stack reference (TOP→BOTTOM): chip_0 (tip) … chip_9 (base).
-    Place base first at bottomY, nest upward; reveal bottom→top.
-    """
+    """chip_0 = bottom base at bottomY … chip_9 = top tip. Reveal bottom → top."""
     auto = skin["visuals"]["spectrum"]["auto"]
     lefts = auto["bandLeftX"]
     bottom_y = auto["bottomY"]
     per_band = auto.get("segmentsPerBand", 10)
     overlap = auto.get("overlap", 0.5)
     chips = auto["chips"]
-    n = len(chips)
     sizes = []
     for p in chips:
         fp = SRC / p
@@ -250,8 +246,7 @@ def auto_layout_bands(skin: dict) -> None:
         segments = []
         cursor_y = float(bottom_y)
         for s in range(per_band):
-            k = n - 1 - s  # chip_9 base first … chip_0 tip last
-            ci = k % n
+            ci = s % len(chips)  # 0=bottom … n-1=top
             w, h = sizes[ci]
             top_y = cursor_y - h
             jx = jitter[s % len(jitter)]
