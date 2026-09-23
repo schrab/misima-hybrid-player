@@ -235,13 +235,15 @@ function render(_time: number) {
     font.draw(ctx, dur, dx, y, col.width);
   }
   ctx.restore();
-  // status only inside playlist header strip (never outside bg)
+  // Status / errors — plain canvas text (always readable)
   const st = skin.text.status.origin;
   ctx.save();
-  ctx.beginPath();
-  ctx.rect(pl.origin.x, pl.origin.y - 28, box.w, 26);
-  ctx.clip();
-  font.draw(ctx, status.toUpperCase().slice(0, 30), st.x, st.y, box.w - 8);
+  ctx.font = "bold 22px monospace";
+  ctx.fillStyle = status.startsWith("Load failed") || status.includes("empty")
+    ? "#ff5c7a"
+    : "#3dffb5";
+  ctx.textBaseline = "top";
+  ctx.fillText(status.slice(0, 48), st.x, st.y);
   ctx.restore();
   requestAnimationFrame(render);
 }
