@@ -47,7 +47,6 @@ let dragFader: string | null = null;
 let playing = false;
 /** fx_enable master: off = EQ + reverb bypass */
 let fxOn = true;
-let lastParams: AudioParams = { ...params, eq: [...params.eq] };
 
 function setParam(key: string, value: number) {
   if (key.startsWith("eq")) {
@@ -63,7 +62,6 @@ function setParam(key: string, value: number) {
 function pushParams() {
   const eq = fxOn ? params.eq : new Array(10).fill(0);
   const reverb = fxOn ? params.reverb : 0;
-  lastParams = { ...params, eq: [...eq], reverb };
   void invoke("set_params", {
     volume: params.volume,
     pitch: fxOn ? params.pitch : 0,
