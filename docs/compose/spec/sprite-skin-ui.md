@@ -6,7 +6,7 @@ branch: feature/skinnable-player-mvp
 commits: pending
 ---
 
-# Sprite Skin UI (Organic Hand-Drawn Winamp)
+# Sprite Skin UI (Organic Sprite UI)
 
 ## Report
 
@@ -292,7 +292,7 @@ New params: `set_params { volume, pitch, reverb, eq[10], speed }`
 - Time-stretch that keeps pitch fixed while changing speed (post-MVP)
 - IR convolution reverb
 - >10 playlist rows / scrolling in v2 (fixed 10 lines)
-- Loading classic Winamp `.wsz` BPs
+- Classic `.wsz`/`.wal` formats
 - Desktop font rendering without atlas
 
 ## Tasks
