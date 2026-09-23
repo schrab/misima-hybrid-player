@@ -18,6 +18,7 @@ import {
 } from "./sprite/layout";
 import { loadFont, type BitmapFont } from "./sprite/font";
 import { drawSpectrumSegments, drawWaterfall } from "./sprite/visuals";
+import { layoutSpectrumFromPool, type SpectrumAutoLayout } from "./sprite/spectrumLayout";
 
 const BASE = "/sprite/";
 
@@ -240,6 +241,17 @@ function loadImageSafe(url: string): Promise<HTMLImageElement | null> {
 async function init() {
   skin = await loadJson(BASE + "skin.json");
   const resolve = (p: string) => BASE + p.replace(/^\/?/, "");
+
+  // Prefer explicit bands; else auto-layout from chip pool + bandLeftX / bottomY
+  const vis = skin.visuals.spectrum as unknown as {
+    mode: string;
+    bands: SkinManifestV2["visuals"]["spectrum"]["bands"];
+    auto?: SpectrumAutoLayout & { overlap?: number };
+  };
+  if ((!vis.bands || vis.bands.length === 0) && vis.auto) {
+    vis.bands = layoutSpectrumFromPool(vis.auto, vis.auto.overlap ?? 0.4);
+    (skin.visuals.spectrum as unknown as { bands: unknown }).bands = vis.bands;
+  }
 
   bg = await loadImageSafe(resolve(skin.background.image));
   // spectrum segments

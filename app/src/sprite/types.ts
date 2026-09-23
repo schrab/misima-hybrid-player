@@ -89,8 +89,21 @@ export type SkinManifestV2 = {
   visuals: {
     spectrum: {
       mode: "segments";
-      /** 10 bands of irregular stacked sprites (not a rectangular grid). */
+      /** Explicit pieces (may be empty if `auto` is used). */
       bands: SpectrumBand[];
+      /**
+       * Prefill helper: band left-border X list + shared bottomY + chip pool.
+       * Engine/layout expands this to `bands` so artists need only ~8 unique chips.
+       */
+      auto?: {
+        bandLeftX: number[];
+        bottomY: number;
+        maxHeight?: number;
+        segmentsPerBand?: number;
+        chips: string[];
+        chipSizes?: Array<{ w: number; h: number }>;
+        overlap?: number;
+      };
     };
     waterfall: {
       origin: XY;

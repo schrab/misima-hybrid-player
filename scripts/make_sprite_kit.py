@@ -90,24 +90,18 @@ def write_skin_json() -> dict:
         "visuals": {
             "spectrum": {
                 "mode": "segments",
-                # Freeform pieces: absolute origins, can overlap, reveal by energy threshold.
-                "bands": [
-                    {
-                        "id": i,
-                        "segments": [
-                            {
-                                "image": f"spectrum/band{i}_{j}.png",
-                                "origin": {
-                                    "x": 420 + i * 95 + (j % 4) * 6,
-                                    "y": 540 - j * 22 + (j % 2) * 8,
-                                },
-                                "reveal": round(j / 8.0, 3),
-                            }
-                            for j in range(8 + (i % 3))
-                        ],
-                    }
-                    for i in range(10)
-                ],
+                # Prefilled from artist measurements (2x artboard):
+                # left-border X of each band; shared bottom Y.
+                "auto": {
+                    "bandLeftX": [370, 411, 451, 496, 546, 602, 655, 703, 750, 805],
+                    "bottomY": 585,
+                    "maxHeight": 240,
+                    "segmentsPerBand": 10,
+                    "chips": [f"spectrum/chip_{i}.png" for i in range(8)],
+                    "overlap": 0.4,
+                },
+                # Filled by auto-layout below (also written for manual tweaks)
+                "bands": [],
             },
             "waterfall": {
                 "origin": {"x": 120, "y": 200},
@@ -121,10 +115,10 @@ def write_skin_json() -> dict:
                 "atlas": "font/glyphs.png",
                 "cell": {"w": 18, "h": 18},
                 "classes": {
-                    # artboard px: digits 24×24 square; letters 36×18 (2:1, shorter)
+                    # artist: digits 24×24, letters 36×18 (artboard px)
                     "digit": {"cell": {"w": 24, "h": 24}, "baseline": "bottom", "atlasOrigin": {"x": 0, "y": 0}},
                     "letter": {"cell": {"w": 36, "h": 18}, "baseline": "bottom", "atlasOrigin": {"x": 0, "y": 120}},
-                    "symbol": {"cell": {"w": 24, "h": 18}, "baseline": "bottom", "atlasOrigin": {"x": 0, "y": 60}},
+                    "symbol": {"cell": {"w": 24, "h": 18}, "baseline": "bottom", "atlasOrigin": {"x": 0, "y": 72}},
                 },
                 "map": {
                     "0": {"col": 0, "row": 0, "class": "digit"},
@@ -205,46 +199,75 @@ def pack() -> None:
 
 
 def write_placeholder_segments() -> None:
-    """Irregular organic segment placeholders (replace with hand-drawn pieces)."""
+    """
+    Small unique chip pool (8 pieces) — replace with hand-drawn organic chips.
+    Band columns are auto-placed from artist bandLeftX / bottomY (see write_skin_json).
+    """
     from PIL import Image, ImageDraw
 
     out = SRC / "spectrum"
     out.mkdir(parents=True, exist_ok=True)
-    for band in range(10):
-        # Different heights per band (taller mid bands, like the sketch)
-        n = 8 + (band % 3)
-        w = 70 + (band % 4) * 8
-        for j in range(n):
-            h = 14 + (j * 2) + (band % 2) * 3
-            img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-            d = ImageDraw.Draw(img)
-            # irregular polygon — not a rectangle
-            pts = [
-                (2, h - 2),
-                (w - 3, h - 4),
-                (w - 2, 2),
-                (w // 2, 1),
-                (1, 4),
-            ]
-            e = j / max(1, n - 1)
-            col = (
-                int(60 + 80 * e),
-                int(180 + 60 * e),
-                int(200 - 80 * e),
-                230,
+    for i in range(8):
+        dest = out / f"chip_{i}.png"
+        if dest.exists():
+            continue
+        w = 56 + (i % 4) * 10
+        h = 18 + (i % 3) * 6
+        img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        pts = [(1, h - 1), (w - 2, h - 3), (w - 2, 1), (w // 2, 0), (1, 3)]
+        e = i / 7.0
+        col = (int(60 + 80 * e), int(180 + 60 * e), int(200 - 80 * e), 230)
+        d.polygon(pts, fill=col, outline=(255, 255, 255, 40))
+        img.save(out / f"chip_{i}.png")
+
+
+def auto_layout_bands(skin: dict) -> None:
+    """Place chips along bandLeftX, stacked from bottomY with vertical overlap."""
+    auto = skin["visuals"]["spectrum"]["auto"]
+    lefts = auto["bandLeftX"]
+    bottom_y = auto["bottomY"]
+    max_h = auto.get("maxHeight", 240)
+    per_band = auto.get("segmentsPerBand", 10)
+    overlap = auto.get("overlap", 0.4)
+    chips = auto["chips"]
+    sizes = []
+    for p in chips:
+        fp = SRC / p
+        if fp.exists():
+            from PIL import Image
+
+            sizes.append(Image.open(fp).size)
+        else:
+            sizes.append((72, 28))
+    jitter = [0, 4, -3, 6, -5, 2, -2, 5, -4, 1]
+    bands = []
+    for b, left_x in enumerate(lefts):
+        segments = []
+        cursor_y = float(bottom_y)
+        for s in range(per_band):
+            ci = (b * 3 + s) % len(chips)
+            w, h = sizes[ci]
+            top_y = cursor_y - h
+            jx = jitter[s % len(jitter)]
+            band_nudge = (b % 3) * 2
+            segments.append(
+                {
+                    "image": chips[ci],
+                    "origin": {"x": left_x + jx + band_nudge, "y": int(round(top_y))},
+                    "reveal": round(min(1.0, (s / per_band) * 0.95), 3),
+                }
             )
-            d.polygon(pts, fill=col, outline=(255, 255, 255, 40))
-            img.save(out / f"band{band}_{j}.png")
+            cursor_y = top_y + h * overlap
+        bands.append({"id": b, "segments": segments})
+    skin["visuals"]["spectrum"]["bands"] = bands
+    void = max_h  # reserved for future clamp
 
 
 def write_font_atlas() -> None:
-    """
-    Placeholder atlas — NOT final art.
-
-    The 5 thin vertical rectangles in the early draft atlas were just spacing
-    guides / column rulers from a placeholder draw; they are NOT required glyphs.
-    Production: one glyph bitmap per map entry (digits 24×24, letters 36×18).
-    """
+    """Placeholder atlas ONLY if missing — never overwrite artist glyphs.png."""
+    if (SRC / "font" / "glyphs.png").exists():
+        return
     from PIL import Image, ImageDraw
 
     atlas = Image.new("RGBA", (480, 220), (0, 0, 0, 0))
@@ -268,12 +291,20 @@ def write_font_atlas() -> None:
 
 
 def main() -> None:
-    write_placeholder_segments()
-    write_font_atlas()
+    write_placeholder_segments()  # chips only; does not touch font/glyphs.png
+    write_font_atlas()  # no-op if artist glyphs.png exists
     write_skin_json()
+    skin = json.loads((SKIN / "skin.json").read_text(encoding="utf-8"))
+    auto_layout_bands(skin)
+    (SKIN / "skin.json").write_text(json.dumps(skin, indent=2), encoding="utf-8")
     copy_public()
     pack()
-    print("skin.json v2 (irregular spectrum + font classes) synced")
+    print(
+        "spectrum auto bands X=",
+        skin["visuals"]["spectrum"]["auto"]["bandLeftX"],
+        "bottomY=",
+        skin["visuals"]["spectrum"]["auto"]["bottomY"],
+    )
 
 
 if __name__ == "__main__":

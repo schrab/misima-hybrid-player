@@ -97,7 +97,37 @@ Per-control **knob sizes and travels are independent** (your PNGs already differ
 
 Buttons: **idle state is only in `bg.png`**. Separate `button_*.png` are **active/pressed overlays** at the same `origin`.
 
-### Spectrum (overlapping freeform pieces)
+### Spectrum — prefilled band geometry
+
+Artist measured (2× artboard):
+
+| Field | Value |
+|-------|--------|
+| Band **left-border X** | `370, 411, 451, 496, 546, 602, 655, 703, 750, 805` |
+| Shared **bottom Y** | `585` |
+
+You do **not** need 100 unique PNGs. Export **~8 unique chips** (`spectrum/chip_0.png`…`chip_7.png`) and use:
+
+```json
+"spectrum": {
+  "mode": "segments",
+  "auto": {
+    "bandLeftX": [370, 411, 451, 496, 546, 602, 655, 703, 750, 805],
+    "bottomY": 585,
+    "maxHeight": 240,
+    "segmentsPerBand": 10,
+    "overlap": 0.4,
+    "chips": ["spectrum/chip_0.png", "spectrum/chip_1.png", "…"]
+  },
+  "bands": []
+}
+```
+
+Runtime (or `make_sprite_kit.py`) expands `auto` → `bands[]` with absolute origins and `reveal` thresholds. Pieces may overlap; sizes may differ.
+
+**Manual mode:** fill `bands[].segments[]` yourself with `{ image, origin, reveal }` if you want full artistic control per piece.
+
+### Font (variable metrics)
 
 Not a rectangular grid or non-overlapping stack. Each of **10 bands** is a set of **freeform PNGs** with absolute origins that **may overlap** and vary in size.
 
