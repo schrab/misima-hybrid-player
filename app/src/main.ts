@@ -17,7 +17,7 @@ import {
   loadImage,
 } from "./sprite/layout";
 import { loadFont, type BitmapFont } from "./sprite/font";
-import { drawSpectrumSegments, drawWaterfall } from "./sprite/visuals";
+import { drawSpectrumSegments } from "./sprite/visuals";
 import { layoutSpectrumFromPool, type SpectrumAutoLayout } from "./sprite/spectrumLayout";
 
 const BASE = "/sprite/";
@@ -182,18 +182,15 @@ function drawFader(f: FaderDef) {
   }
 }
 
-function render(time: number) {
+function render(_time: number) {
   const { width, height } = skin.canvas;
   ctx.clearRect(0, 0, width, height);
 
   if (bg) ctx.drawImage(bg, skin.background.origin.x, skin.background.origin.y);
 
-  // Waterfall MUST stay off unless artist sets a real rect — green-line square
-  const wf = skin.visuals.waterfall;
-  if (wf && wf.mode && wf.mode !== "off" && wf.size && wf.size.w > 8 && wf.size.h > 8) {
-    drawWaterfall(ctx, wf, [...bins], time);
+  if (playing) {
+    drawSpectrumSegments(ctx, images, skin.visuals.spectrum.bands, bins);
   }
-  drawSpectrumSegments(ctx, images, skin.visuals.spectrum.bands, bins);
 
   for (const f of skin.faders) drawFader(f);
 

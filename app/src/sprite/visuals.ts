@@ -15,11 +15,12 @@ export function drawSpectrumSegments(
   for (let b = 0; b < bands.length; b++) {
     const band = bands[b];
     const e = Math.min(1, Math.max(0, energies[b] ?? 0));
-    // Draw bottom pieces first (low reveal) so tops sit over bases when overlapping
+    // Silence / idle: draw NOTHING (bottom chip used to stick at reveal 0)
+    if (e <= 0.01) continue;
     const segs = [...band.segments].sort((s1, s2) => (s1.reveal ?? 0) - (s2.reveal ?? 0));
     for (const seg of segs) {
       const t = seg.reveal ?? 0;
-      if (e + 1e-4 < t) continue;
+      if (t <= 0 ? e <= 0.01 : e + 1e-4 < t) continue;
       const img = images.get(seg.image);
       if (!img) continue;
       const w = seg.size?.w ?? img.width;
