@@ -97,58 +97,48 @@ Per-control **knob sizes and travels are independent** (your PNGs already differ
 
 Buttons: **idle state is only in `bg.png`**. Separate `button_*.png` are **active/pressed overlays** at the same `origin`.
 
-### Spectrum (irregular segments)
+### Spectrum (overlapping freeform pieces)
 
-Not a rectangular grid. Each of **10 bands** is a stack of **hand-drawn PNG segments** (any silhouette):
+Not a rectangular grid or non-overlapping stack. Each of **10 bands** is a set of **freeform PNGs** with absolute origins that **may overlap** and vary in size.
 
 ```json
 "visuals": {
   "spectrum": {
     "mode": "segments",
-    "bands": [
-      {
-        "id": 0,
-        "segments": [
-          { "image": "spectrum/band0_0.png", "origin": { "x": 420, "y": 520 } },
-          { "image": "spectrum/band0_1.png", "origin": { "x": 418, "y": 500 } }
-        ]
-      }
-    ]
+    "bands": [{
+      "id": 0,
+      "segments": [
+        { "image": "spectrum/band0_0.png", "origin": { "x": 420, "y": 540 }, "reveal": 0.0 },
+        { "image": "spectrum/band0_1.png", "origin": { "x": 418, "y": 512 }, "reveal": 0.25 },
+        { "image": "spectrum/band0_2.png", "origin": { "x": 430, "y": 490 }, "reveal": 0.55 }
+      ]
+    }]
   }
 }
 ```
 
-- `segments[0]` = **bottom** piece (first to light).
-- `origin` = **top-left of that segment PNG** on the 2× artboard.
-- Band **heights can differ** — just use more/fewer segments per band.
-- Engine reveals count ≈ `energy * segments.length` from the bottom.
+| Field | Meaning |
+|-------|---------|
+| `origin` | **Top-left of that PNG** (2× artboard) — free placement |
+| `reveal` | Energy threshold `0..1` when the piece lights |
+| Overlap | Allowed — no stack packing |
+| Size | From each PNG (they may all differ) |
+
+Draw: for each band, every segment with `reveal <= energy` is painted (sorted by `reveal`).
 
 ### Font (variable metrics)
 
-| Class | Typical | Aspect |
-|-------|---------|--------|
-| `digit` | 18×18 | ~1:1 square |
-| `letter` | 36×14 | **2:1**, **shorter than digits** |
-| `symbol` | 18×14 | shorter |
+| Class | Cell (artboard px) | Notes |
+|-------|--------------------|--------|
+| `digit` | **24×24** | square |
+| `letter` | **36×18** | 2:1, **shorter** than digits |
+| `symbol` | 24×18 | optional |
 
-- Glyphs are **bottom-aligned** on a shared baseline (shorter letters sit with digits).
-- `map` entries: `{ "col", "row", "class": "letter" }` index that class’s atlas grid.
-- Optional `atlasOrigin` per class so one PNG can hold all classes.
+- **Bottom-aligned** on a shared baseline (short letters meet digits).
+- `map`: `{ "col", "row", "class": "letter" }` indexes that class’s atlas grid.
+- `atlasOrigin` positions that class’s grid inside one PNG.
 
-```json
-"font": {
-  "atlas": "font/glyphs.png",
-  "cell": { "w": 18, "h": 18 },
-  "classes": {
-    "digit":  { "cell": { "w": 18, "h": 18 }, "atlasOrigin": { "x": 0, "y": 0 } },
-    "letter": { "cell": { "w": 36, "h": 14 }, "atlasOrigin": { "x": 0, "y": 80 } }
-  },
-  "map": {
-    "0": { "col": 0, "row": 0, "class": "digit" },
-    "A": { "col": 0, "row": 0, "class": "letter" }
-  }
-}
-```
+**About “5 vertical rectangles” in glyphs.png:** that was **placeholder drawing only** (column rulers / spacing guides in the auto-generated atlas) — not production glyphs and not required by the engine. Replace `font/glyphs.png` with your real sheet; only `map` cells are sampled.
 
 ### Fader row (left → right)
 

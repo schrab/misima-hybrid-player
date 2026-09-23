@@ -29,19 +29,22 @@ export type BackgroundDef = {
   size: Size;
 };
 
-/** One organic (non-rectangular) bar piece. Drawn at absolute artboard top-left. */
+/** One organic bar piece. Absolute artboard position; may overlap other segments. */
 export type SpectrumSegment = {
   image: string;
   origin: XY;
   size?: Size;
+  /**
+   * Energy threshold 0..1 when this piece lights (after the previous one).
+   * Pieces can overlap freely — order of reveal is `reveal` (then array order).
+   */
+  reveal: number;
 };
 
-/** A spectrum column: stack of irregular segments, bottom-up in `segments`. */
+/** A spectrum column: freeform overlapping pieces, not a rectangular stack. */
 export type SpectrumBand = {
   id: string | number;
-  /** Optional x override if segments already have absolute origins. */
-  origin?: XY;
-  /** Paint order / reveal order: index 0 = bottom (first to light). */
+  /** Pieces may share vertical space and vary in size. */
   segments: SpectrumSegment[];
 };
 

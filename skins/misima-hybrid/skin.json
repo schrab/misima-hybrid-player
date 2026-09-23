@@ -464,57 +464,65 @@
               "image": "spectrum/band0_0.png",
               "origin": {
                 "x": 420,
-                "y": 520
-              }
+                "y": 540
+              },
+              "reveal": 0.0
             },
             {
               "image": "spectrum/band0_1.png",
               "origin": {
-                "x": 421,
-                "y": 502
-              }
+                "x": 426,
+                "y": 526
+              },
+              "reveal": 0.125
             },
             {
               "image": "spectrum/band0_2.png",
               "origin": {
-                "x": 422,
-                "y": 484
-              }
+                "x": 432,
+                "y": 496
+              },
+              "reveal": 0.25
             },
             {
               "image": "spectrum/band0_3.png",
               "origin": {
-                "x": 420,
-                "y": 466
-              }
+                "x": 438,
+                "y": 482
+              },
+              "reveal": 0.375
             },
             {
               "image": "spectrum/band0_4.png",
               "origin": {
-                "x": 421,
-                "y": 448
-              }
+                "x": 420,
+                "y": 452
+              },
+              "reveal": 0.5
             },
             {
               "image": "spectrum/band0_5.png",
               "origin": {
-                "x": 422,
-                "y": 430
-              }
+                "x": 426,
+                "y": 438
+              },
+              "reveal": 0.625
             },
             {
               "image": "spectrum/band0_6.png",
               "origin": {
-                "x": 420,
-                "y": 412
-              }
+                "x": 432,
+                "y": 408
+              },
+              "reveal": 0.75
             },
             {
               "image": "spectrum/band0_7.png",
               "origin": {
-                "x": 421,
+                "x": 438,
                 "y": 394
-              }
+              },
+              "reveal": 0.875
             }
           ]
         },
@@ -524,58 +532,74 @@
             {
               "image": "spectrum/band1_0.png",
               "origin": {
-                "x": 510,
-                "y": 520
-              }
+                "x": 515,
+                "y": 540
+              },
+              "reveal": 0.0
             },
             {
               "image": "spectrum/band1_1.png",
               "origin": {
-                "x": 511,
-                "y": 502
-              }
+                "x": 521,
+                "y": 526
+              },
+              "reveal": 0.125
             },
             {
               "image": "spectrum/band1_2.png",
               "origin": {
-                "x": 512,
-                "y": 484
-              }
+                "x": 527,
+                "y": 496
+              },
+              "reveal": 0.25
             },
             {
               "image": "spectrum/band1_3.png",
               "origin": {
-                "x": 510,
-                "y": 466
-              }
+                "x": 533,
+                "y": 482
+              },
+              "reveal": 0.375
             },
             {
               "image": "spectrum/band1_4.png",
               "origin": {
-                "x": 511,
-                "y": 448
-              }
+                "x": 515,
+                "y": 452
+              },
+              "reveal": 0.5
             },
             {
               "image": "spectrum/band1_5.png",
               "origin": {
-                "x": 512,
-                "y": 430
-              }
+                "x": 521,
+                "y": 438
+              },
+              "reveal": 0.625
             },
             {
               "image": "spectrum/band1_6.png",
               "origin": {
-                "x": 510,
-                "y": 412
-              }
+                "x": 527,
+                "y": 408
+              },
+              "reveal": 0.75
             },
             {
               "image": "spectrum/band1_7.png",
               "origin": {
-                "x": 511,
+                "x": 533,
                 "y": 394
-              }
+              },
+              "reveal": 0.875
+            },
+            {
+              "image": "spectrum/band1_8.png",
+              "origin": {
+                "x": 515,
+                "y": 364
+              },
+              "reveal": 1.0
             }
           ]
         },
@@ -585,58 +609,82 @@
             {
               "image": "spectrum/band2_0.png",
               "origin": {
-                "x": 600,
-                "y": 520
-              }
+                "x": 610,
+                "y": 540
+              },
+              "reveal": 0.0
             },
             {
               "image": "spectrum/band2_1.png",
               "origin": {
-                "x": 601,
-                "y": 502
-              }
+                "x": 616,
+                "y": 526
+              },
+              "reveal": 0.125
             },
             {
               "image": "spectrum/band2_2.png",
               "origin": {
-                "x": 602,
-                "y": 484
-              }
+                "x": 622,
+                "y": 496
+              },
+              "reveal": 0.25
             },
             {
               "image": "spectrum/band2_3.png",
               "origin": {
-                "x": 600,
-                "y": 466
-              }
+                "x": 628,
+                "y": 482
+              },
+              "reveal": 0.375
             },
             {
               "image": "spectrum/band2_4.png",
               "origin": {
-                "x": 601,
-                "y": 448
-              }
+                "x": 610,
+                "y": 452
+              },
+              "reveal": 0.5
             },
             {
               "image": "spectrum/band2_5.png",
               "origin": {
-                "x": 602,
-                "y": 430
-              }
+                "x": 616,
+                "y": 438
+              },
+              "reveal": 0.625
             },
             {
               "image": "spectrum/band2_6.png",
               "origin": {
-                "x": 600,
-                "y": 412
-              }
+                "x": 622,
+                "y": 408
+              },
+              "reveal": 0.75
             },
             {
               "image": "spectrum/band2_7.png",
               "origin": {
-                "x": 601,
+                "x": 628,
                 "y": 394
-              }
+              },
+              "reveal": 0.875
+            },
+            {
+              "image": "spectrum/band2_8.png",
+              "origin": {
+                "x": 610,
+                "y": 364
+              },
+              "reveal": 1.0
+            },
+            {
+              "image": "spectrum/band2_9.png",
+              "origin": {
+                "x": 616,
+                "y": 350
+              },
+              "reveal": 1.125
             }
           ]
         },
@@ -646,58 +694,66 @@
             {
               "image": "spectrum/band3_0.png",
               "origin": {
-                "x": 690,
-                "y": 520
-              }
+                "x": 705,
+                "y": 540
+              },
+              "reveal": 0.0
             },
             {
               "image": "spectrum/band3_1.png",
               "origin": {
-                "x": 691,
-                "y": 502
-              }
+                "x": 711,
+                "y": 526
+              },
+              "reveal": 0.125
             },
             {
               "image": "spectrum/band3_2.png",
               "origin": {
-                "x": 692,
-                "y": 484
-              }
+                "x": 717,
+                "y": 496
+              },
+              "reveal": 0.25
             },
             {
               "image": "spectrum/band3_3.png",
               "origin": {
-                "x": 690,
-                "y": 466
-              }
+                "x": 723,
+                "y": 482
+              },
+              "reveal": 0.375
             },
             {
               "image": "spectrum/band3_4.png",
               "origin": {
-                "x": 691,
-                "y": 448
-              }
+                "x": 705,
+                "y": 452
+              },
+              "reveal": 0.5
             },
             {
               "image": "spectrum/band3_5.png",
               "origin": {
-                "x": 692,
-                "y": 430
-              }
+                "x": 711,
+                "y": 438
+              },
+              "reveal": 0.625
             },
             {
               "image": "spectrum/band3_6.png",
               "origin": {
-                "x": 690,
-                "y": 412
-              }
+                "x": 717,
+                "y": 408
+              },
+              "reveal": 0.75
             },
             {
               "image": "spectrum/band3_7.png",
               "origin": {
-                "x": 691,
+                "x": 723,
                 "y": 394
-              }
+              },
+              "reveal": 0.875
             }
           ]
         },
@@ -707,58 +763,74 @@
             {
               "image": "spectrum/band4_0.png",
               "origin": {
-                "x": 780,
-                "y": 520
-              }
+                "x": 800,
+                "y": 540
+              },
+              "reveal": 0.0
             },
             {
               "image": "spectrum/band4_1.png",
               "origin": {
-                "x": 781,
-                "y": 502
-              }
+                "x": 806,
+                "y": 526
+              },
+              "reveal": 0.125
             },
             {
               "image": "spectrum/band4_2.png",
               "origin": {
-                "x": 782,
-                "y": 484
-              }
+                "x": 812,
+                "y": 496
+              },
+              "reveal": 0.25
             },
             {
               "image": "spectrum/band4_3.png",
               "origin": {
-                "x": 780,
-                "y": 466
-              }
+                "x": 818,
+                "y": 482
+              },
+              "reveal": 0.375
             },
             {
               "image": "spectrum/band4_4.png",
               "origin": {
-                "x": 781,
-                "y": 448
-              }
+                "x": 800,
+                "y": 452
+              },
+              "reveal": 0.5
             },
             {
               "image": "spectrum/band4_5.png",
               "origin": {
-                "x": 782,
-                "y": 430
-              }
+                "x": 806,
+                "y": 438
+              },
+              "reveal": 0.625
             },
             {
               "image": "spectrum/band4_6.png",
               "origin": {
-                "x": 780,
-                "y": 412
-              }
+                "x": 812,
+                "y": 408
+              },
+              "reveal": 0.75
             },
             {
               "image": "spectrum/band4_7.png",
               "origin": {
-                "x": 781,
+                "x": 818,
                 "y": 394
-              }
+              },
+              "reveal": 0.875
+            },
+            {
+              "image": "spectrum/band4_8.png",
+              "origin": {
+                "x": 800,
+                "y": 364
+              },
+              "reveal": 1.0
             }
           ]
         },
@@ -768,58 +840,82 @@
             {
               "image": "spectrum/band5_0.png",
               "origin": {
-                "x": 870,
-                "y": 520
-              }
+                "x": 895,
+                "y": 540
+              },
+              "reveal": 0.0
             },
             {
               "image": "spectrum/band5_1.png",
               "origin": {
-                "x": 871,
-                "y": 502
-              }
+                "x": 901,
+                "y": 526
+              },
+              "reveal": 0.125
             },
             {
               "image": "spectrum/band5_2.png",
               "origin": {
-                "x": 872,
-                "y": 484
-              }
+                "x": 907,
+                "y": 496
+              },
+              "reveal": 0.25
             },
             {
               "image": "spectrum/band5_3.png",
               "origin": {
-                "x": 870,
-                "y": 466
-              }
+                "x": 913,
+                "y": 482
+              },
+              "reveal": 0.375
             },
             {
               "image": "spectrum/band5_4.png",
               "origin": {
-                "x": 871,
-                "y": 448
-              }
+                "x": 895,
+                "y": 452
+              },
+              "reveal": 0.5
             },
             {
               "image": "spectrum/band5_5.png",
               "origin": {
-                "x": 872,
-                "y": 430
-              }
+                "x": 901,
+                "y": 438
+              },
+              "reveal": 0.625
             },
             {
               "image": "spectrum/band5_6.png",
               "origin": {
-                "x": 870,
-                "y": 412
-              }
+                "x": 907,
+                "y": 408
+              },
+              "reveal": 0.75
             },
             {
               "image": "spectrum/band5_7.png",
               "origin": {
-                "x": 871,
+                "x": 913,
                 "y": 394
-              }
+              },
+              "reveal": 0.875
+            },
+            {
+              "image": "spectrum/band5_8.png",
+              "origin": {
+                "x": 895,
+                "y": 364
+              },
+              "reveal": 1.0
+            },
+            {
+              "image": "spectrum/band5_9.png",
+              "origin": {
+                "x": 901,
+                "y": 350
+              },
+              "reveal": 1.125
             }
           ]
         },
@@ -829,58 +925,66 @@
             {
               "image": "spectrum/band6_0.png",
               "origin": {
-                "x": 960,
-                "y": 520
-              }
+                "x": 990,
+                "y": 540
+              },
+              "reveal": 0.0
             },
             {
               "image": "spectrum/band6_1.png",
               "origin": {
-                "x": 961,
-                "y": 502
-              }
+                "x": 996,
+                "y": 526
+              },
+              "reveal": 0.125
             },
             {
               "image": "spectrum/band6_2.png",
               "origin": {
-                "x": 962,
-                "y": 484
-              }
+                "x": 1002,
+                "y": 496
+              },
+              "reveal": 0.25
             },
             {
               "image": "spectrum/band6_3.png",
               "origin": {
-                "x": 960,
-                "y": 466
-              }
+                "x": 1008,
+                "y": 482
+              },
+              "reveal": 0.375
             },
             {
               "image": "spectrum/band6_4.png",
               "origin": {
-                "x": 961,
-                "y": 448
-              }
+                "x": 990,
+                "y": 452
+              },
+              "reveal": 0.5
             },
             {
               "image": "spectrum/band6_5.png",
               "origin": {
-                "x": 962,
-                "y": 430
-              }
+                "x": 996,
+                "y": 438
+              },
+              "reveal": 0.625
             },
             {
               "image": "spectrum/band6_6.png",
               "origin": {
-                "x": 960,
-                "y": 412
-              }
+                "x": 1002,
+                "y": 408
+              },
+              "reveal": 0.75
             },
             {
               "image": "spectrum/band6_7.png",
               "origin": {
-                "x": 961,
+                "x": 1008,
                 "y": 394
-              }
+              },
+              "reveal": 0.875
             }
           ]
         },
@@ -890,58 +994,74 @@
             {
               "image": "spectrum/band7_0.png",
               "origin": {
-                "x": 1050,
-                "y": 520
-              }
+                "x": 1085,
+                "y": 540
+              },
+              "reveal": 0.0
             },
             {
               "image": "spectrum/band7_1.png",
               "origin": {
-                "x": 1051,
-                "y": 502
-              }
+                "x": 1091,
+                "y": 526
+              },
+              "reveal": 0.125
             },
             {
               "image": "spectrum/band7_2.png",
               "origin": {
-                "x": 1052,
-                "y": 484
-              }
+                "x": 1097,
+                "y": 496
+              },
+              "reveal": 0.25
             },
             {
               "image": "spectrum/band7_3.png",
               "origin": {
-                "x": 1050,
-                "y": 466
-              }
+                "x": 1103,
+                "y": 482
+              },
+              "reveal": 0.375
             },
             {
               "image": "spectrum/band7_4.png",
               "origin": {
-                "x": 1051,
-                "y": 448
-              }
+                "x": 1085,
+                "y": 452
+              },
+              "reveal": 0.5
             },
             {
               "image": "spectrum/band7_5.png",
               "origin": {
-                "x": 1052,
-                "y": 430
-              }
+                "x": 1091,
+                "y": 438
+              },
+              "reveal": 0.625
             },
             {
               "image": "spectrum/band7_6.png",
               "origin": {
-                "x": 1050,
-                "y": 412
-              }
+                "x": 1097,
+                "y": 408
+              },
+              "reveal": 0.75
             },
             {
               "image": "spectrum/band7_7.png",
               "origin": {
-                "x": 1051,
+                "x": 1103,
                 "y": 394
-              }
+              },
+              "reveal": 0.875
+            },
+            {
+              "image": "spectrum/band7_8.png",
+              "origin": {
+                "x": 1085,
+                "y": 364
+              },
+              "reveal": 1.0
             }
           ]
         },
@@ -951,58 +1071,82 @@
             {
               "image": "spectrum/band8_0.png",
               "origin": {
-                "x": 1140,
-                "y": 520
-              }
+                "x": 1180,
+                "y": 540
+              },
+              "reveal": 0.0
             },
             {
               "image": "spectrum/band8_1.png",
               "origin": {
-                "x": 1141,
-                "y": 502
-              }
+                "x": 1186,
+                "y": 526
+              },
+              "reveal": 0.125
             },
             {
               "image": "spectrum/band8_2.png",
               "origin": {
-                "x": 1142,
-                "y": 484
-              }
+                "x": 1192,
+                "y": 496
+              },
+              "reveal": 0.25
             },
             {
               "image": "spectrum/band8_3.png",
               "origin": {
-                "x": 1140,
-                "y": 466
-              }
+                "x": 1198,
+                "y": 482
+              },
+              "reveal": 0.375
             },
             {
               "image": "spectrum/band8_4.png",
               "origin": {
-                "x": 1141,
-                "y": 448
-              }
+                "x": 1180,
+                "y": 452
+              },
+              "reveal": 0.5
             },
             {
               "image": "spectrum/band8_5.png",
               "origin": {
-                "x": 1142,
-                "y": 430
-              }
+                "x": 1186,
+                "y": 438
+              },
+              "reveal": 0.625
             },
             {
               "image": "spectrum/band8_6.png",
               "origin": {
-                "x": 1140,
-                "y": 412
-              }
+                "x": 1192,
+                "y": 408
+              },
+              "reveal": 0.75
             },
             {
               "image": "spectrum/band8_7.png",
               "origin": {
-                "x": 1141,
+                "x": 1198,
                 "y": 394
-              }
+              },
+              "reveal": 0.875
+            },
+            {
+              "image": "spectrum/band8_8.png",
+              "origin": {
+                "x": 1180,
+                "y": 364
+              },
+              "reveal": 1.0
+            },
+            {
+              "image": "spectrum/band8_9.png",
+              "origin": {
+                "x": 1186,
+                "y": 350
+              },
+              "reveal": 1.125
             }
           ]
         },
@@ -1012,58 +1156,66 @@
             {
               "image": "spectrum/band9_0.png",
               "origin": {
-                "x": 1230,
-                "y": 520
-              }
+                "x": 1275,
+                "y": 540
+              },
+              "reveal": 0.0
             },
             {
               "image": "spectrum/band9_1.png",
               "origin": {
-                "x": 1231,
-                "y": 502
-              }
+                "x": 1281,
+                "y": 526
+              },
+              "reveal": 0.125
             },
             {
               "image": "spectrum/band9_2.png",
               "origin": {
-                "x": 1232,
-                "y": 484
-              }
+                "x": 1287,
+                "y": 496
+              },
+              "reveal": 0.25
             },
             {
               "image": "spectrum/band9_3.png",
               "origin": {
-                "x": 1230,
-                "y": 466
-              }
+                "x": 1293,
+                "y": 482
+              },
+              "reveal": 0.375
             },
             {
               "image": "spectrum/band9_4.png",
               "origin": {
-                "x": 1231,
-                "y": 448
-              }
+                "x": 1275,
+                "y": 452
+              },
+              "reveal": 0.5
             },
             {
               "image": "spectrum/band9_5.png",
               "origin": {
-                "x": 1232,
-                "y": 430
-              }
+                "x": 1281,
+                "y": 438
+              },
+              "reveal": 0.625
             },
             {
               "image": "spectrum/band9_6.png",
               "origin": {
-                "x": 1230,
-                "y": 412
-              }
+                "x": 1287,
+                "y": 408
+              },
+              "reveal": 0.75
             },
             {
               "image": "spectrum/band9_7.png",
               "origin": {
-                "x": 1231,
+                "x": 1293,
                 "y": 394
-              }
+              },
+              "reveal": 0.875
             }
           ]
         }
@@ -1092,8 +1244,8 @@
       "classes": {
         "digit": {
           "cell": {
-            "w": 18,
-            "h": 18
+            "w": 24,
+            "h": 24
           },
           "baseline": "bottom",
           "atlasOrigin": {
@@ -1104,23 +1256,23 @@
         "letter": {
           "cell": {
             "w": 36,
-            "h": 14
+            "h": 18
           },
           "baseline": "bottom",
           "atlasOrigin": {
             "x": 0,
-            "y": 80
+            "y": 120
           }
         },
         "symbol": {
           "cell": {
-            "w": 18,
-            "h": 14
+            "w": 24,
+            "h": 18
           },
           "baseline": "bottom",
           "atlasOrigin": {
             "x": 0,
-            "y": 36
+            "y": 60
           }
         }
       },

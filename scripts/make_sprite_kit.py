@@ -90,17 +90,20 @@ def write_skin_json() -> dict:
         "visuals": {
             "spectrum": {
                 "mode": "segments",
-                # Irregular hand-drawn segments: bands[i].segments[0] = bottom.
-                # Each segment has absolute top-left on the 2x artboard.
+                # Freeform pieces: absolute origins, can overlap, reveal by energy threshold.
                 "bands": [
                     {
                         "id": i,
                         "segments": [
                             {
                                 "image": f"spectrum/band{i}_{j}.png",
-                                "origin": {"x": 420 + i * 90 + (j % 3), "y": 520 - j * 18},
+                                "origin": {
+                                    "x": 420 + i * 95 + (j % 4) * 6,
+                                    "y": 540 - j * 22 + (j % 2) * 8,
+                                },
+                                "reveal": round(j / 8.0, 3),
                             }
-                            for j in range(8)
+                            for j in range(8 + (i % 3))
                         ],
                     }
                     for i in range(10)
@@ -118,10 +121,10 @@ def write_skin_json() -> dict:
                 "atlas": "font/glyphs.png",
                 "cell": {"w": 18, "h": 18},
                 "classes": {
-                    # digits ≈ square; letters 2:1 and slightly shorter — bottom-aligned
-                    "digit": {"cell": {"w": 18, "h": 18}, "baseline": "bottom", "atlasOrigin": {"x": 0, "y": 0}},
-                    "letter": {"cell": {"w": 36, "h": 14}, "baseline": "bottom", "atlasOrigin": {"x": 0, "y": 80}},
-                    "symbol": {"cell": {"w": 18, "h": 14}, "baseline": "bottom", "atlasOrigin": {"x": 0, "y": 36}},
+                    # artboard px: digits 24×24 square; letters 36×18 (2:1, shorter)
+                    "digit": {"cell": {"w": 24, "h": 24}, "baseline": "bottom", "atlasOrigin": {"x": 0, "y": 0}},
+                    "letter": {"cell": {"w": 36, "h": 18}, "baseline": "bottom", "atlasOrigin": {"x": 0, "y": 120}},
+                    "symbol": {"cell": {"w": 24, "h": 18}, "baseline": "bottom", "atlasOrigin": {"x": 0, "y": 60}},
                 },
                 "map": {
                     "0": {"col": 0, "row": 0, "class": "digit"},
@@ -235,27 +238,32 @@ def write_placeholder_segments() -> None:
 
 
 def write_font_atlas() -> None:
-    """Placeholder atlas: digits (square), letters (2:1 shorter), symbols."""
+    """
+    Placeholder atlas — NOT final art.
+
+    The 5 thin vertical rectangles in the early draft atlas were just spacing
+    guides / column rulers from a placeholder draw; they are NOT required glyphs.
+    Production: one glyph bitmap per map entry (digits 24×24, letters 36×18).
+    """
     from PIL import Image, ImageDraw
 
-    # Layout: rows 0-1 digits 18x18 at (0,0); symbols; letters 36x14 from y=80
-    atlas = Image.new("RGBA", (400, 140), (0, 0, 0, 0))
+    atlas = Image.new("RGBA", (480, 220), (0, 0, 0, 0))
     d = ImageDraw.Draw(atlas)
-    # digits 0-9
+    # digits 0-9 : 24×24 at y=0
     for i in range(10):
-        x, y = i * 18, 0
-        d.rectangle([x + 1, y + 1, x + 16, y + 16], outline=(61, 255, 181, 200), width=1)
-        d.text((x + 5, y + 3), str(i), fill=(255, 79, 216, 255))
-    # symbols
+        x, y = i * 24, 0
+        d.rectangle([x + 1, y + 1, x + 22, y + 22], outline=(61, 255, 181, 200))
+        d.text((x + 7, y + 5), str(i), fill=(255, 79, 216, 255))
+    # symbols at y=60 (24×18)
     for i, s in enumerate([" ", "-", ".", ":", "?"]):
-        x, y = i * 18, 36
-        d.rectangle([x + 1, y + 1, x + 16, y + 32], outline=(94, 200, 255, 120))
-    # letters 36x14 (2:1, shorter) at y=80
+        x, y = i * 24, 60
+        d.rectangle([x + 1, y + 1, x + 22, y + 16], outline=(94, 200, 255, 120))
+    # letters 36×18 at y=120
     for i in range(26):
         col, row = i % 8, i // 8
-        x, y = col * 36, 80 + row * 14
-        d.rectangle([x, y, x + 35, y + 13], outline=(61, 255, 181, 180), width=1)
-        d.text((x + 2, y + 1), chr(ord("A") + i), fill=(61, 255, 181, 220))
+        x, y = col * 36, 120 + row * 18
+        d.rectangle([x, y, x + 35, y + 17], outline=(61, 255, 181, 180))
+        d.text((x + 3, y + 2), chr(ord("A") + i), fill=(61, 255, 181, 220))
     atlas.save(SRC / "font" / "glyphs.png")
 
 

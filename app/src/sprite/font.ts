@@ -33,7 +33,8 @@ function resolveGlyph(def: GlyphDef) {
  */
 export function createFont(spec: FontSpec, atlas: HTMLImageElement): BitmapFont {
   const classes: Record<string, FontClass> = {
-    digit: { cell: spec.cell, baseline: "bottom" },
+    // Spec default: digits 24×24, letters 36×18 (2:1, shorter than digits)
+    digit: { cell: { w: 24, h: 24 }, baseline: "bottom" },
     ...(spec.classes ?? {}),
   };
   const lineH = Math.max(spec.cell.h, ...Object.values(classes).map((c) => c.cell.h));

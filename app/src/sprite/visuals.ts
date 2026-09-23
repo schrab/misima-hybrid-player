@@ -2,8 +2,9 @@ import type { SpectrumBand, SkinManifestV2, XY } from "./types";
 import { loadImage } from "./layout";
 
 /**
- * Irregular spectrum: each band is a stack of hand-drawn (non-rect) segment PNGs.
- * segments[0] is the BOTTOM piece (lights first). Reveals by energy 0..1.
+ * Irregular spectrum pieces (not a rectangular stack).
+ * Segments may overlap vertically and differ in size.
+ * Each piece has `reveal` (0..1) — it is drawn when band energy >= reveal.
  */
 export function drawSpectrumSegments(
   ctx: CanvasRenderingContext2D,
@@ -14,21 +15,16 @@ export function drawSpectrumSegments(
   for (let b = 0; b < bands.length; b++) {
     const band = bands[b];
     const e = Math.min(1, Math.max(0, energies[b] ?? 0));
-    const n = band.segments.length;
-    if (n === 0) continue;
-    // How many segments lit: at least 1 when energy > 0
-    const lit = e <= 0.002 ? 0 : Math.max(1, Math.round(e * n));
-    for (let i = 0; i < lit && i < n; i++) {
-      const seg = band.segments[i];
+    // Sort by reveal so drawing order is deterministic (bottom-most energy first)
+    const segs = [...band.segments].sort((s1, s2) => (s1.reveal ?? 0) - (s2.reveal ?? 0));
+    for (const seg of segs) {
+      const t = seg.reveal ?? 0;
+      if (e < t) continue;
       const img = images.get(seg.image);
       if (!img) continue;
       const w = seg.size?.w ?? img.width;
       const h = seg.size?.h ?? img.height;
-      const ox = seg.origin.x + (band.origin?.x ?? 0) - (band.origin?.x ?? 0);
-      const oy = seg.origin.y + (band.origin?.y ?? 0) - (band.origin?.y ?? 0);
       ctx.drawImage(img, seg.origin.x, seg.origin.y, w, h);
-      void ox;
-      void oy;
     }
   }
 }
