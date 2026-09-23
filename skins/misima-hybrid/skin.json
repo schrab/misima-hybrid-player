@@ -26,294 +26,294 @@
       "param": "volume",
       "orientation": "vertical",
       "origin": {
-        "x": 120,
-        "y": 1500
+        "x": 515,
+        "y": 834
       },
-      "travel": 180,
+      "travel": 48,
       "knob": "ui/knob_volume.png",
-      "range": [
-        0,
-        1
-      ],
-      "value": 0.8,
       "knobSize": {
         "w": 56,
         "h": 34
       },
-      "knobHotspot": "top-left"
+      "knobHotspot": "top-left",
+      "range": [
+        0,
+        1
+      ],
+      "value": 0.8
     },
     {
       "id": "pitch",
       "param": "pitch",
       "orientation": "vertical",
       "origin": {
-        "x": 260,
-        "y": 1500
+        "x": 571,
+        "y": 833
       },
-      "travel": 180,
+      "travel": 48,
       "knob": "ui/knob_pitch.png",
-      "range": [
-        -12,
-        12
-      ],
-      "value": 0,
       "knobSize": {
         "w": 51,
         "h": 38
       },
-      "knobHotspot": "top-left"
+      "knobHotspot": "top-left",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0
     },
     {
       "id": "reverb",
       "param": "reverb",
       "orientation": "vertical",
       "origin": {
-        "x": 400,
-        "y": 1500
+        "x": 628,
+        "y": 833
       },
-      "travel": 180,
+      "travel": 48,
       "knob": "ui/knob_reverb.png",
-      "range": [
-        0,
-        1
-      ],
-      "value": 0.15,
       "knobSize": {
         "w": 25,
         "h": 48
       },
-      "knobHotspot": "top-left"
+      "knobHotspot": "top-left",
+      "range": [
+        0,
+        1
+      ],
+      "value": 0.15
     },
     {
       "id": "eq1",
       "param": "eq0",
       "orientation": "vertical",
       "origin": {
-        "x": 560,
-        "y": 1500
+        "x": 664,
+        "y": 832
       },
-      "travel": 160,
+      "travel": 48,
       "knob": "ui/knob_eq_1.png",
-      "range": [
-        -12,
-        12
-      ],
-      "value": 0,
       "knobSize": {
         "w": 49,
         "h": 33
       },
-      "knobHotspot": "top-left"
+      "knobHotspot": "top-left",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0
     },
     {
       "id": "eq2",
       "param": "eq1",
       "orientation": "vertical",
       "origin": {
-        "x": 640,
-        "y": 1500
+        "x": 719,
+        "y": 833
       },
-      "travel": 160,
+      "travel": 48,
       "knob": "ui/knob_eq_2.png",
-      "range": [
-        -12,
-        12
-      ],
-      "value": 0,
       "knobSize": {
         "w": 41,
         "h": 51
       },
-      "knobHotspot": "top-left"
+      "knobHotspot": "top-left",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0
     },
     {
       "id": "eq3",
       "param": "eq2",
       "orientation": "vertical",
       "origin": {
-        "x": 720,
-        "y": 1500
+        "x": 755,
+        "y": 834
       },
-      "travel": 160,
+      "travel": 48,
       "knob": "ui/knob_eq_3.png",
-      "range": [
-        -12,
-        12
-      ],
-      "value": 0,
       "knobSize": {
         "w": 49,
         "h": 40
       },
-      "knobHotspot": "top-left"
+      "knobHotspot": "top-left",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0
     },
     {
       "id": "eq4",
       "param": "eq3",
       "orientation": "vertical",
       "origin": {
-        "x": 800,
-        "y": 1500
+        "x": 956,
+        "y": 848
       },
-      "travel": 160,
+      "travel": 48,
       "knob": "ui/knob_eq_4.png",
-      "range": [
-        -12,
-        12
-      ],
-      "value": 0,
       "knobSize": {
         "w": 28,
         "h": 27
       },
-      "knobHotspot": "top-left"
+      "knobHotspot": "top-left",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0
     },
     {
       "id": "eq5",
       "param": "eq4",
       "orientation": "vertical",
       "origin": {
-        "x": 880,
-        "y": 1500
+        "x": 856,
+        "y": 835
       },
-      "travel": 160,
+      "travel": 48,
       "knob": "ui/knob_eq_5.png",
-      "range": [
-        -12,
-        12
-      ],
-      "value": 0,
       "knobSize": {
         "w": 47,
         "h": 54
       },
-      "knobHotspot": "top-left"
+      "knobHotspot": "top-left",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0
     },
     {
       "id": "eq6",
       "param": "eq5",
       "orientation": "vertical",
       "origin": {
-        "x": 960,
-        "y": 1500
+        "x": 905,
+        "y": 839
       },
-      "travel": 160,
+      "travel": 48,
       "knob": "ui/knob_eq_6.png",
-      "range": [
-        -12,
-        12
-      ],
-      "value": 0,
       "knobSize": {
         "w": 44,
         "h": 56
       },
-      "knobHotspot": "top-left"
+      "knobHotspot": "top-left",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0
     },
     {
       "id": "eq7",
       "param": "eq6",
       "orientation": "vertical",
       "origin": {
-        "x": 1040,
-        "y": 1500
+        "x": 1111,
+        "y": 912
       },
-      "travel": 160,
+      "travel": 48,
       "knob": "ui/knob_eq_7.png",
-      "range": [
-        -12,
-        12
-      ],
-      "value": 0,
       "knobSize": {
         "w": 25,
         "h": 29
       },
-      "knobHotspot": "top-left"
+      "knobHotspot": "top-left",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0
     },
     {
       "id": "eq8",
       "param": "eq7",
       "orientation": "vertical",
       "origin": {
-        "x": 1120,
-        "y": 1500
+        "x": 1002,
+        "y": 842
       },
-      "travel": 160,
+      "travel": 48,
       "knob": "ui/knob_eq_8.png",
-      "range": [
-        -12,
-        12
-      ],
-      "value": 0,
       "knobSize": {
         "w": 41,
         "h": 55
       },
-      "knobHotspot": "top-left"
+      "knobHotspot": "top-left",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0
     },
     {
       "id": "eq9",
       "param": "eq8",
       "orientation": "vertical",
       "origin": {
-        "x": 1200,
-        "y": 1500
+        "x": 1042,
+        "y": 840
       },
-      "travel": 160,
+      "travel": 48,
       "knob": "ui/knob_eq_9.png",
-      "range": [
-        -12,
-        12
-      ],
-      "value": 0,
       "knobSize": {
         "w": 52,
         "h": 34
       },
-      "knobHotspot": "top-left"
+      "knobHotspot": "top-left",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0
     },
     {
       "id": "eq10",
       "param": "eq9",
       "orientation": "vertical",
       "origin": {
-        "x": 1280,
-        "y": 1500
+        "x": 953,
+        "y": 843
       },
-      "travel": 160,
+      "travel": 48,
       "knob": "ui/knob_eq_10.png",
-      "range": [
-        -12,
-        12
-      ],
-      "value": 0,
       "knobSize": {
         "w": 35,
         "h": 31
       },
-      "knobHotspot": "top-left"
+      "knobHotspot": "top-left",
+      "range": [
+        -12,
+        12
+      ],
+      "value": 0
     },
     {
       "id": "tempo",
       "param": "speed",
       "orientation": "vertical",
       "origin": {
-        "x": 1360,
-        "y": 1500
+        "x": 1164,
+        "y": 952
       },
-      "travel": 180,
+      "travel": 48,
       "knob": "ui/knob_tempo.png",
-      "range": [
-        0.5,
-        2
-      ],
-      "value": 1,
       "knobSize": {
         "w": 100,
         "h": 38
       },
-      "knobHotspot": "top-left"
+      "knobHotspot": "top-left",
+      "range": [
+        0.5,
+        2
+      ],
+      "value": 1.0
     }
   ],
   "buttons": [
@@ -321,8 +321,8 @@
       "id": "prev",
       "action": "prev",
       "origin": {
-        "x": 80,
-        "y": 300
+        "x": 65,
+        "y": 604
       },
       "size": {
         "w": 33,
@@ -336,8 +336,8 @@
       "id": "play",
       "action": "play",
       "origin": {
-        "x": 130,
-        "y": 300
+        "x": 65,
+        "y": 493
       },
       "size": {
         "w": 57,
@@ -351,8 +351,8 @@
       "id": "stop",
       "action": "stop",
       "origin": {
-        "x": 200,
-        "y": 300
+        "x": 139,
+        "y": 436
       },
       "size": {
         "w": 42,
@@ -366,8 +366,8 @@
       "id": "next",
       "action": "next",
       "origin": {
-        "x": 260,
-        "y": 300
+        "x": 105,
+        "y": 618
       },
       "size": {
         "w": 45,
@@ -381,8 +381,8 @@
       "id": "power",
       "action": "stop",
       "origin": {
-        "x": 1400,
-        "y": 80
+        "x": 1398,
+        "y": 728
       },
       "size": {
         "w": 45,
@@ -396,8 +396,8 @@
       "id": "fx_enable",
       "action": "reset_eq",
       "origin": {
-        "x": 80,
-        "y": 700
+        "x": 1135,
+        "y": 796
       },
       "size": {
         "w": 136,
@@ -411,8 +411,8 @@
       "id": "fx_reset",
       "action": "reset_eq",
       "origin": {
-        "x": 230,
-        "y": 700
+        "x": 364,
+        "y": 1035
       },
       "size": {
         "w": 91,
@@ -426,8 +426,8 @@
       "id": "playlist_open",
       "action": "open",
       "origin": {
-        "x": 900,
-        "y": 1700
+        "x": 1459,
+        "y": 1533
       },
       "size": {
         "w": 22,
@@ -441,8 +441,8 @@
       "id": "playlist_shuffle",
       "action": "next",
       "origin": {
-        "x": 940,
-        "y": 1700
+        "x": 1455,
+        "y": 1617
       },
       "size": {
         "w": 29,
