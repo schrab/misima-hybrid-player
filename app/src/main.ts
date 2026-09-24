@@ -25,20 +25,91 @@ const BASE = "/sprite/";
 const canvas = document.getElementById("ui") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
 
-/** Target client size in *device* pixels (art 1500×2060 at 50%). */
-const PHYS_W = 750;
-const PHYS_H = 1030;
+const ART_W = 1500;
+const ART_H = 2060;
+const SCALE_PRESETS = [0.375, 0.5, 0.75, 1.0];
+
+function getInitialScale(): number {
+  try {
+    const saved = localStorage.getItem("misima_ui_scale");
+    if (saved) {
+      const val = parseFloat(saved);
+      if (!isNaN(val) && val >= 0.3 && val <= 1.5) {
+        return val;
+      }
+    }
+  } catch {}
+
+  // Auto-detect: if screen available height is under 1050px (e.g. 1080p scaled laptop screen),
+  // default to 0.375x (562×772) so the window fits within screen bounds.
+  const screenH = window.screen.availHeight || window.screen.height || 1080;
+  if (screenH < 1050) {
+    return 0.375;
+  }
+  return 0.5;
+}
+
+let currentScale = getInitialScale();
+
+export function applyScale(scale: number, showStatus = true) {
+  currentScale = Math.min(1.25, Math.max(0.3, scale));
+  try {
+    localStorage.setItem("misima_ui_scale", currentScale.toString());
+  } catch {}
+
+  const w = Math.round(ART_W * currentScale);
+  const h = Math.round(ART_H * currentScale);
+
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
+  void invoke("resize_window_px", { w, h }).catch(() => {});
+
+  if (showStatus) {
+    const pct = Math.round((currentScale / 0.5) * 100);
+    status = `ZOOM ${pct}%`;
+  }
+}
+
+function cycleScale(direction: 1 | -1) {
+  let idx = SCALE_PRESETS.findIndex((s) => Math.abs(s - currentScale) < 0.02);
+  if (idx < 0) {
+    idx = SCALE_PRESETS.reduce(
+      (prev, curr, i) =>
+        Math.abs(curr - currentScale) < Math.abs(SCALE_PRESETS[prev] - currentScale) ? i : prev,
+      0,
+    );
+  }
+  const nextIdx = Math.min(SCALE_PRESETS.length - 1, Math.max(0, idx + direction));
+  applyScale(SCALE_PRESETS[nextIdx]);
+}
 
 function fitPixelPerfect() {
-  canvas.style.width = `${PHYS_W}px`;
-  canvas.style.height = `${PHYS_H}px`;
-  void invoke("resize_window_px", { w: PHYS_W, h: PHYS_H }).catch(() => {});
+  applyScale(currentScale, false);
 }
 
 window.addEventListener("resize", fitPixelPerfect);
-// Monitor DPI change — refit only (do NOT reload: that reset EQ/FX)
 matchMedia("(resolution: 1dppx)").addEventListener("change", () => {
   fitPixelPerfect();
+});
+
+window.addEventListener("keydown", (ev) => {
+  const isCmdOrCtrl = ev.ctrlKey || ev.metaKey;
+  if (isCmdOrCtrl) {
+    if (ev.key === "+" || ev.key === "=") {
+      ev.preventDefault();
+      cycleScale(1);
+    } else if (ev.key === "-" || ev.key === "_") {
+      ev.preventDefault();
+      cycleScale(-1);
+    } else if (ev.key === "0") {
+      ev.preventDefault();
+      applyScale(0.5); // Reset to 100% (750x1030)
+    } else if (ev.key.toLowerCase() === "d") {
+      ev.preventDefault();
+      // Winamp classic Ctrl+D: toggle Double Size (1.0) vs Standard (0.5)
+      applyScale(currentScale >= 0.9 ? 0.5 : 1.0);
+    }
+  }
 });
 
 let skin: SkinManifestV2;
@@ -381,6 +452,10 @@ canvas.addEventListener(
   "wheel",
   (ev) => {
     ev.preventDefault();
+    if (ev.ctrlKey) {
+      cycleScale(ev.deltaY < 0 ? 1 : -1);
+      return;
+    }
     const p = canvasPoint(ev);
     const pl = skin.text.playlist;
     const boxW = pl.size?.w ?? pl.columns.reduce((s, c) => s + c.width, 0);

@@ -104,6 +104,13 @@ For platform-specific troubleshooting and development guidelines, refer to [`age
 
 - **Fader Drag**: Click and drag any vertical fader to adjust values.
 - **Mouse Wheel on Faders**: Scroll over a fader to adjust (`Shift` + scroll for fine adjustment).
+- **UI Zoom / Scaling**:
+  - `Ctrl` / `Cmd` + `+` / `=`: Zoom In (Presets: 75% [562×772], 100% [750×1030], 150% [1125×1545], 200% [1500×2060]).
+  - `Ctrl` / `Cmd` + `-` / `_`: Zoom Out.
+  - `Ctrl` / `Cmd` + `0`: Reset to 100% standard size (750×1030).
+  - `Ctrl` / `Cmd` + `D`: Toggle Double Size (200% native 1:1 artboard) vs Standard (100%).
+  - `Ctrl` + **Mouse Wheel**: Zoom in / zoom out across scale presets.
+  - **Auto-Fit**: Automatically checks available display height on launch; screens under 1050px (e.g. 1080p scaled laptops) automatically open in Compact 75% mode to avoid overflowing off-screen.
 - **Playlist Navigation**: Single-click or double-click any track row to play immediately.
 - **Playlist Scrolling**: Mouse wheel over the playlist area scrolls through libraries with more than 10 tracks.
 - **FX Enable / Bypass**: Toggle master EQ, reverb, and pitch processing on or off.
