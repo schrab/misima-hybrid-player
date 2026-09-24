@@ -380,13 +380,18 @@ where
                 let mut sample_l = 0.0f32;
                 let mut sample_r = 0.0f32;
                 if playing {
-                    let cursor = (pos as usize) * ch_in;
-                    if cursor + ch_in <= total {
-                        sample_l = samples[cursor];
+                    let pr = pitch_ratio() as f64;
+                    let src = *pos * pr;
+                    let i0 = src as usize;
+                    let frac = (src - i0 as f64) as f32;
+                    let a = i0 * ch_in;
+                    let b = (i0 + 1) * ch_in;
+                    if b + ch_in <= total {
+                        sample_l = samples[a] + (samples[b] - samples[a]) * frac;
                         sample_r = if ch_in > 1 {
-                            samples[cursor + 1]
+                            samples[a + 1] + (samples[b + 1] - samples[a + 1]) * frac
                         } else {
-                            samples[cursor]
+                            sample_l
                         };
                         mono_scratch.push((sample_l + sample_r) * 0.5);
                         pos += rate as f64;

@@ -40,6 +40,19 @@ export function faderYToValue(
   return normToValue(range, n);
 }
 
+export function hitRect(
+  x: number,
+  y: number,
+  origin: XY,
+  size: { w: number; h: number },
+): boolean {
+  return x >= origin.x && y >= origin.y && x < origin.x + size.w && y < origin.y + size.h;
+}
+
+export function hitBox(x: number, y: number, box: { x: number; y: number; w: number; h: number }): boolean {
+  return x >= box.x && y >= box.y && x < box.x + box.w && y < box.y + box.h;
+}
+
 export function faderHit(x: number, y: number, fader: FaderDef): boolean {
   const HIT_W = 48;
   const HIT_H = 36;
