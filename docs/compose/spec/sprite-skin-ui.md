@@ -308,3 +308,12 @@ New params: `set_params { volume, pitch, reverb, eq[10], speed }`
 - [x] T9: Unit tests + builds + review fix loop (covers: S2.11)
 
 **Accepted residual:** UI loads default `/sprite/` kit at runtime (custom `.mskin` load_skin returns bundle for future picker UI); nearest-frame pitch/speed (no interpolation); click-through alpha hit not implemented (`hit: auto-alpha` reserved).
+
+## [S4] Delivered notes (2026-09)
+
+- Single skin file: app/public/sprite/skin.json (no Winamp packages).
+- Window 750x1030 device px; art 1500x2060 at 50%; DPR-aware.
+- Font: letter rows 0-3 at atlasOrigin (0,120) — not row 4+.
+- Playlist 1028,1490; status 1153,1817 w=220; echo scope 911,180 226x142 (8 echoes + Hann).
+- DSP: pitch = OLA tone-only; tempo = OLA time-stretch only; reverb soft-clipped.
+- Fader hit width 48px; tempo log-centred at 1.0.
