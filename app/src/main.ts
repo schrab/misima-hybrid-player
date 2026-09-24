@@ -70,11 +70,16 @@ let playlistScroll = 0;
 /** Echo scope (artboard 2×): X911 Y180 W226 H142 */
 const SCOPE = { x: 911, y: 180, w: 226, h: 142 };
 const SCOPE_N = 226;
-const SCOPE_ECHO = 5;
+const SCOPE_ECHO = 8;
 const waveHistory: number[][] = Array.from({ length: SCOPE_ECHO + 1 }, () =>
   new Array(SCOPE_N).fill(0),
 );
 let waveIdx = 0;
+/** Hann envelope: ~0 at ends, max at center (applied per sample). */
+const scopeWindow = new Float32Array(SCOPE_N);
+for (let i = 0; i < SCOPE_N; i++) {
+  scopeWindow[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (SCOPE_N - 1));
+}
 
 function setParam(key: string, value: number) {
   if (key.startsWith("eq")) {
@@ -231,7 +236,7 @@ function drawEchoScope(ctx: CanvasRenderingContext2D) {
     // waveIdx = next write = oldest; newest is waveIdx-1
     const idx = (((waveIdx - 1 - e) % (SCOPE_ECHO + 1)) + (SCOPE_ECHO + 1)) % (SCOPE_ECHO + 1);
     const row = waveHistory[idx];
-    const alpha = e === 0 ? 1 : 0.55 / (e + 0.5);
+    const alpha = e === 0 ? 1 : 0.85 * Math.pow(0.72, e);
     ctx.strokeStyle = `rgba(255,79,216,${alpha})`;
     ctx.beginPath();
     for (let i = 0; i < SCOPE_N; i++) {
@@ -544,7 +549,9 @@ async function init() {
   await listen<Float32Array>("waveform", (e) => {
     const raw = Float32Array.from(e.payload);
     const row = waveHistory[waveIdx % (SCOPE_ECHO + 1)];
-    for (let i = 0; i < SCOPE_N && i < raw.length; i++) row[i] = raw[i];
+    for (let i = 0; i < SCOPE_N && i < raw.length; i++) {
+      row[i] = raw[i] * scopeWindow[i];
+    }
     waveIdx = (waveIdx + 1) % (SCOPE_ECHO + 1);
   });
   await listen("play_started", () => {
