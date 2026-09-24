@@ -52,6 +52,8 @@ fn play_index_inner(
     let Some(path) = path else {
         return Ok(None);
     };
+    // Optimistic: UI lights play + spectrum while decode runs
+    let _ = app.emit("play_started", ());
     spawn_load(path, app.clone());
     Ok(state.playlist.read().current_id())
 }
@@ -69,6 +71,7 @@ pub fn play(state: State<'_, AppInner>, app: AppHandle) -> Result<(), String> {
     let has_audio = !player::shared().samples.read().is_empty();
     if has_audio {
         player::play();
+        let _ = app.emit("play_started", ());
         return Ok(());
     }
     // Nothing decoded yet — load current (or first) track then play

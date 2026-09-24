@@ -109,7 +109,8 @@ async function action(name: string) {
       } else {
         try {
           await invoke("play");
-          status = "Loading…";
+          playing = true;
+          status = "Playing";
         } catch (err) {
           playing = false;
           status = String(err);
@@ -278,6 +279,18 @@ canvas.addEventListener("pointerdown", (ev) => {
     setParam(fader.param, faderYToValue(fader.origin, fader.travel, fader.range, p.y));
     return;
   }
+  // playlist rows: do not startDragging (click must play the track)
+  const pl = skin.text.playlist;
+  const boxW = pl.size?.w ?? pl.columns.reduce((s, c) => s + c.width, 0);
+  const boxH = pl.size?.h ?? pl.rows * pl.rowHeight;
+  if (
+    p.x >= pl.origin.x &&
+    p.x < pl.origin.x + boxW &&
+    p.y >= pl.origin.y &&
+    p.y < pl.origin.y + boxH
+  ) {
+    return;
+  }
   void getCurrentWindow().startDragging();
 });
 
@@ -355,9 +368,11 @@ async function playRowAt(p: { x: number; y: number }) {
     const y0 = pl.origin.y + r * pl.rowHeight;
     if (p.y >= y0 && p.y < y0 + pl.rowHeight && p.x >= pl.origin.x && p.x < pl.origin.x + box.w) {
       const row = playlist[r];
+      const idx = playlist.findIndex((x) => x.id === row.id);
+      if (idx < 0) break;
       activeId = row.id;
-      await invoke("play_index", { index: playlist.findIndex((x) => x.id === row.id) });
       playing = true;
+      await invoke("play_index", { index: idx });
       await pushPlaylist();
       status = `PLAY ${row.title}`;
       break;
