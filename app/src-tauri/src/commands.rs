@@ -26,8 +26,9 @@ pub fn open_files(paths: Vec<String>, state: State<'_, AppInner>) -> Result<usiz
 }
 
 fn spawn_load(path: String, app: AppHandle) {
+    let gen = player::prepare_load();
     std::thread::spawn(move || {
-        match player::load_and_play(std::path::Path::new(&path)) {
+        match player::load_and_play_gen(std::path::Path::new(&path), gen) {
             Ok(()) => {
                 let _ = app.emit("play_started", ());
             }

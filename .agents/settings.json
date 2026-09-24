@@ -1,0 +1,7 @@
+{
+  "model": "claude-opus-4-6-thinking",
+  "subagents": {
+    "default_model": "gemini-3.8-flash-medium",
+    "context_isolation": true
+  }
+}

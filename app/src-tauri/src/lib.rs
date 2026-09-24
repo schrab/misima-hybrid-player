@@ -51,25 +51,6 @@ pub fn run() {
             commands::load_skin,
             commands::resize_window_px,
         ])
-        .invoke_handler(tauri::generate_handler![
-            commands::open_files,
-            commands::play,
-            commands::pause,
-            commands::stop,
-            commands::next,
-            commands::prev,
-            commands::play_index,
-            commands::seek,
-            commands::get_position,
-            commands::set_volume,
-            commands::set_eq,
-            commands::set_params,
-            commands::get_playlist,
-            commands::reorder_playlist,
-            commands::clear_playlist,
-            commands::load_skin,
-            commands::resize_window_px,
-        ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app, event| {

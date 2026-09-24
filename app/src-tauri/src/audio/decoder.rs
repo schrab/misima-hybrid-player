@@ -19,6 +19,7 @@ pub struct DecodedAudio {
 }
 
 impl DecodedAudio {
+    #[allow(dead_code)]
     pub fn duration_secs(&self) -> f64 {
         if self.sample_rate == 0 || self.channels == 0 {
             return 0.0;

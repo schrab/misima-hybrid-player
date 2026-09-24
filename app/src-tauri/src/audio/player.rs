@@ -96,17 +96,21 @@ pub struct Reverb {
 
 impl Default for Reverb {
     fn default() -> Self {
-        let comb_lens = [1557, 1617, 1491, 1422];
-        let ap_lens = [225, 556];
-        Self {
-            combs: comb_lens.map(|n| (vec![0.0; n], 0, 0.82)),
-            allpass: ap_lens.map(|n| (vec![0.0; n], 0, 0.5)),
-            damp: 0.25,
-        }
+        Self::new(44_100.0)
     }
 }
 
 impl Reverb {
+    pub fn new(sample_rate: f32) -> Self {
+        let sr_scale = (sample_rate / 44_100.0).max(0.5);
+        let comb_lens = [1557, 1617, 1491, 1422];
+        let ap_lens = [225, 556];
+        Self {
+            combs: comb_lens.map(|n| (vec![0.0; ((n as f32) * sr_scale).round() as usize], 0, 0.82)),
+            allpass: ap_lens.map(|n| (vec![0.0; ((n as f32) * sr_scale).round() as usize], 0, 0.5)),
+            damp: 0.25,
+        }
+    }
     pub fn process_mono(&mut self, x: f32) -> f32 {
         let mut acc = 0.0f32;
         for (buf, idx, fb) in self.combs.iter_mut() {
@@ -179,13 +183,24 @@ fn device_sample_rate() -> u32 {
     44_100
 }
 
-/// Decode and start playback only if `gen` is still current (None = current at call).
-pub fn load_and_play(path: &Path) -> anyhow::Result<()> {
+pub fn prepare_load() -> usize {
     let shared = shared();
-    let gen = shared.load_gen.load(Ordering::SeqCst);
+    shared.playing.store(false, Ordering::SeqCst);
+    shared.load_gen.fetch_add(1, Ordering::SeqCst) + 1
+}
+
+#[allow(dead_code)]
+pub fn load_and_play(path: &Path) -> anyhow::Result<()> {
+    let gen = prepare_load();
+    load_and_play_gen(path, gen)
+}
+
+/// Decode and start playback only if `expected_gen` is still current.
+pub fn load_and_play_gen(path: &Path, expected_gen: usize) -> anyhow::Result<()> {
+    let shared = shared();
     let audio = decode_file(path)?;
-    if shared.load_gen.load(Ordering::SeqCst) != gen {
-        return Ok(()); // user stopped — do not autoplay
+    if shared.load_gen.load(Ordering::SeqCst) != expected_gen {
+        return Ok(()); // user stopped or changed track — do not autoplay
     }
     let device_rate = device_sample_rate();
     shared.device_rate.store(device_rate as usize, Ordering::SeqCst);
@@ -212,6 +227,8 @@ pub fn load_and_play(path: &Path) -> anyhow::Result<()> {
         let gains = *shared.eq_gains.lock();
         let mut eq = shared.eq.lock();
         *eq = EqState::new(device_rate as f32, &gains);
+        let mut rv = shared.reverb.lock();
+        *rv = Reverb::new(device_rate as f32);
     }
     shared.playing.store(true, Ordering::SeqCst);
     ensure_stream();
@@ -307,7 +324,6 @@ fn time_stretch_ola(
             }
             let w = hann[i];
             let a = fi * ch;
-            ol[opos.min(n_out - 1)] += 0.0; // keep types; fill below
             if opos + i < n_out {
                 ol[opos + i] += src[a] * w;
                 or[opos + i] += if ch > 1 { src[a + 1] * w } else { src[a] * w };
@@ -485,17 +501,21 @@ where
             }
 
             let mut mono_scratch = Vec::with_capacity(frames);
+            let mut eq = shared.eq.lock();
+            let mix = *shared.reverb_mix.lock();
+            let mut reverb_guard = if mix > 0.001 {
+                Some(shared.reverb.lock())
+            } else {
+                None
+            };
+
             for f in 0..frames {
                 let mut frame = [bl[f], br[f]];
                 mono_scratch.push((frame[0] + frame[1]) * 0.5);
-                {
-                    let mut eq = shared.eq.lock();
-                    eq.process_interleaved(&mut frame, 2);
-                }
-                let mix = *shared.reverb_mix.lock();
-                if mix > 0.001 {
+                eq.process_interleaved(&mut frame, 2);
+                if let Some(reverb) = reverb_guard.as_deref_mut() {
                     let mono = (frame[0] + frame[1]) * 0.5;
-                    let wet = shared.reverb.lock().process_mono(mono) * 0.35;
+                    let wet = reverb.process_mono(mono) * 0.35;
                     let wet = wet / (1.0 + wet.abs());
                     frame[0] = frame[0] * (1.0 - mix) + wet * mix;
                     frame[1] = frame[1] * (1.0 - mix) + wet * mix;
@@ -513,6 +533,8 @@ where
                     data[o + c] = T::from_sample(0.0f32);
                 }
             }
+            drop(eq);
+            drop(reverb_guard);
 
             if playing && !mono_scratch.is_empty() {
                 let mut guard = shared.spectrum.lock();

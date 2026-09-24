@@ -90,6 +90,7 @@ pub struct LoadedSkin {
 }
 
 impl LoadedSkin {
+    #[allow(dead_code)]
     pub fn asset(&self, rel: &str) -> Option<&[u8]> {
         self.assets
             .iter()

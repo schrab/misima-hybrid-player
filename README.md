@@ -1,60 +1,165 @@
 # Misima Hybrid Player
 
-Cross-platform skinnable music player with a fully custom organic sprite UI (PNG plates, knobs, buttons, bitmap font).
+A multiplatform skinnable music player featuring a custom organic sprite-based UI, high-performance Rust audio engine with real-time DSP, and live dynamic visualizers.
 
-Repo: https://github.com/schrab/misima-hybrid-player
-Branch: feature/skinnable-player-mvp
+[![Rust 2021](https://img.shields.io/badge/Rust-2021-orange.svg)](https://www.rust-lang.org/)
+[![Tauri 2](https://img.shields.io/badge/Tauri-2.0-blue.svg)](https://tauri.app/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-## Stack
+---
 
-- Shell: Tauri 2
-- UI: Canvas sprite compositor + Vite (TypeScript / dev server)
-- Audio: Symphonia + cpal
-- DSP: 10-band EQ, Schroeder reverb, pitch (tone-only OLA), tempo (time-stretch only)
+## Key Features
 
-## Display
+- **Custom Organic Sprite UI**: No generic OS window frames or HTML form widgets. The interface is composed entirely of hand-drawn transparent PNG plates, interactive knobs, button overlays, and a custom bitmap glyph font engine.
+- **Real-Time DSP Engine**:
+  - **10-Band Peaking Equalizer**: High-precision RBJ biquad filters with in-place coefficient updates for click-free adjustment during playback.
+  - **Sample-Rate-Scaled Schroeder Reverb**: 4 comb filters and 2 allpass filters tuned to automatically scale with output hardware sample rates (44.1 kHz, 48 kHz, 96 kHz).
+  - **Independent Pitch & Tempo Controls**: Tone shifting (semitones) and time-stretching (speed) operate independently via Overlap-Add (OLA).
+  - **Master FX Toggle & Reset**: One-click bypass and reset for all effects.
+- **Dynamic Visualizers**:
+  - **Organic Raster Spectrum**: 10-band energy visualizer where bands light up irregularly shaped segment chips rather than standard rectangular bars.
+  - **Waveform Echo Scope**: 226-point real-time polyline oscilloscope with an 8-frame fading trail and Hann envelope windowing.
+- **Multi-Format Playback**: Native decoding of MP3, FLAC, WAV, and OGG via Symphonia with interleaved resampler to hardware output rates.
+- **Asynchronous, Glitch-Free Track Switching**: Generation-indexed decode queue immediately halts previous playback and invalidates superseded decodes upon rapid track skipping.
+- **Multiplatform Architecture**: Built on Tauri 2 for Windows 11, Linux (X11 & Wayland), and macOS.
 
-Artboard 1500x2060 (2x) shown at 750x1030 device pixels on FHD and 4K.
+---
 
-## Run
+## Technical Stack
 
-    cd app
-    npm install
-    npm run tauri dev
-    npm run tauri build
+| Layer | Technologies | Role |
+|---|---|---|
+| **Desktop Shell** | [Tauri 2](https://tauri.app/) | Native windowing (transparent, frameless), custom drag regions, system dialogs |
+| **Backend Core** | Rust 2021 | Audio pipeline, multi-format decoding, real-time DSP, IPC command handlers |
+| **Audio I/O** | [cpal](https://crates.io/crates/cpal) | Cross-platform hardware audio stream management |
+| **Audio Decoding** | [Symphonia](https://crates.io/crates/symphonia) | Pure-Rust decoding for MP3, FLAC, WAV, OGG/Vorbis, PCM |
+| **DSP & Analysis** | [rustfft](https://crates.io/crates/rustfft), custom biquads | 1024-point FFT spectrum analysis, 10-band peaking EQ, Schroeder reverb |
+| **Frontend UI** | TypeScript, Canvas 2D, Vite | 60 FPS sprite compositor, bitmap glyph font, pointer capture fader math |
 
-Tests: cargo test --lib (app/src-tauri), npx tsc --noEmit (app).
+---
 
-## Skin
+## UI & Coordinate System
 
-Only file: app/public/sprite/skin.json
+- **Artboard Reference**: Coordinates and origins in `skin.json` are expressed in **Photoshop 2x artboard pixels (1500×2060)**.
+- **Display Target**: The window renders pixel-perfect at **750×1030 device pixels** on 1080p and 4K displays.
+- **Knob Sizing**: Knob and button sprites always render at their natural pixel size to preserve pixel art fidelity.
+- **Display Resolution Scaling**: Window resizing dynamically accounts for `window.devicePixelRatio`. DPI changes trigger a canvas refit without page reloads to prevent resetting active audio FX.
 
-- Units: Photoshop 2x artboard
-- Knob origin: top-left at MAX
-- travel: Y to MIN
-- Defaults: volume max, EQ/pitch mid, reverb min, tempo 1x at mid (log scale)
-- Playlist: 1028,1490 size 378x310, 10 rows
-- Status: 1153,1817 width 220
-- Echo scope: 911,180 226x142, magenta + 8 echoes
-- Font: digit 24x24 at 0,0; symbol 24x18 at 0,72; letter 36x18 at 0,120 rows 0-3
+### Layout Reference
+- **Playlist Area**: `(1028, 1490)`, size `378×310`, 10 visible rows with mouse-wheel scrolling.
+- **Status Indicator**: `(1153, 1817)`, width `220`.
+- **Echo Scope**: `(911, 180)`, size `226×142`.
+- **Bitmap Font Atlas**:
+  - Digits (24×24) at origin `(0, 0)`
+  - Symbols (24×18) at origin `(0, 72)`
+  - Letters (36×18) at origin `(0, 120)`, rows 0–3
 
-Art source: skins/misima-hybrid/sprites/ then copy to app/public/sprite/
-(or python scripts/make_sprite_kit.py).
+---
 
-## DSP
+## Audio Pipeline & Performance
 
-- pitch = tone only (OLA), semitones -12..+12. Does NOT change speed.
-- tempo = speed only (OLA time-stretch) 0.5..2x. Does NOT change pitch.
-- reverb = Schroeder wet, soft-clipped
-- eq1-eq10 = peaking 60..16000 Hz
+```
+Decoded PCM (Symphonia)
+      │
+      ▼
+Interleaved Resampler (Device Rate: 44.1k / 48k / 96k)
+      │
+      ▼
+OLA Time-Stretch (Speed / Tempo: 0.5x – 2.0x)
+      │
+      ▼
+OLA Pitch-Shifter (Semitones: -12.0 – +12.0)
+      │
+      ▼
+10-Band Peaking Biquad EQ (60 Hz – 16 kHz)
+      │
+      ▼
+Schroeder Reverb (4 Combs + 2 Allpass, Soft-Clipped Wet Mix)
+      │
+      ▼
+Hardware Output Stream (cpal) ──► Spectrum Analyzer (rustfft) ──► Canvas Visuals
+```
 
-## Controls
+### Audio Performance Invariants
+1. **Hoisted Mutex Locks**: Mutex locks (`eq`, `reverb`, `reverb_mix`) are acquired once per callback block instead of per-sample, dropping lock contention from ~3,000 acquisitions/buffer to 2.
+2. **Click-Free EQ**: `EqState::set_gains` modifies biquad coefficients in-place while preserving filter delay registers (`z1`, `z2`, `z1r`, `z2r`), preventing pops or clicks when dragging sliders.
+3. **Async Race-Free Loading**: `player::prepare_load()` bumps a generation counter and silences the previous track instantly, ensuring rapid track skips never overlap or stutter.
 
-- Wheel on fader (Shift = fine)
-- Click playlist row to play
-- Wheel on playlist scrolls if more than 10 tracks
-- fx_enable: master EQ + reverb + pitch (default on)
-- fx_reset: EQ 0, reverb 0, pitch 0, tempo 1
-- power: quit
+---
 
-Icon: gfx/misima-gibrid-icon.png
+## Multiplatform Support
+
+| Platform | Status | Audio Backend | Window / Compositing Notes |
+|---|---|---|---|
+| **Windows 11** | **Tested & Verified** | WASAPI | Frameless, transparent window, DPI scaling supported |
+| **Linux** | **In Progress** | ALSA / PipeWire / PulseAudio | Requires compositing window manager for transparency. Wayland uses `xdg_toplevel.move()` for dragging. |
+| **macOS** | **Planned** | CoreAudio | Frameless window, Retina display backing-store handling |
+
+For platform-specific troubleshooting and development guidelines, refer to [`agents.md`](agents.md).
+
+---
+
+## Controls & Interaction
+
+- **Fader Drag**: Click and drag any vertical fader to adjust values.
+- **Mouse Wheel on Faders**: Scroll over a fader to adjust (`Shift` + scroll for fine adjustment).
+- **Playlist Navigation**: Single-click or double-click any track row to play immediately.
+- **Playlist Scrolling**: Mouse wheel over the playlist area scrolls through libraries with more than 10 tracks.
+- **FX Enable / Bypass**: Toggle master EQ, reverb, and pitch processing on or off.
+- **FX Reset**: Resets EQ to 0 dB, reverb to 0%, pitch to 0 semitones, and speed to 1.0x.
+- **Power Button**: Clean application shutdown.
+
+---
+
+## Development & Build
+
+### Prerequisites
+- Node.js (v20+) and npm
+- Rust toolchain (stable) with Cargo (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
+- OS dependencies:
+  - **Linux (Debian/Ubuntu)**: `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev`
+  - **Windows**: WebView2 (pre-installed on Windows 10/11), C++ build tools
+
+### Running in Development
+
+```bash
+# Clone the repository
+git clone https://github.com/schrab/misima-hybrid-player.git
+cd misima-hybrid-player/app
+
+# Install frontend dependencies
+npm install
+
+# Launch Tauri development mode (hot-reload for frontend and backend)
+npm run tauri dev
+```
+
+### Running Tests
+
+```bash
+# Execute Rust backend unit and DSP tests (20/20 tests)
+cd app/src-tauri
+cargo test -- --nocapture
+
+# Typecheck frontend code
+cd ../app
+npx tsc --noEmit
+```
+
+### Building for Release
+
+```bash
+cd app
+npm run tauri build
+```
+
+Installable bundles (MSI/NSIS on Windows, DEB/AppImage on Linux, DMG on macOS) will be generated under `app/src-tauri/target/release/bundle/`.
+
+---
+
+## Project Structure & Agents
+
+For architectural guidelines, subagent definitions, and development invariants, see:
+- [`agents.md`](agents.md) — Comprehensive guide for AI subagents (`coder`, `reviewer`, `tester`, `debugger`, `research`, `documenter`) and architectural invariants.
+- [`docs/compose/spec/`](docs/compose/spec/) — Historical feature specifications and design decisions.

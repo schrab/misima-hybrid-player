@@ -94,7 +94,16 @@ impl EqState {
     }
 
     pub fn set_gains(&mut self, sample_rate: f32, gains_db: &[f32; 10]) {
-        *self = Self::new(sample_rate, gains_db);
+        for (i, freq) in EQ_FREQS.iter().enumerate() {
+            let q = if *freq < 100.0 {
+                0.7
+            } else if *freq > 10_000.0 {
+                0.9
+            } else {
+                1.0
+            };
+            self.bands[i] = Biquad::peaking(sample_rate, *freq, q, gains_db[i]);
+        }
     }
 
     #[inline]
@@ -141,6 +150,7 @@ pub fn allpass_tick(buf: &mut [f32], idx: &mut usize, g: f32, x: f32) -> f32 {
 }
 
 /// RMS energy helper used by tests.
+#[allow(dead_code)]
 pub fn rms(data: &[f32]) -> f32 {
     if data.is_empty() {
         return 0.0;
