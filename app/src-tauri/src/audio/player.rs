@@ -56,6 +56,8 @@ pub struct SharedPlay {
     pub play_pos: Mutex<f64>,
     /// Bumped on stop so late decode must not autoplay.
     pub load_gen: std::sync::atomic::AtomicUsize,
+    /// Bumped on seek or track stop/load so DSP buffers flush.
+    pub seek_gen: std::sync::atomic::AtomicUsize,
 }
 
 impl Default for SharedPlay {
@@ -82,6 +84,7 @@ impl Default for SharedPlay {
             reverb_mix: Mutex::new(0.15),
             play_pos: Mutex::new(0.0),
             load_gen: std::sync::atomic::AtomicUsize::new(0),
+            seek_gen: std::sync::atomic::AtomicUsize::new(0),
         }
     }
 }
@@ -230,6 +233,7 @@ pub fn load_and_play_gen(path: &Path, expected_gen: usize) -> anyhow::Result<()>
         let mut rv = shared.reverb.lock();
         *rv = Reverb::new(device_rate as f32);
     }
+    shared.seek_gen.fetch_add(1, Ordering::SeqCst);
     shared.playing.store(true, Ordering::SeqCst);
     ensure_stream();
     Ok(())
@@ -255,16 +259,18 @@ pub fn stop() {
     *shared.play_pos.lock() = 0.0;
     shared.ended.store(false, Ordering::SeqCst);
     shared.load_gen.fetch_add(1, Ordering::SeqCst);
+    shared.seek_gen.fetch_add(1, Ordering::SeqCst);
 }
 
 pub fn seek_secs(secs: f64) {
     let shared = shared();
     let sr = shared.sample_rate.load(Ordering::SeqCst) as f64;
-    let frame = (secs.max(0.0) * sr) as f64;
+    let frame = secs.max(0.0) * sr;
     *shared.play_pos.lock() = frame;
     let ch = shared.channels.load(Ordering::SeqCst).max(1);
     shared.cursor.store((frame as usize) * ch, Ordering::SeqCst);
     shared.ended.store(false, Ordering::SeqCst);
+    shared.seek_gen.fetch_add(1, Ordering::SeqCst);
 }
 
 pub fn set_volume(v: f32) {
@@ -299,51 +305,7 @@ fn pitch_ratio() -> f32 {
     2f32.powf(pitch / 12.0)
 }
 
-/// OLA time-stretch: same grain (no resample) -> pitch unchanged, speed changes.
-/// ipos advances by hop*speed per output hop.
-fn time_stretch_ola(
-    src: &[f32],
-    ch: usize,
-    n_out: usize,
-    speed: f32,
-    hann: &[f32],
-    ipos: &mut f64,
-) -> (Vec<f32>, Vec<f32>) {
-    let win = hann.len();
-    let hop = win / 2;
-    let frames_src = src.len() / ch.max(1);
-    let mut ol = vec![0.0f32; n_out];
-    let mut or = vec![0.0f32; n_out];
-    let mut opos = 0usize;
-    while opos < n_out {
-        let base = *ipos;
-        for i in 0..win {
-            let fi = base as usize + i;
-            if fi >= frames_src {
-                break;
-            }
-            let w = hann[i];
-            let a = fi * ch;
-            if opos + i < n_out {
-                ol[opos + i] += src[a] * w;
-                or[opos + i] += if ch > 1 { src[a + 1] * w } else { src[a] * w };
-            }
-        }
-        // normalize hop overlap later; advance analysis by hop*speed (tempo)
-        *ipos += (hop as f64) * (speed as f64);
-        opos += hop;
-        if *ipos as usize >= frames_src {
-            break;
-        }
-    }
-    // crude OLA gain
-    let g = 2.0 / 3.0f32;
-    for i in 0..n_out {
-        ol[i] *= g;
-        or[i] *= g;
-    }
-    (ol, or)
-}
+
 
 pub fn position_secs() -> f64 {
     let shared = shared();
@@ -417,35 +379,6 @@ pub fn shutdown() {
 static SHUTDOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 
-/// Block OLA pitch shift (tone only). ratio > 1 raises pitch; length preserved.
-fn pitch_shift_block(x: &mut [f32], ratio: f32, hann: &[f32], work: &mut Vec<f32>) {
-    if (ratio - 1.0).abs() < 0.002 || x.is_empty() {
-        return;
-    }
-    let win = hann.len();
-    let hop = win / 2;
-    work.clear();
-    work.resize(x.len(), 0.0f32);
-    let mut ipos = 0.0f32;
-    let mut opos = 0usize;
-    while opos + hop <= x.len() {
-        for i in 0..win {
-            let src = ipos + i as f32 * ratio;
-            let i0 = src as usize;
-            let frac = src - i0 as f32;
-            let s0 = x.get(i0).copied().unwrap_or(0.0);
-            let s1 = x.get(i0 + 1).copied().unwrap_or(0.0);
-            let v = (s0 + (s1 - s0) * frac) * hann[i];
-            if opos + i < work.len() {
-                work[opos + i] += v;
-            }
-        }
-        ipos += hop as f32;
-        opos += hop;
-    }
-    x.copy_from_slice(work);
-}
-
 fn build_stream<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
@@ -457,6 +390,12 @@ where
 {
     use cpal::traits::DeviceTrait;
     let shared = shared.clone();
+    let mut wsola = crate::audio::wsola::WsolaProcessor::new();
+    let mut bl: Vec<f32> = Vec::with_capacity(1024);
+    let mut br: Vec<f32> = Vec::with_capacity(1024);
+    let mut mono_scratch: Vec<f32> = Vec::with_capacity(1024);
+    let mut last_seek_gen = usize::MAX;
+
     let stream = device.build_output_stream(
         config,
         move |data: &mut [T], _| {
@@ -466,41 +405,68 @@ where
             let volume = *shared.volume.lock();
             let speed = tempo_factor();
             let pr = pitch_ratio();
+            let device_sr = shared.device_rate.load(Ordering::SeqCst) as f32;
+            let device_sr = if device_sr > 0.0 { device_sr } else { 44_100.0 };
+
+            bl.resize(frames, 0.0);
+            br.resize(frames, 0.0);
+
             let samples = shared.samples.read();
             let total_frames = samples.len() / ch_in.max(1);
             let mut finished = false;
-            let mut pos = *shared.play_pos.lock();
 
-            static HANN: std::sync::OnceLock<Vec<f32>> = std::sync::OnceLock::new();
-            let hann = HANN.get_or_init(|| {
-                (0..512)
-                    .map(|i| 0.5 - 0.5 * (2.0 * std::f32::consts::PI * i as f32 / 511.0).cos())
-                    .collect::<Vec<f32>>()
-            });
+            let cur_seek_gen = shared.seek_gen.load(Ordering::SeqCst);
+            if cur_seek_gen != last_seek_gen {
+                last_seek_gen = cur_seek_gen;
+                let cur_pos = *shared.play_pos.lock();
+                wsola.reset(cur_pos);
+            }
 
-            // 1) Tempo: OLA time-stretch (pitch preserved, speed changes)
-            let (mut bl, mut br) = if playing && total_frames > 0 {
-                time_stretch_ola(&samples, ch_in, frames, speed, hann, &mut pos)
+            let is_bypass = (speed - 1.0).abs() < 0.002 && (pr - 1.0).abs() < 0.002;
+
+            if !playing || total_frames == 0 {
+                bl[..frames].fill(0.0);
+                br[..frames].fill(0.0);
+            } else if is_bypass {
+                // Bit-perfect 1:1 playback bypass for normal speed & pitch
+                let mut pos = *shared.play_pos.lock();
+                let start = (pos as usize).min(total_frames);
+                let to_copy = (total_frames - start).min(frames);
+                for f in 0..to_copy {
+                    let idx = (start + f) * ch_in;
+                    bl[f] = samples[idx];
+                    br[f] = if ch_in > 1 { samples[idx + 1] } else { samples[idx] };
+                }
+                if to_copy < frames {
+                    bl[to_copy..frames].fill(0.0);
+                    br[to_copy..frames].fill(0.0);
+                }
+                pos += frames as f64;
+                if pos as usize >= total_frames {
+                    finished = true;
+                }
+                *shared.play_pos.lock() = pos;
+                shared.cursor.store((pos as usize) * ch_in, Ordering::SeqCst);
             } else {
-                (vec![0.0f32; frames], vec![0.0f32; frames])
-            };
-            if pos as usize >= total_frames {
-                finished = playing;
+                // High-quality real-time WSOLA time-stretch + Cubic Hermite pitch shift
+                wsola.process(
+                    &samples,
+                    ch_in,
+                    total_frames,
+                    frames,
+                    speed,
+                    pr,
+                    device_sr,
+                    &mut bl,
+                    &mut br,
+                    &mut finished,
+                );
+                let pos = wsola.get_play_pos(speed, pr);
+                *shared.play_pos.lock() = pos;
+                shared.cursor.store((pos as usize) * ch_in, Ordering::SeqCst);
             }
-            *shared.play_pos.lock() = pos;
-            shared
-                .cursor
-                .store((pos as usize) * ch_in, Ordering::SeqCst);
 
-            // 2) Pitch: OLA pitch-shift (tone only, speed unchanged)
-            if (pr - 1.0).abs() > 0.002 {
-                let mut w1 = Vec::new();
-                let mut w2 = Vec::new();
-                pitch_shift_block(&mut bl, pr, hann, &mut w1);
-                pitch_shift_block(&mut br, pr, hann, &mut w2);
-            }
-
-            let mut mono_scratch = Vec::with_capacity(frames);
+            mono_scratch.clear();
             let mut eq = shared.eq.lock();
             let mix = *shared.reverb_mix.lock();
             let mut reverb_guard = if mix > 0.001 {
@@ -542,8 +508,13 @@ where
                     *guard = Some(SpectrumAnalyzer::new(1024, 48));
                 }
                 if let Some(analyzer) = guard.as_mut() {
-                    let bins = analyzer.analyze(&mono_scratch).to_vec();
-                    *shared.spectrum_tx.lock() = bins;
+                    let bins = analyzer.analyze(&mono_scratch);
+                    let mut tx = shared.spectrum_tx.lock();
+                    if tx.len() != bins.len() {
+                        *tx = bins.to_vec();
+                    } else {
+                        tx.copy_from_slice(bins);
+                    }
                     shared.spectrum_ready.store(true, Ordering::Relaxed);
                 }
                 const W: usize = 226;
@@ -663,4 +634,39 @@ mod tests {
         eq.process_interleaved(&mut buf, audio.channels.max(1));
         assert!(buf.iter().any(|s| s.abs() > 0.01));
     }
+
+    #[test]
+    fn wsola_pipeline_integration() {
+        let mut wsola = crate::audio::wsola::WsolaProcessor::new();
+        let sr = 44100.0f32;
+        let num_frames = 2048;
+        let mut samples = Vec::with_capacity(num_frames * 2);
+        for i in 0..num_frames {
+            let s = ((i as f32) * 0.01).sin();
+            samples.push(s);
+            samples.push(s);
+        }
+
+        let mut out_l = vec![0.0f32; 512];
+        let mut out_r = vec![0.0f32; 512];
+        let mut finished = false;
+
+        wsola.process(
+            &samples,
+            2,
+            num_frames,
+            512,
+            1.2,
+            1.05,
+            sr,
+            &mut out_l,
+            &mut out_r,
+            &mut finished,
+        );
+
+        assert!(out_l.iter().any(|v| v.abs() > 1e-4));
+        assert!(out_r.iter().any(|v| v.abs() > 1e-4));
+        assert!(!finished);
+    }
 }
+

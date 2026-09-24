@@ -49,6 +49,34 @@ impl Biquad {
             a2: a2 / a0,
         }
     }
+
+    /// 2nd order lowpass filter (e.g. for anti-aliasing).
+    pub fn lowpass(sample_rate: f32, freq: f32, q: f32) -> Self {
+        let w0 = 2.0 * std::f32::consts::PI * (freq / sample_rate).clamp(1e-4, 0.49);
+        let alpha = w0.sin() / (2.0 * q);
+        let cos_w0 = w0.cos();
+        let b1 = 1.0 - cos_w0;
+        let b0 = b1 * 0.5;
+        let b2 = b0;
+        let a0 = 1.0 + alpha;
+        let a1 = -2.0 * cos_w0;
+        let a2 = 1.0 - alpha;
+        Self {
+            b0: b0 / a0,
+            b1: b1 / a0,
+            b2: b2 / a0,
+            a1: a1 / a0,
+            a2: a2 / a0,
+        }
+    }
+
+    #[inline(always)]
+    pub fn tick(&self, x: f32, z1: &mut f32, z2: &mut f32) -> f32 {
+        let y = self.b0 * x + *z1;
+        *z1 = self.b1 * x - self.a1 * y + *z2;
+        *z2 = self.b2 * x - self.a2 * y;
+        y
+    }
 }
 
 #[derive(Debug, Clone)]
