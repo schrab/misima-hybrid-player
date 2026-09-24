@@ -8,13 +8,13 @@ body {
   user-select: none;
 }
 
-/* Fixed logical size 750×1030 px matching Tauri window logical bounds */
+/* Dynamic logical size matching Tauri window logical bounds, clamped to viewport */
 #ui {
   display: block;
   background: transparent;
   border: 0;
-  margin: 0;
+  margin: 0 auto;
   padding: 0;
-  width: 750px;
-  height: 1030px;
+  max-width: 100vw;
+  max-height: 100vh;
 }

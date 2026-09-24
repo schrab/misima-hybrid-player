@@ -27,24 +27,38 @@ const ctx = canvas.getContext("2d")!;
 
 const ART_W = 1500;
 const ART_H = 2060;
-const SCALE_PRESETS = [0.375, 0.5, 0.75, 1.0];
+const ALL_PRESETS = [0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.75, 1.0];
+
+function getMaxScale(): number {
+  const availH = (window.screen.availHeight || window.screen.height || 1080) - 30;
+  return Math.max(0.25, availH / ART_H);
+}
+
+function getAvailablePresets(): number[] {
+  const max = getMaxScale();
+  const list = ALL_PRESETS.filter((p) => p <= max + 0.02);
+  if (list.length === 0 || Math.abs(list[list.length - 1] - max) > 0.03) {
+    list.push(Math.round(max * 100) / 100);
+  }
+  return list.sort((a, b) => a - b);
+}
 
 function getInitialScale(): number {
+  const max = getMaxScale();
   try {
     const saved = localStorage.getItem("misima_ui_scale");
     if (saved) {
       const val = parseFloat(saved);
-      if (!isNaN(val) && val >= 0.3 && val <= 1.5) {
-        return val;
+      if (!isNaN(val) && val >= 0.25 && val <= 1.5) {
+        return Math.min(val, max);
       }
     }
   } catch {}
 
   // Auto-detect: if screen available height is under 1050px (e.g. 1080p scaled laptop screen),
-  // default to 0.375x (562×772) so the window fits within screen bounds.
-  const screenH = window.screen.availHeight || window.screen.height || 1080;
-  if (screenH < 1050) {
-    return 0.375;
+  // pick a preset that fits cleanly within screen bounds.
+  if (max < 0.5) {
+    return Math.min(max, 0.375);
   }
   return 0.5;
 }
@@ -52,7 +66,8 @@ function getInitialScale(): number {
 let currentScale = getInitialScale();
 
 export function applyScale(scale: number, showStatus = true) {
-  currentScale = Math.min(1.25, Math.max(0.3, scale));
+  const max = getMaxScale();
+  currentScale = Math.min(max, Math.max(0.25, scale));
   try {
     localStorage.setItem("misima_ui_scale", currentScale.toString());
   } catch {}
@@ -71,16 +86,25 @@ export function applyScale(scale: number, showStatus = true) {
 }
 
 function cycleScale(direction: 1 | -1) {
-  let idx = SCALE_PRESETS.findIndex((s) => Math.abs(s - currentScale) < 0.02);
+  const presets = getAvailablePresets();
+  let idx = presets.findIndex((s) => Math.abs(s - currentScale) < 0.02);
   if (idx < 0) {
-    idx = SCALE_PRESETS.reduce(
+    idx = presets.reduce(
       (prev, curr, i) =>
-        Math.abs(curr - currentScale) < Math.abs(SCALE_PRESETS[prev] - currentScale) ? i : prev,
+        Math.abs(curr - currentScale) < Math.abs(presets[prev] - currentScale) ? i : prev,
       0,
     );
   }
-  const nextIdx = Math.min(SCALE_PRESETS.length - 1, Math.max(0, idx + direction));
-  applyScale(SCALE_PRESETS[nextIdx]);
+  const nextIdx = idx + direction;
+  if (nextIdx >= presets.length) {
+    status = "MAX ZOOM (SCREEN LIMIT)";
+    return;
+  }
+  if (nextIdx < 0) {
+    status = "MIN ZOOM";
+    return;
+  }
+  applyScale(presets[nextIdx]);
 }
 
 function fitPixelPerfect() {
@@ -103,11 +127,12 @@ window.addEventListener("keydown", (ev) => {
       cycleScale(-1);
     } else if (ev.key === "0") {
       ev.preventDefault();
-      applyScale(0.5); // Reset to 100% (750x1030)
+      applyScale(Math.min(0.5, getMaxScale())); // Reset to 100% (or max that fits)
     } else if (ev.key.toLowerCase() === "d") {
       ev.preventDefault();
-      // Winamp classic Ctrl+D: toggle Double Size (1.0) vs Standard (0.5)
-      applyScale(currentScale >= 0.9 ? 0.5 : 1.0);
+      // Winamp classic Ctrl+D: toggle Double Size vs Standard (or max that fits)
+      const target = currentScale >= 0.9 ? Math.min(0.5, getMaxScale()) : Math.min(1.0, getMaxScale());
+      applyScale(target);
     }
   }
 });
