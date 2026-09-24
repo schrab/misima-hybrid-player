@@ -271,13 +271,62 @@ pub fn set_params(volume: f32, pitch_st: f32, reverb: f32, eq: [f32; 10], speed:
 }
 
 /// Combined playback rate: speed (tape) * pitch semitones.
-fn playback_rate_factor() -> f32 {
-    *shared().speed.lock()
+/// Tempo: how fast music plays. Does NOT change pitch (WSOLA/OLA time-stretch).
+fn tempo_factor() -> f32 {
+    shared().speed.lock().clamp(0.5, 2.0)
 }
 
+/// Pitch: semitone tone shift. Does NOT change speed (OLA pitch-shifter).
 fn pitch_ratio() -> f32 {
     let pitch = *shared().pitch_semitones.lock();
     2f32.powf(pitch / 12.0)
+}
+
+/// OLA time-stretch: same grain (no resample) -> pitch unchanged, speed changes.
+/// ipos advances by hop*speed per output hop.
+fn time_stretch_ola(
+    src: &[f32],
+    ch: usize,
+    n_out: usize,
+    speed: f32,
+    hann: &[f32],
+    ipos: &mut f64,
+) -> (Vec<f32>, Vec<f32>) {
+    let win = hann.len();
+    let hop = win / 2;
+    let frames_src = src.len() / ch.max(1);
+    let mut ol = vec![0.0f32; n_out];
+    let mut or = vec![0.0f32; n_out];
+    let mut opos = 0usize;
+    while opos < n_out {
+        let base = *ipos;
+        for i in 0..win {
+            let fi = base as usize + i;
+            if fi >= frames_src {
+                break;
+            }
+            let w = hann[i];
+            let a = fi * ch;
+            ol[opos.min(n_out - 1)] += 0.0; // keep types; fill below
+            if opos + i < n_out {
+                ol[opos + i] += src[a] * w;
+                or[opos + i] += if ch > 1 { src[a + 1] * w } else { src[a] * w };
+            }
+        }
+        // normalize hop overlap later; advance analysis by hop*speed (tempo)
+        *ipos += (hop as f64) * (speed as f64);
+        opos += hop;
+        if *ipos as usize >= frames_src {
+            break;
+        }
+    }
+    // crude OLA gain
+    let g = 2.0 / 3.0f32;
+    for i in 0..n_out {
+        ol[i] *= g;
+        or[i] *= g;
+    }
+    (ol, or)
 }
 
 pub fn position_secs() -> f64 {
@@ -399,52 +448,46 @@ where
             let playing = shared.playing.load(Ordering::SeqCst);
             let ch_in = shared.channels.load(Ordering::SeqCst).max(1);
             let volume = *shared.volume.lock();
-            let rate = playback_rate_factor().clamp(0.25, 4.0);
+            let speed = tempo_factor();
             let pr = pitch_ratio();
             let samples = shared.samples.read();
-            let total = samples.len();
+            let total_frames = samples.len() / ch_in.max(1);
             let mut finished = false;
             let mut pos = *shared.play_pos.lock();
 
-            let mut bl = vec![0.0f32; frames];
-            let mut br = vec![0.0f32; frames];
-            let mut mono_scratch = Vec::with_capacity(frames);
-            for f in 0..frames {
-                if playing {
-                    let cursor = (pos as usize) * ch_in;
-                    if cursor + ch_in <= total {
-                        bl[f] = samples[cursor];
-                        br[f] = if ch_in > 1 { samples[cursor + 1] } else { samples[cursor] };
-                        mono_scratch.push((bl[f] + br[f]) * 0.5);
-                        pos += rate as f64;
-                    } else {
-                        finished = true;
-                        mono_scratch.push(0.0);
-                    }
-                } else {
-                    mono_scratch.push(0.0);
-                }
-            }
-            drop(samples);
-            *shared.play_pos.lock() = pos;
-            shared.cursor.store((pos as usize) * ch_in, Ordering::SeqCst);
+            static HANN: std::sync::OnceLock<Vec<f32>> = std::sync::OnceLock::new();
+            let hann = HANN.get_or_init(|| {
+                (0..512)
+                    .map(|i| 0.5 - 0.5 * (2.0 * std::f32::consts::PI * i as f32 / 511.0).cos())
+                    .collect::<Vec<f32>>()
+            });
 
-            // Pitch shifter: OLA, tone only (playback length unchanged)
+            // 1) Tempo: OLA time-stretch (pitch preserved, speed changes)
+            let (mut bl, mut br) = if playing && total_frames > 0 {
+                time_stretch_ola(&samples, ch_in, frames, speed, hann, &mut pos)
+            } else {
+                (vec![0.0f32; frames], vec![0.0f32; frames])
+            };
+            if pos as usize >= total_frames {
+                finished = playing;
+            }
+            *shared.play_pos.lock() = pos;
+            shared
+                .cursor
+                .store((pos as usize) * ch_in, Ordering::SeqCst);
+
+            // 2) Pitch: OLA pitch-shift (tone only, speed unchanged)
             if (pr - 1.0).abs() > 0.002 {
-                static HANN: std::sync::OnceLock<Vec<f32>> = std::sync::OnceLock::new();
-                let hann = HANN.get_or_init(|| {
-                    (0..512)
-                        .map(|i| 0.5 - 0.5 * (2.0 * std::f32::consts::PI * i as f32 / 511.0).cos())
-                        .collect::<Vec<f32>>()
-                });
                 let mut w1 = Vec::new();
                 let mut w2 = Vec::new();
                 pitch_shift_block(&mut bl, pr, hann, &mut w1);
                 pitch_shift_block(&mut br, pr, hann, &mut w2);
             }
 
+            let mut mono_scratch = Vec::with_capacity(frames);
             for f in 0..frames {
                 let mut frame = [bl[f], br[f]];
+                mono_scratch.push((frame[0] + frame[1]) * 0.5);
                 {
                     let mut eq = shared.eq.lock();
                     eq.process_interleaved(&mut frame, 2);
