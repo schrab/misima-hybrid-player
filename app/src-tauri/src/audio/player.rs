@@ -351,6 +351,36 @@ pub fn shutdown() {
 
 static SHUTDOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+
+/// Block OLA pitch shift (tone only). ratio > 1 raises pitch; length preserved.
+fn pitch_shift_block(x: &mut [f32], ratio: f32, hann: &[f32], work: &mut Vec<f32>) {
+    if (ratio - 1.0).abs() < 0.002 || x.is_empty() {
+        return;
+    }
+    let win = hann.len();
+    let hop = win / 2;
+    work.clear();
+    work.resize(x.len(), 0.0f32);
+    let mut ipos = 0.0f32;
+    let mut opos = 0usize;
+    while opos + hop <= x.len() {
+        for i in 0..win {
+            let src = ipos + i as f32 * ratio;
+            let i0 = src as usize;
+            let frac = src - i0 as f32;
+            let s0 = x.get(i0).copied().unwrap_or(0.0);
+            let s1 = x.get(i0 + 1).copied().unwrap_or(0.0);
+            let v = (s0 + (s1 - s0) * frac) * hann[i];
+            if opos + i < work.len() {
+                work[opos + i] += v;
+            }
+        }
+        ipos += hop as f32;
+        opos += hop;
+    }
+    x.copy_from_slice(work);
+}
+
 fn build_stream<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
@@ -366,34 +396,26 @@ where
         config,
         move |data: &mut [T], _| {
             let frames = data.len() / out_channels.max(1);
-            let mut mono_scratch: Vec<f32> = Vec::with_capacity(frames);
             let playing = shared.playing.load(Ordering::SeqCst);
             let ch_in = shared.channels.load(Ordering::SeqCst).max(1);
             let volume = *shared.volume.lock();
             let rate = playback_rate_factor().clamp(0.25, 4.0);
+            let pr = pitch_ratio();
             let samples = shared.samples.read();
             let total = samples.len();
             let mut finished = false;
             let mut pos = *shared.play_pos.lock();
 
+            let mut bl = vec![0.0f32; frames];
+            let mut br = vec![0.0f32; frames];
+            let mut mono_scratch = Vec::with_capacity(frames);
             for f in 0..frames {
-                let mut sample_l = 0.0f32;
-                let mut sample_r = 0.0f32;
                 if playing {
-                    let pr = pitch_ratio() as f64;
-                    let src = pos * pr;
-                    let i0 = src as usize;
-                    let frac = (src - i0 as f64) as f32;
-                    let a = i0 * ch_in;
-                    let b = (i0 + 1) * ch_in;
-                    if b + ch_in <= total {
-                        sample_l = samples[a] + (samples[b] - samples[a]) * frac;
-                        sample_r = if ch_in > 1 {
-                            samples[a + 1] + (samples[b + 1] - samples[a + 1]) * frac
-                        } else {
-                            sample_l
-                        };
-                        mono_scratch.push((sample_l + sample_r) * 0.5);
+                    let cursor = (pos as usize) * ch_in;
+                    if cursor + ch_in <= total {
+                        bl[f] = samples[cursor];
+                        br[f] = if ch_in > 1 { samples[cursor + 1] } else { samples[cursor] };
+                        mono_scratch.push((bl[f] + br[f]) * 0.5);
                         pos += rate as f64;
                     } else {
                         finished = true;
@@ -402,8 +424,27 @@ where
                 } else {
                     mono_scratch.push(0.0);
                 }
+            }
+            drop(samples);
+            *shared.play_pos.lock() = pos;
+            shared.cursor.store((pos as usize) * ch_in, Ordering::SeqCst);
 
-                let mut frame = [sample_l, sample_r];
+            // Pitch shifter: OLA, tone only (playback length unchanged)
+            if (pr - 1.0).abs() > 0.002 {
+                static HANN: std::sync::OnceLock<Vec<f32>> = std::sync::OnceLock::new();
+                let hann = HANN.get_or_init(|| {
+                    (0..512)
+                        .map(|i| 0.5 - 0.5 * (2.0 * std::f32::consts::PI * i as f32 / 511.0).cos())
+                        .collect::<Vec<f32>>()
+                });
+                let mut w1 = Vec::new();
+                let mut w2 = Vec::new();
+                pitch_shift_block(&mut bl, pr, hann, &mut w1);
+                pitch_shift_block(&mut br, pr, hann, &mut w2);
+            }
+
+            for f in 0..frames {
+                let mut frame = [bl[f], br[f]];
                 {
                     let mut eq = shared.eq.lock();
                     eq.process_interleaved(&mut frame, 2);
@@ -411,7 +452,8 @@ where
                 let mix = *shared.reverb_mix.lock();
                 if mix > 0.001 {
                     let mono = (frame[0] + frame[1]) * 0.5;
-                    let wet = shared.reverb.lock().process_mono(mono) * 0.35; let wet = wet / (1.0 + wet.abs());
+                    let wet = shared.reverb.lock().process_mono(mono) * 0.35;
+                    let wet = wet / (1.0 + wet.abs());
                     frame[0] = frame[0] * (1.0 - mix) + wet * mix;
                     frame[1] = frame[1] * (1.0 - mix) + wet * mix;
                 }
@@ -428,16 +470,6 @@ where
                     data[o + c] = T::from_sample(0.0f32);
                 }
             }
-            drop(samples);
-            *shared.play_pos.lock() = pos;
-            shared
-                .cursor
-                .store((pos as usize) * ch_in, Ordering::SeqCst);
-
-            if finished {
-                shared.playing.store(false, Ordering::SeqCst);
-                shared.ended.store(true, Ordering::SeqCst);
-            }
 
             if playing && !mono_scratch.is_empty() {
                 let mut guard = shared.spectrum.lock();
@@ -449,7 +481,6 @@ where
                     *shared.spectrum_tx.lock() = bins;
                     shared.spectrum_ready.store(true, Ordering::Relaxed);
                 }
-                // Echo-scope waveform: decimate block → 226 points (O(n))
                 const W: usize = 226;
                 let n = mono_scratch.len();
                 let mut wave = shared.wave_tx.lock();
@@ -463,10 +494,14 @@ where
                     for v in &mono_scratch[s..e.min(n)] {
                         acc += *v;
                     }
-                    let c = (e - s) as f32;
-                    wave[i] = (acc / c).clamp(-1.0, 1.0);
+                    wave[i] = (acc / (e - s) as f32).clamp(-1.0, 1.0);
                 }
                 shared.wave_ready.store(true, Ordering::Relaxed);
+            }
+
+            if finished {
+                shared.playing.store(false, Ordering::SeqCst);
+                shared.ended.store(true, Ordering::SeqCst);
             }
         },
         |err| log::error!("stream error: {err}"),
