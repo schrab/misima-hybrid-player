@@ -259,13 +259,13 @@ function render(_time: number) {
       }
     }
     if (active) ctx.filter = "brightness(0.12)";
-    // tight row: № + 6 letters + duration (as art)
+    // № (2 digits) + 6 letters + duration
     const name6 = row.title.replace(/\.[^.]+$/, "").slice(0, 6).toUpperCase();
     const num = String(r + 1).padStart(2, "0");
     const dur = row.duration ?? "--:--";
-    font?.draw(ctx, num, pl.origin.x + 4, y, 40);
-    font?.draw(ctx, name6, pl.origin.x + 48, y, 140);
-    font?.draw(ctx, dur, pl.origin.x + 240, y, 80);
+    font?.draw(ctx, num, pl.origin.x + 4, y, 48);
+    font?.draw(ctx, name6, pl.origin.x + 56, y, 220);
+    font?.draw(ctx, dur, pl.origin.x + 280, y, 90);
     if (active) ctx.filter = "none";
   }
   ctx.restore();

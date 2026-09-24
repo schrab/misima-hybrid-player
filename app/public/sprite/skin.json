@@ -1356,8 +1356,8 @@
     "font": {
       "atlas": "font/glyphs.png",
       "cell": {
-        "w": 18,
-        "h": 18
+        "w": 24,
+        "h": 24
       },
       "classes": {
         "digit": {
@@ -1447,161 +1447,336 @@
         },
         " ": {
           "col": 0,
-          "row": 3,
-          "class": "symbol"
-        },
-        "-": {
-          "col": 1,
-          "row": 3,
+          "row": 0,
           "class": "symbol"
         },
         ".": {
+          "col": 1,
+          "row": 0,
+          "class": "symbol"
+        },
+        "-": {
           "col": 2,
-          "row": 3,
+          "row": 0,
           "class": "symbol"
         },
         ":": {
           "col": 3,
-          "row": 3,
+          "row": 0,
+          "class": "symbol"
+        },
+        "+": {
+          "col": 4,
+          "row": 0,
+          "class": "symbol"
+        },
+        "*": {
+          "col": 5,
+          "row": 0,
+          "class": "symbol"
+        },
+        "#": {
+          "col": 6,
+          "row": 0,
+          "class": "symbol"
+        },
+        "_": {
+          "col": 7,
+          "row": 0,
+          "class": "symbol"
+        },
+        "[": {
+          "col": 8,
+          "row": 0,
+          "class": "symbol"
+        },
+        "]": {
+          "col": 9,
+          "row": 0,
+          "class": "symbol"
+        },
+        "(": {
+          "col": 10,
+          "row": 0,
+          "class": "symbol"
+        },
+        ")": {
+          "col": 11,
+          "row": 0,
           "class": "symbol"
         },
         "?": {
-          "col": 4,
-          "row": 3,
+          "col": 12,
+          "row": 0,
+          "class": "symbol"
+        },
+        "!": {
+          "col": 13,
+          "row": 0,
           "class": "symbol"
         },
         "A": {
           "col": 0,
-          "row": 4,
+          "row": 0,
+          "class": "letter"
+        },
+        "a": {
+          "col": 0,
+          "row": 0,
           "class": "letter"
         },
         "B": {
           "col": 1,
-          "row": 4,
+          "row": 0,
+          "class": "letter"
+        },
+        "b": {
+          "col": 1,
+          "row": 0,
           "class": "letter"
         },
         "C": {
           "col": 2,
-          "row": 4,
+          "row": 0,
+          "class": "letter"
+        },
+        "c": {
+          "col": 2,
+          "row": 0,
           "class": "letter"
         },
         "D": {
           "col": 3,
-          "row": 4,
+          "row": 0,
+          "class": "letter"
+        },
+        "d": {
+          "col": 3,
+          "row": 0,
           "class": "letter"
         },
         "E": {
           "col": 4,
-          "row": 4,
+          "row": 0,
+          "class": "letter"
+        },
+        "e": {
+          "col": 4,
+          "row": 0,
           "class": "letter"
         },
         "F": {
           "col": 5,
-          "row": 4,
+          "row": 0,
+          "class": "letter"
+        },
+        "f": {
+          "col": 5,
+          "row": 0,
           "class": "letter"
         },
         "G": {
           "col": 6,
-          "row": 4,
+          "row": 0,
+          "class": "letter"
+        },
+        "g": {
+          "col": 6,
+          "row": 0,
           "class": "letter"
         },
         "H": {
           "col": 7,
-          "row": 4,
+          "row": 0,
+          "class": "letter"
+        },
+        "h": {
+          "col": 7,
+          "row": 0,
           "class": "letter"
         },
         "I": {
           "col": 0,
-          "row": 5,
+          "row": 1,
+          "class": "letter"
+        },
+        "i": {
+          "col": 0,
+          "row": 1,
           "class": "letter"
         },
         "J": {
           "col": 1,
-          "row": 5,
+          "row": 1,
+          "class": "letter"
+        },
+        "j": {
+          "col": 1,
+          "row": 1,
           "class": "letter"
         },
         "K": {
           "col": 2,
-          "row": 5,
+          "row": 1,
+          "class": "letter"
+        },
+        "k": {
+          "col": 2,
+          "row": 1,
           "class": "letter"
         },
         "L": {
           "col": 3,
-          "row": 5,
+          "row": 1,
+          "class": "letter"
+        },
+        "l": {
+          "col": 3,
+          "row": 1,
           "class": "letter"
         },
         "M": {
           "col": 4,
-          "row": 5,
+          "row": 1,
+          "class": "letter"
+        },
+        "m": {
+          "col": 4,
+          "row": 1,
           "class": "letter"
         },
         "N": {
           "col": 5,
-          "row": 5,
+          "row": 1,
+          "class": "letter"
+        },
+        "n": {
+          "col": 5,
+          "row": 1,
           "class": "letter"
         },
         "O": {
           "col": 6,
-          "row": 5,
+          "row": 1,
+          "class": "letter"
+        },
+        "o": {
+          "col": 6,
+          "row": 1,
           "class": "letter"
         },
         "P": {
           "col": 7,
-          "row": 5,
+          "row": 1,
+          "class": "letter"
+        },
+        "p": {
+          "col": 7,
+          "row": 1,
           "class": "letter"
         },
         "Q": {
           "col": 0,
-          "row": 6,
+          "row": 2,
+          "class": "letter"
+        },
+        "q": {
+          "col": 0,
+          "row": 2,
           "class": "letter"
         },
         "R": {
           "col": 1,
-          "row": 6,
+          "row": 2,
+          "class": "letter"
+        },
+        "r": {
+          "col": 1,
+          "row": 2,
           "class": "letter"
         },
         "S": {
           "col": 2,
-          "row": 6,
+          "row": 2,
+          "class": "letter"
+        },
+        "s": {
+          "col": 2,
+          "row": 2,
           "class": "letter"
         },
         "T": {
           "col": 3,
-          "row": 6,
+          "row": 2,
+          "class": "letter"
+        },
+        "t": {
+          "col": 3,
+          "row": 2,
           "class": "letter"
         },
         "U": {
           "col": 4,
-          "row": 6,
+          "row": 2,
+          "class": "letter"
+        },
+        "u": {
+          "col": 4,
+          "row": 2,
           "class": "letter"
         },
         "V": {
           "col": 5,
-          "row": 6,
+          "row": 2,
+          "class": "letter"
+        },
+        "v": {
+          "col": 5,
+          "row": 2,
           "class": "letter"
         },
         "W": {
           "col": 6,
-          "row": 6,
+          "row": 2,
+          "class": "letter"
+        },
+        "w": {
+          "col": 6,
+          "row": 2,
           "class": "letter"
         },
         "X": {
           "col": 7,
-          "row": 6,
+          "row": 2,
+          "class": "letter"
+        },
+        "x": {
+          "col": 7,
+          "row": 2,
           "class": "letter"
         },
         "Y": {
           "col": 0,
-          "row": 7,
+          "row": 3,
+          "class": "letter"
+        },
+        "y": {
+          "col": 0,
+          "row": 3,
           "class": "letter"
         },
         "Z": {
           "col": 1,
-          "row": 7,
+          "row": 3,
+          "class": "letter"
+        },
+        "z": {
+          "col": 1,
+          "row": 3,
           "class": "letter"
         }
       },
-      "fallback": "?"
+      "fallback": " "
     },
     "playlist": {
       "origin": {

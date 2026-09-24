@@ -23,24 +23,20 @@ function resolveGlyph(def: GlyphDef) {
 }
 
 /**
- * Variable metrics:
- * - digit: square (e.g. 18×18)
- * - letter: 2:1 aspect, slightly shorter (e.g. 36×14) — bottom-aligned on baseline
- *
- * Atlas packing: `col`/`row` index that **class's** cell grid from atlas (0,0).
- * Put digits and symbols on a digit-sized grid; letters on a letter-sized grid
- * (or use `classes[name].atlasOrigin` to offset).
+ * Atlas: col/row are indices in that class's grid, then + atlasOrigin.
+ * Letters: row 0..3 at origin (0,120) — do NOT offset row by 4.
  */
 export function createFont(spec: FontSpec, atlas: HTMLImageElement): BitmapFont {
   const classes: Record<string, FontClass> = {
-    // Spec default: digits 24×24, letters 36×18 (2:1, shorter than digits)
-    digit: { cell: { w: 24, h: 24 }, baseline: "bottom" },
+    digit: { cell: { w: 24, h: 24 }, baseline: "bottom", atlasOrigin: { x: 0, y: 0 } },
+    letter: { cell: { w: 36, h: 18 }, baseline: "bottom", atlasOrigin: { x: 0, y: 120 } },
+    symbol: { cell: { w: 24, h: 18 }, baseline: "bottom", atlasOrigin: { x: 0, y: 72 } },
     ...(spec.classes ?? {}),
   };
-  const lineH = Math.max(spec.cell.h, ...Object.values(classes).map((c) => c.cell.h));
+  const lineH = Math.max(...Object.values(classes).map((c) => c.cell.h), spec.cell.h);
 
   function boxFor(ch: string): { sx: number; sy: number; sw: number; sh: number } | null {
-    const def = spec.map[ch] ?? spec.map[spec.fallback] ?? spec.map["?"];
+    const def = spec.map[ch] ?? spec.map[spec.fallback] ?? spec.map[" "] ?? spec.map["?"];
     if (!def) return null;
     const g = resolveGlyph(def);
     const clsName = g.className ?? "digit";
