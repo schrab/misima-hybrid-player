@@ -51,6 +51,19 @@ pub fn run() {
             commands::load_skin,
             commands::resize_window_px,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .on_window_event(|_window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                audio::player::shutdown();
+                // cpal stream is leaked (!Sync); force-quit so `tauri dev` unblocks
+                std::process::exit(0);
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, event| {
+            if let tauri::RunEvent::Exit = event {
+                audio::player::shutdown();
+                std::process::exit(0);
+            }
+        });
 }

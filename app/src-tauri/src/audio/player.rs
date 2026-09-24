@@ -330,9 +330,18 @@ fn start_output_stream() -> anyhow::Result<()> {
         _ => anyhow::bail!("unsupported sample format {sample_format:?}"),
     };
     stream.play()?;
+    // Stream is !Sync — leak it; exit() tears the process down.
     std::mem::forget(stream);
     Ok(())
 }
+
+/// Mark UI/audio idle; process exit is forced from lib.rs so dev watcher unblocks.
+pub fn shutdown() {
+    shared().playing.store(false, Ordering::SeqCst);
+    SHUTDOWN.store(true, Ordering::SeqCst);
+}
+
+static SHUTDOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 fn build_stream<T>(
     device: &cpal::Device,
@@ -438,7 +447,7 @@ where
 pub fn spawn_spectrum_task(handle: tauri::AppHandle) {
     std::thread::spawn(move || {
         let shared = shared();
-        loop {
+        while !SHUTDOWN.load(Ordering::SeqCst) {
             std::thread::sleep(Duration::from_millis(33));
             use tauri::Emitter;
             if take_ended() {
