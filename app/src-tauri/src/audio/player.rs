@@ -381,7 +381,7 @@ where
                 let mut sample_r = 0.0f32;
                 if playing {
                     let pr = pitch_ratio() as f64;
-                    let src = *pos * pr;
+                    let src = pos * pr;
                     let i0 = src as usize;
                     let frac = (src - i0 as f64) as f32;
                     let a = i0 * ch_in;
