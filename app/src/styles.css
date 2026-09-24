@@ -5,21 +5,17 @@ body {
   background: transparent;
   overflow: hidden;
   user-select: none;
-  border: 0;
 }
 
 /*
-  Artboard 1500×2060 (2x). Fit width OR height, keep aspect — never stretch.
-  Transparent letterbox outside the art.
+  Artboard 1500×2060 is 2×. Display at 1:1 logical 750×1030 (50%).
+  Fixed size — do not stretch to viewport (breaks on 4K / FHD / DPI).
 */
 #ui {
   display: block;
   background: transparent;
   border: 0;
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: min(100vw, calc(100vh * 1500 / 2060));
-  height: min(100vh, calc(100vw * 2060 / 1500));
+  width: 750px;
+  height: 1030px;
+  margin: 0;
 }

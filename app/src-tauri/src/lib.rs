@@ -24,6 +24,12 @@ pub fn run() {
             eq_gains: Arc::new(RwLock::new([0.0; 10])),
         })
         .setup(|app| {
+            use tauri::{Manager, PhysicalSize};
+            // Force device-pixel size 750×1030 (art 2× is 1500×2060 → 50% display).
+            // Logical size would double again on 200% DPI (4K).
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.set_size(PhysicalSize::new(750, 1030));
+            }
             let handle = app.handle().clone();
             audio::spawn_spectrum_task(handle);
             Ok(())
