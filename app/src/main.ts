@@ -67,6 +67,14 @@ let playing = false;
 let fxOn = true;
 /** playlist scroll (rows beyond 10) */
 let playlistScroll = 0;
+/** Echo scope (artboard 2×): X911 Y180 W226 H142 */
+const SCOPE = { x: 911, y: 180, w: 226, h: 142 };
+const SCOPE_N = 226;
+const SCOPE_ECHO = 5;
+const waveHistory: number[][] = Array.from({ length: SCOPE_ECHO + 1 }, () =>
+  new Array(SCOPE_N).fill(0),
+);
+let waveIdx = 0;
 
 function setParam(key: string, value: number) {
   if (key.startsWith("eq")) {
@@ -207,6 +215,36 @@ function drawFader(f: FaderDef) {
   }
 }
 
+/** Magenta line + 5 fading echoes in SCOPE rect (cheap polyline trail). */
+function drawEchoScope(ctx: CanvasRenderingContext2D) {
+  const { x, y, w, h } = SCOPE;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  const mid = y + h / 2;
+  const amp = h * 0.42;
+  // oldest → newest (newest on top)
+  for (let e = SCOPE_ECHO; e >= 0; e--) {
+    // waveIdx = next write = oldest; newest is waveIdx-1
+    const idx = (((waveIdx - 1 - e) % (SCOPE_ECHO + 1)) + (SCOPE_ECHO + 1)) % (SCOPE_ECHO + 1);
+    const row = waveHistory[idx];
+    const alpha = e === 0 ? 1 : 0.55 / (e + 0.5);
+    ctx.strokeStyle = `rgba(255,79,216,${alpha})`;
+    ctx.beginPath();
+    for (let i = 0; i < SCOPE_N; i++) {
+      const px = x + i;
+      const py = mid - row[i] * amp;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function render(_time: number) {
   const { width, height } = skin.canvas;
   ctx.clearRect(0, 0, width, height);
@@ -215,6 +253,7 @@ function render(_time: number) {
 
   if (playing) {
     drawSpectrumSegments(ctx, images, skin.visuals.spectrum.bands, bins);
+    drawEchoScope(ctx);
   }
 
   for (const f of skin.faders) drawFader(f);
@@ -501,6 +540,12 @@ async function init() {
       out[b] = s / Math.max(1, i1 - i0);
     }
     bins = out;
+  });
+  await listen<Float32Array>("waveform", (e) => {
+    const raw = Float32Array.from(e.payload);
+    const row = waveHistory[waveIdx % (SCOPE_ECHO + 1)];
+    for (let i = 0; i < SCOPE_N && i < raw.length; i++) row[i] = raw[i];
+    waveIdx = (waveIdx + 1) % (SCOPE_ECHO + 1);
   });
   await listen("play_started", () => {
     playing = true;

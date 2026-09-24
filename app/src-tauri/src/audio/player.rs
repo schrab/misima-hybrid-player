@@ -42,6 +42,9 @@ pub struct SharedPlay {
     pub eq_gains: Mutex<[f32; 10]>,
     pub spectrum_tx: Mutex<Vec<f32>>,
     pub spectrum_ready: AtomicBool,
+    /// 226-point mono waveform for echo scope (last block, decimated).
+    pub wave_tx: Mutex<Vec<f32>>,
+    pub wave_ready: AtomicBool,
     pub spectrum: Mutex<Option<SpectrumAnalyzer>>,
     pub ended: AtomicBool,
     pub device_rate: AtomicUsize,
@@ -68,6 +71,8 @@ impl Default for SharedPlay {
             eq_gains: Mutex::new([0.0; 10]),
             spectrum_tx: Mutex::new(vec![0.0; 48]),
             spectrum_ready: AtomicBool::new(false),
+            wave_tx: Mutex::new(vec![0.0; 226]),
+            wave_ready: AtomicBool::new(false),
             spectrum: Mutex::new(None),
             ended: AtomicBool::new(false),
             device_rate: AtomicUsize::new(44_100),
@@ -436,6 +441,24 @@ where
                     *shared.spectrum_tx.lock() = bins;
                     shared.spectrum_ready.store(true, Ordering::Relaxed);
                 }
+                // Echo-scope waveform: decimate block → 226 points (O(n))
+                const W: usize = 226;
+                let n = mono_scratch.len();
+                let mut wave = shared.wave_tx.lock();
+                if wave.len() != W {
+                    *wave = vec![0.0; W];
+                }
+                for i in 0..W {
+                    let s = i * n / W;
+                    let e = ((i + 1) * n / W).max(s + 1);
+                    let mut acc = 0.0f32;
+                    for v in &mono_scratch[s..e.min(n)] {
+                        acc += *v;
+                    }
+                    let c = (e - s) as f32;
+                    wave[i] = (acc / c).clamp(-1.0, 1.0);
+                }
+                shared.wave_ready.store(true, Ordering::Relaxed);
             }
         },
         |err| log::error!("stream error: {err}"),
@@ -458,6 +481,10 @@ pub fn spawn_spectrum_task(handle: tauri::AppHandle) {
             }
             let bins = shared.spectrum_tx.lock().clone();
             let _ = handle.emit("spectrum", bins);
+            if shared.wave_ready.swap(false, Ordering::Relaxed) {
+                let wave = shared.wave_tx.lock().clone();
+                let _ = handle.emit("waveform", wave);
+            }
         }
     });
 }
