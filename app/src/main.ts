@@ -31,18 +31,15 @@ const PHYS_H = 1030;
 
 function fitPixelPerfect() {
   const dpr = window.devicePixelRatio || 1;
-  // CSS px so that CSS * dpr == 750×1030 screen pixels
   canvas.style.width = `${PHYS_W / dpr}px`;
   canvas.style.height = `${PHYS_H / dpr}px`;
   void invoke("resize_window_px", { w: PHYS_W, h: PHYS_H }).catch(() => {});
 }
 
 window.addEventListener("resize", fitPixelPerfect);
-// DPI change when dragging across monitors
-const mq = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-mq.addEventListener("change", () => {
+// Monitor DPI change — refit only (do NOT reload: that reset EQ/FX)
+matchMedia("(resolution: 1dppx)").addEventListener("change", () => {
   fitPixelPerfect();
-  location.reload(); // rebind mq at new dpr — cheap and reliable
 });
 
 let skin: SkinManifestV2;
@@ -68,6 +65,8 @@ let dragFader: string | null = null;
 let playing = false;
 /** fx_enable master: off = EQ + reverb bypass */
 let fxOn = true;
+/** playlist scroll (rows beyond 10) */
+let playlistScroll = 0;
 
 function setParam(key: string, value: number) {
   if (key.startsWith("eq")) {
@@ -244,8 +243,11 @@ function render(_time: number) {
   ctx.beginPath();
   ctx.rect(pl.origin.x, pl.origin.y, box.w, box.h);
   ctx.clip();
-  for (let r = 0; r < pl.rows && r < playlist.length; r++) {
-    const row = playlist[r];
+  const visible = Math.min(pl.rows, playlist.length);
+  for (let r = 0; r < visible; r++) {
+    const trackIndex = r + playlistScroll;
+    if (trackIndex >= playlist.length) break;
+    const row = playlist[trackIndex];
     const y = pl.origin.y + r * pl.rowHeight;
     const active = row.id === activeId;
     if (active) {
@@ -269,9 +271,15 @@ function render(_time: number) {
     if (active) ctx.filter = "none";
   }
   ctx.restore();
-  // Status via artist bitmap font
-  const st = skin.text.status.origin;
-  font?.draw(ctx, status.toUpperCase().slice(0, 32), st.x, st.y);
+  // Status — art: (1153, 1825), width 220, trim overflow
+  const st = skin.text.status;
+  const stW = (st as { width?: number }).width ?? 220;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(st.origin.x, st.origin.y - 4, stW, 32);
+  ctx.clip();
+  font?.draw(ctx, status.toUpperCase().slice(0, 22), st.origin.x, st.origin.y, stW);
+  ctx.restore();
   requestAnimationFrame(render);
 }
 
@@ -325,12 +333,25 @@ canvas.addEventListener("pointermove", (ev) => {
   canvas.style.cursor = over ? "ns-resize" : "default";
 });
 
-/** Mouse wheel over a fader: step value (shift = fine). */
+/** Mouse wheel: fader under cursor, or playlist scroll if over playlist. */
 canvas.addEventListener(
   "wheel",
   (ev) => {
     ev.preventDefault();
     const p = canvasPoint(ev);
+    const pl = skin.text.playlist;
+    const boxW = pl.size?.w ?? pl.columns.reduce((s, c) => s + c.width, 0);
+    const boxH = pl.size?.h ?? pl.rows * pl.rowHeight;
+    const overList =
+      p.x >= pl.origin.x &&
+      p.x < pl.origin.x + boxW &&
+      p.y >= pl.origin.y &&
+      p.y < pl.origin.y + boxH;
+    if (overList && playlist.length > pl.rows) {
+      const maxScroll = Math.max(0, playlist.length - pl.rows);
+      playlistScroll = Math.min(maxScroll, Math.max(0, playlistScroll + (ev.deltaY > 0 ? 1 : -1)));
+      return;
+    }
     const fader = findFaderAt(p.x, p.y);
     if (!fader) return;
     const [lo, hi] = fader.range;
@@ -384,10 +405,12 @@ async function playRowAt(p: { x: number; y: number }) {
     w: pl.columns.reduce((s, c) => s + c.width, 0),
     h: pl.rows * pl.rowHeight,
   };
-  for (let r = 0; r < pl.rows && r < playlist.length; r++) {
+  for (let r = 0; r < pl.rows; r++) {
+    const trackIndex = r + playlistScroll;
+    if (trackIndex >= playlist.length) break;
     const y0 = pl.origin.y + r * pl.rowHeight;
     if (p.y >= y0 && p.y < y0 + pl.rowHeight && p.x >= pl.origin.x && p.x < pl.origin.x + box.w) {
-      const row = playlist[r];
+      const row = playlist[trackIndex];
       const idx = playlist.findIndex((x) => x.id === row.id);
       if (idx < 0) break;
       activeId = row.id;

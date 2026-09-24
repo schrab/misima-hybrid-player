@@ -122,7 +122,7 @@ export type SkinManifestV2 = {
       rowHeight: number;
       columns: Array<{ id: string; width: number; align?: "left" | "right" }>;
     };
-    status: { origin: XY };
+    status: { origin: XY; width?: number };
   };
 };
 
