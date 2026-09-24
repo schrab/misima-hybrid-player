@@ -24,6 +24,11 @@ pub fn run() {
             eq_gains: Arc::new(RwLock::new([0.0; 10])),
         })
         .setup(|app| {
+            use tauri::{Manager, PhysicalSize};
+            // Pixel-perfect: client area = 750×1030 *device* px (art 1500×2060 at 50%).
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.set_size(PhysicalSize::new(750, 1030));
+            }
             let handle = app.handle().clone();
             audio::spawn_spectrum_task(handle);
             Ok(())

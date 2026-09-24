@@ -1,15 +1,17 @@
 html,
 body {
   margin: 0;
-  height: 100%;
+  width: 750px;
+  height: 1030px;
   background: transparent;
   overflow: hidden;
   user-select: none;
 }
 
 /*
-  Art 1500×2060 (2×) shown at 750×1030 CSS px (50%).
-  Same numbers as tauri window width/height (logical) so DPI and CSS match.
+  Pixel-to-pixel: art canvas is 1500×2060 (2×) and is painted into 750×1030
+  CSS px. Combined with --force-device-scale-factor=1 and PhysicalSize 750×1030
+  this is 1 screen pixel per displayed pixel (art at 50%).
 */
 #ui {
   display: block;
@@ -17,6 +19,6 @@ body {
   border: 0;
   width: 750px;
   height: 1030px;
-  margin: 0 auto;
-  image-rendering: auto;
+  margin: 0;
+  padding: 0;
 }

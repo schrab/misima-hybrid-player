@@ -15,12 +15,13 @@
         "title": "Misima Hybrid Player",
         "width": 750,
         "height": 1030,
-        "resizable": true,
+        "resizable": false,
         "decorations": false,
         "transparent": true,
         "shadow": false,
         "center": true,
-        "focus": true
+        "focus": true,
+        "additionalBrowserArgs": "--force-device-scale-factor=1"
       }
     ],
     "security": {
