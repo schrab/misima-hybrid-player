@@ -51,19 +51,36 @@ pub fn run() {
             commands::load_skin,
             commands::resize_window_px,
         ])
-        .on_window_event(|_window, event| {
-            if let tauri::WindowEvent::Destroyed = event {
-                audio::player::shutdown();
-                // cpal stream is leaked (!Sync); force-quit so `tauri dev` unblocks
-                std::process::exit(0);
-            }
-        })
+        .invoke_handler(tauri::generate_handler![
+            commands::open_files,
+            commands::play,
+            commands::pause,
+            commands::stop,
+            commands::next,
+            commands::prev,
+            commands::play_index,
+            commands::seek,
+            commands::get_position,
+            commands::set_volume,
+            commands::set_eq,
+            commands::set_params,
+            commands::get_playlist,
+            commands::reorder_playlist,
+            commands::clear_playlist,
+            commands::load_skin,
+            commands::resize_window_px,
+        ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app, event| {
             if let tauri::RunEvent::Exit = event {
                 audio::player::shutdown();
-                std::process::exit(0);
             }
         });
+
+    // Let WebView finish teardown, then kill leftover audio threads
+    // so `tauri dev` / the shell is not left stuck (Chrome_WidgetWin noise).
+    audio::player::shutdown();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    std::process::exit(0);
 }
