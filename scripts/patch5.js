@@ -1,0 +1,21 @@
+const fs = require('fs');
+const root = 'C:/Users/schra/Developer/misima-hybrid-winamp/.worktrees/skinnable-player-mvp';
+const neu = fs.readFileSync(root + '/scripts/_new_faders.ts', 'utf8');
+let t = fs.readFileSync(root + '/app/src/sprite/layout.ts', 'utf8');
+const i1 = t.indexOf('export function faderValueToY');
+const i2 = t.indexOf('export function clamp');
+t = t.slice(0, i1) + neu + t.slice(i2);
+fs.writeFileSync(root + '/app/src/sprite/layout.ts', t);
+t = fs.readFileSync(root + '/app/src/main.ts', 'utf8');
+t = t.split('params.pitch = 0;' ).join('params.pitch = 0; params.speed = 1;');
+fs.writeFileSync(root + '/app/src/main.ts', t);
+const jp = root + '/app/public/sprite/skin.json';
+const s = JSON.parse(fs.readFileSync(jp, 'utf8'));
+s.text.status.origin.y = 1817;
+fs.writeFileSync(jp, JSON.stringify(s, null, 2));
+t = fs.readFileSync(root + '/app/src-tauri/src/audio/player.rs', 'utf8');
+t = t.replace(/fn playback_rate_factor\(\) -> f32 \{[\s\S]*?\n\}/, 'fn playback_rate_factor() -> f32 {\n    *shared().speed.lock()\n}\n\nfn pitch_ratio() -> f32 {\n    let pitch = *shared().pitch_semitones.lock();\n    2f32.powf(pitch / 12.0)\n}');
+t = t.replace('let wet = shared.reverb.lock().process_mono(mono);', 'let wet = shared.reverb.lock().process_mono(mono) * 0.35; let wet = wet / (1.0 + wet.abs());');
+fs.writeFileSync(root + '/app/src-tauri/src/audio/player.rs', t);
+console.log('ok', s.text.status);
+

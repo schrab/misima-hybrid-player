@@ -1,8 +1,3 @@
-export type { XY, Size, FaderDef, ButtonDef, SkinManifestV2, PlaylistRow, AudioParams, BackgroundDef } from "./types";
-
-import type { FaderDef, XY } from "./types";
-
-/** Map fader value (in range) to knob TOP-LEFT Y (origin = max value). */
 ﻿export function faderValueToY(
   origin: XY,
   travel: number,
@@ -52,31 +47,3 @@ export function faderHit(x: number, y: number, fader: FaderDef): boolean {
   );
 }
 
-export function clamp(v: number, lo: number, hi: number): number {
-  return Math.min(hi, Math.max(lo, v));
-}
-
-export async function loadJson(url: string): Promise<import("./types").SkinManifestV2> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`skin load failed: ${url}`);
-  return (await res.json()) as import("./types").SkinManifestV2;
-}
-
-export function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`image ${url}`));
-    img.src = url;
-  });
-}
-
-export function canvasPointFrom(
-  ev: MouseEvent | PointerEvent,
-  canvas: HTMLCanvasElement,
-): XY {
-  const rect = canvas.getBoundingClientRect();
-  const sx = canvas.width / rect.width;
-  const sy = canvas.height / rect.height;
-  return { x: (ev.clientX - rect.left) * sx, y: (ev.clientY - rect.top) * sy };
-}

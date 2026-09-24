@@ -272,9 +272,12 @@ pub fn set_params(volume: f32, pitch_st: f32, reverb: f32, eq: [f32; 10], speed:
 
 /// Combined playback rate: speed (tape) * pitch semitones.
 fn playback_rate_factor() -> f32 {
-    let speed = *shared().speed.lock();
+    *shared().speed.lock()
+}
+
+fn pitch_ratio() -> f32 {
     let pitch = *shared().pitch_semitones.lock();
-    speed * 2f32.powf(pitch / 12.0)
+    2f32.powf(pitch / 12.0)
 }
 
 pub fn position_secs() -> f64 {
@@ -403,7 +406,7 @@ where
                 let mix = *shared.reverb_mix.lock();
                 if mix > 0.001 {
                     let mono = (frame[0] + frame[1]) * 0.5;
-                    let wet = shared.reverb.lock().process_mono(mono);
+                    let wet = shared.reverb.lock().process_mono(mono) * 0.35; let wet = wet / (1.0 + wet.abs());
                     frame[0] = frame[0] * (1.0 - mix) + wet * mix;
                     frame[1] = frame[1] * (1.0 - mix) + wet * mix;
                 }

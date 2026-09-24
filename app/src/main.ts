@@ -192,7 +192,7 @@ async function action(name: string) {
       } else {
         for (let i = 0; i < 10; i++) params.eq[i] = 0;
         params.reverb = 0;
-        params.pitch = 0;
+        params.pitch = 0; params.speed = 1;
         status = "FX reset";
       }
       pushParams();
