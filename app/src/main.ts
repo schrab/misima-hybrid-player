@@ -30,9 +30,8 @@ const PHYS_W = 750;
 const PHYS_H = 1030;
 
 function fitPixelPerfect() {
-  const dpr = window.devicePixelRatio || 1;
-  canvas.style.width = `${PHYS_W / dpr}px`;
-  canvas.style.height = `${PHYS_H / dpr}px`;
+  canvas.style.width = `${PHYS_W}px`;
+  canvas.style.height = `${PHYS_H}px`;
   void invoke("resize_window_px", { w: PHYS_W, h: PHYS_H }).catch(() => {});
 }
 

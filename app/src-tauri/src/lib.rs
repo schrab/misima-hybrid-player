@@ -24,9 +24,9 @@ pub fn run() {
             eq_gains: Arc::new(RwLock::new([0.0; 10])),
         })
         .setup(|app| {
-            use tauri::{Manager, PhysicalSize};
+            use tauri::{LogicalSize, Manager};
             if let Some(win) = app.get_webview_window("main") {
-                let _ = win.set_size(PhysicalSize::new(750, 1030));
+                let _ = win.set_size(LogicalSize::new(750.0, 1030.0));
             }
             let handle = app.handle().clone();
             audio::spawn_spectrum_task(handle);

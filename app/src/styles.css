@@ -8,11 +8,13 @@ body {
   user-select: none;
 }
 
-/* Size set in JS from devicePixelRatio — always 750×1030 *physical* px */
+/* Fixed logical size 750×1030 px matching Tauri window logical bounds */
 #ui {
   display: block;
   background: transparent;
   border: 0;
   margin: 0;
   padding: 0;
+  width: 750px;
+  height: 1030px;
 }

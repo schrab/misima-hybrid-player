@@ -219,9 +219,9 @@ pub fn resize_window_px(
     h: u32,
     app: AppHandle,
 ) -> Result<(), String> {
-    use tauri::{Manager, PhysicalSize};
+    use tauri::{LogicalSize, Manager};
     if let Some(win) = app.get_webview_window("main") {
-        win.set_size(PhysicalSize::new(w, h))
+        win.set_size(LogicalSize::new(w as f64, h as f64))
             .map_err(|e| e.to_string())?;
     }
     Ok(())
