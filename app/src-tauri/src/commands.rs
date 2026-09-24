@@ -213,6 +213,20 @@ pub fn clear_playlist(state: State<'_, AppInner>) {
 }
 
 #[tauri::command]
+pub fn resize_window_px(
+    w: u32,
+    h: u32,
+    app: AppHandle,
+) -> Result<(), String> {
+    use tauri::{Manager, PhysicalSize};
+    if let Some(win) = app.get_webview_window("main") {
+        win.set_size(PhysicalSize::new(w, h))
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn load_skin(path: String) -> Result<serde_json::Value, String> {
     let loaded: LoadedSkin =
         parse_skin_path(PathBuf::from(&path).as_path()).map_err(|e| e.to_string())?;

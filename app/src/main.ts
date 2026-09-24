@@ -25,6 +25,26 @@ const BASE = "/sprite/";
 const canvas = document.getElementById("ui") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
 
+/** Target client size in *device* pixels (art 1500×2060 at 50%). */
+const PHYS_W = 750;
+const PHYS_H = 1030;
+
+function fitPixelPerfect() {
+  const dpr = window.devicePixelRatio || 1;
+  // CSS px so that CSS * dpr == 750×1030 screen pixels
+  canvas.style.width = `${PHYS_W / dpr}px`;
+  canvas.style.height = `${PHYS_H / dpr}px`;
+  void invoke("resize_window_px", { w: PHYS_W, h: PHYS_H }).catch(() => {});
+}
+
+window.addEventListener("resize", fitPixelPerfect);
+// DPI change when dragging across monitors
+const mq = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+mq.addEventListener("change", () => {
+  fitPixelPerfect();
+  location.reload(); // rebind mq at new dpr — cheap and reliable
+});
+
 let skin: SkinManifestV2;
 /** Cryptic bitmap glyphs — decorative only; functional text uses canvas font. */
 let font: BitmapFont | null = null;
@@ -388,6 +408,7 @@ function loadImageSafe(url: string): Promise<HTMLImageElement | null> {
 }
 
 async function init() {
+  fitPixelPerfect();
   skin = await loadJson(BASE + "skin.json");
   const resolve = (p: string) => BASE + p.replace(/^\/?/, "");
 

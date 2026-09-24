@@ -1,24 +1,18 @@
 html,
 body {
   margin: 0;
-  width: 750px;
-  height: 1030px;
+  width: 100%;
+  height: 100%;
   background: transparent;
   overflow: hidden;
   user-select: none;
 }
 
-/*
-  Pixel-to-pixel: art canvas is 1500×2060 (2×) and is painted into 750×1030
-  CSS px. Combined with --force-device-scale-factor=1 and PhysicalSize 750×1030
-  this is 1 screen pixel per displayed pixel (art at 50%).
-*/
+/* Size set in JS from devicePixelRatio — always 750×1030 *physical* px */
 #ui {
   display: block;
   background: transparent;
   border: 0;
-  width: 750px;
-  height: 1030px;
   margin: 0;
   padding: 0;
 }
