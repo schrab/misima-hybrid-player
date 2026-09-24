@@ -8,8 +8,8 @@ body {
 }
 
 /*
-  Artboard 1500×2060 is 2×. Display at 1:1 logical 750×1030 (50%).
-  Fixed size — do not stretch to viewport (breaks on 4K / FHD / DPI).
+  Art 1500×2060 (2×) shown at 750×1030 CSS px (50%).
+  Same numbers as tauri window width/height (logical) so DPI and CSS match.
 */
 #ui {
   display: block;
@@ -17,5 +17,6 @@ body {
   border: 0;
   width: 750px;
   height: 1030px;
-  margin: 0;
+  margin: 0 auto;
+  image-rendering: auto;
 }
