@@ -31,11 +31,12 @@ Misima Hybrid Player is a high-performance, skinnable, multiplatform (Windows, m
 │  - Symphonia: Multi-format synchronous & streaming decoding            │
 │  - Resampler: Interleaved sample-rate conversion to device rate        │
 │  - DSP Pipeline:                                                       │
-│      1) OLA Time-Stretch (speed/tempo independent of pitch)            │
-│      2) OLA Pitch-Shift (tone transposition independent of tempo)      │
-│      3) 10-Band Peaking EQ (RBJ biquad filters, seamless updates)      │
-│      4) Schroeder Reverb (4 comb + 2 allpass, sample-rate scaled)      │
-│      5) Output soft-clipping & master volume attenuation               │
+│      1) Bit-perfect bypass (1.0x speed, 0 st pitch)                     │
+│      2) WSOLA Time-Stretch (phase-aligned similarity OLA)               │
+│      3) Cubic Hermite Pitch-Shift + Dynamic anti-aliasing lowpass       │
+│      4) 10-Band Peaking EQ (RBJ biquad filters, seamless updates)      │
+│      5) Schroeder Reverb (4 comb + 2 allpass, sample-rate scaled)      │
+│      6) Output soft-clipping & master volume attenuation               │
 │  - Real-time Visualizer Taps:                                          │
 │      * rustfft 1024-point FFT analyzer → 48 log-spaced energy bins     │
 │      * Decimated 226-point mono PCM buffer for echo scope              │
@@ -126,7 +127,7 @@ The player is designed for cross-platform deployment. Agents must verify platfor
 Before committing or completing any task, agents must run and pass the following checks:
 
 ```bash
-# 1. Rust Audio Core & DSP Unit Tests (Must pass 20/20)
+# 1. Rust Audio Core & DSP Unit Tests (Must pass 26/26)
 cd app/src-tauri
 export PATH="$HOME/.cargo/bin:$PATH"
 cargo test -- --nocapture
@@ -173,8 +174,9 @@ misima-hybrid-player/
 │           ├── skin.rs         # Skin zip archive parser and validator
 │           └── audio/          # Real-time audio engine
 │               ├── decoder.rs  # Symphonia multi-format audio decoder
-│               ├── eq.rs       # 10-band peaking biquad EQ
-│               ├── player.rs   # Playback state, cpal audio callback, OLA, Reverb
-│               └── spectrum.rs # FFT spectrum analyzer (rustfft)
+│               ├── eq.rs       # 10-band peaking biquad EQ & anti-aliasing lowpass
+│               ├── player.rs   # Playback state, cpal audio callback, Reverb
+│               ├── spectrum.rs # FFT spectrum analyzer (rustfft)
+│               └── wsola.rs    # Real-time WSOLA time-stretcher & Cubic Hermite pitch-shifter
 └── skins/                      # Raw skin sprite source assets
 ```

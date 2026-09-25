@@ -13,15 +13,17 @@ A multiplatform skinnable music player featuring a custom organic sprite-based U
 
 - **Custom Organic Sprite UI**: No generic OS window frames or HTML form widgets. The interface is composed entirely of hand-drawn transparent PNG plates, interactive knobs, button overlays, and a custom bitmap glyph font engine.
 - **Real-Time DSP Engine**:
+  - **Bit-Perfect Studio Bypass**: Zero-DSP passthrough at 1.0x speed and 0 semitones pitch shift for 100% original master fidelity.
+  - **High-Fidelity WSOLA Time-Stretcher**: Waveform Similarity Overlap-Add with mono-sum cross-correlation phase alignment, preserving natural timbre and stereo coherence without hollow flanging or comb filtering.
+  - **Cubic Hermite Pitch-Shifter**: 4-point Catmull-Rom interpolation for smooth, artifact-free pitch adjustments with dynamic 2-pole Butterworth anti-aliasing filter during upward pitch shifts.
   - **10-Band Peaking Equalizer**: High-precision RBJ biquad filters with in-place coefficient updates for click-free adjustment during playback.
   - **Sample-Rate-Scaled Schroeder Reverb**: 4 comb filters and 2 allpass filters tuned to automatically scale with output hardware sample rates (44.1 kHz, 48 kHz, 96 kHz).
-  - **Independent Pitch & Tempo Controls**: Tone shifting (semitones) and time-stretching (speed) operate independently via Overlap-Add (OLA).
   - **Master FX Toggle & Reset**: One-click bypass and reset for all effects.
 - **Dynamic Visualizers**:
   - **Organic Raster Spectrum**: 10-band energy visualizer where bands light up irregularly shaped segment chips rather than standard rectangular bars.
   - **Waveform Echo Scope**: 226-point real-time polyline oscilloscope with an 8-frame fading trail and Hann envelope windowing.
 - **Multi-Format Playback**: Native decoding of MP3, FLAC, WAV, and OGG via Symphonia with interleaved resampler to hardware output rates.
-- **Asynchronous, Glitch-Free Track Switching**: Generation-indexed decode queue immediately halts previous playback and invalidates superseded decodes upon rapid track skipping.
+- **Asynchronous, Glitch-Free Track Switching**: Generation-indexed decode queue (`load_gen`) and DSP buffer flush (`seek_gen`) immediately halt previous playback and eliminate buffer boundary clicks.
 - **Multiplatform Architecture**: Built on Tauri 2 for Windows 11, Linux (X11 & Wayland), and macOS.
 
 ---
@@ -58,7 +60,7 @@ A multiplatform skinnable music player featuring a custom organic sprite-based U
 ---
 
 ## Audio Pipeline & Performance
-
+ 
 ```
 Decoded PCM (Symphonia)
       │
@@ -66,10 +68,13 @@ Decoded PCM (Symphonia)
 Interleaved Resampler (Device Rate: 44.1k / 48k / 96k)
       │
       ▼
-OLA Time-Stretch (Speed / Tempo: 0.5x – 2.0x)
+[Bypass Check: Speed == 1.0 && Pitch == 0.0] ──► (Bit-perfect direct PCM transfer)
+      │ (if FX active)
+      ▼
+WSOLA Time-Stretcher (Phase-Aligned Overlap-Add, Speed: 0.5x – 2.0x)
       │
       ▼
-OLA Pitch-Shifter (Semitones: -12.0 – +12.0)
+Cubic Hermite Resampler + Anti-Alias Lowpass (Pitch: -24.0 – +24.0 st)
       │
       ▼
 10-Band Peaking Biquad EQ (60 Hz – 16 kHz)
@@ -82,9 +87,10 @@ Hardware Output Stream (cpal) ──► Spectrum Analyzer (rustfft) ──► Ca
 ```
 
 ### Audio Performance Invariants
-1. **Hoisted Mutex Locks**: Mutex locks (`eq`, `reverb`, `reverb_mix`) are acquired once per callback block instead of per-sample, dropping lock contention from ~3,000 acquisitions/buffer to 2.
-2. **Click-Free EQ**: `EqState::set_gains` modifies biquad coefficients in-place while preserving filter delay registers (`z1`, `z2`, `z1r`, `z2r`), preventing pops or clicks when dragging sliders.
-3. **Async Race-Free Loading**: `player::prepare_load()` bumps a generation counter and silences the previous track instantly, ensuring rapid track skips never overlap or stutter.
+1. **Zero Steady-State Allocations**: Processing vectors (`bl`, `br`, `mono_scratch`, `fifo_l`, `fifo_r`) are pre-allocated and reused in the audio callback.
+2. **Hoisted Mutex Locks**: Mutex locks (`eq`, `reverb`, `reverb_mix`) are acquired once per callback block instead of per-sample, dropping lock contention from ~3,000 acquisitions/buffer to 2.
+3. **Click-Free EQ**: `EqState::set_gains` modifies biquad coefficients in-place while preserving filter delay registers (`z1`, `z2`, `z1r`, `z2r`), preventing pops or clicks when dragging sliders.
+4. **Async Race-Free Loading**: `player::prepare_load()` bumps generation counters (`load_gen`, `seek_gen`) and silences the previous track instantly, ensuring rapid track skips never overlap or stutter.
 
 ---
 
@@ -145,7 +151,7 @@ npm run tauri dev
 ### Running Tests
 
 ```bash
-# Execute Rust backend unit and DSP tests (20/20 tests)
+# Execute Rust backend unit and DSP tests (26/26 tests)
 cd app/src-tauri
 cargo test -- --nocapture
 
