@@ -84,6 +84,9 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
    - Always call `player::prepare_load()` on the caller thread before initiating a background decode.
    - `prepare_load()` immediately stops previous audio and increments `load_gen`.
    - Background decoder threads must verify that `shared.load_gen == expected_gen` before touching playback buffers; stale decodes must be discarded.
+6. **Stream Ownership (cpal::Stream is !Send + !Sync)**:
+   - Only the `misima-stream-owner` thread may create, hold, pause, or drop the output stream. Never move it into shared state or statics.
+   - Other threads request `Start` / `Shutdown` via the owner channel (`OWNER_TX`); `shutdown()` waits (bounded, 2 s) for `STREAM_LIVE` to clear so CoreAudio HAL teardown completes before process exit.
 
 ### 3.2 Frontend & UI Compositor Rules
 
