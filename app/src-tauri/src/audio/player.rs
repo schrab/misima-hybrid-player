@@ -479,6 +479,9 @@ where
     let mut br: Vec<f32> = Vec::with_capacity(block);
     let mut mono_scratch: Vec<f32> = Vec::with_capacity(block);
     let mut last_seek_gen = usize::MAX;
+    // Bypass never feeds WSOLA, so its cursor goes stale while bypass plays.
+    // Track the last path to re-seed it on bypass→DSP transitions.
+    let mut was_bypass = true;
 
     let stream = device.build_output_stream(
         config,
@@ -507,6 +510,18 @@ where
             }
 
             let is_bypass = (speed - 1.0).abs() < 0.002 && (pr - 1.0).abs() < 0.002;
+
+            if playing && !is_bypass && was_bypass {
+                // Engaging DSP after bypass: the WSOLA cursor is stale
+                // (frozen since the last reset while bypass advanced play_pos),
+                // so re-seed it at the live position. Without this the track
+                // audibly restarts from the stale cursor. reset() re-enters
+                // via the fade-in init grain path, so engagement stays clean.
+                wsola.reset(*shared.play_pos.lock());
+            }
+            if playing {
+                was_bypass = is_bypass;
+            }
 
             if !playing || total_frames == 0 {
                 bl[..frames].fill(0.0);
@@ -778,16 +793,15 @@ mod tests {
         println!("bypass: pos={bypass_pos:.1} frames  spectrum peak={tap_peak:.4}");
 
         // Now force the WSOLA + Cubic Hermite path (speed != 1.0, pitch != 0).
+        // NOTE: only a short burst — engaging DSP must continue from the live
+        // cursor, so after 0.3 s the position must be *ahead* of bypass_pos.
+        // (A stale WSOLA cursor restarts the track: pos would fall to ~15k.)
         set_params(0.8, 3.0, 0.35, [4.0; 10], 1.25);
-        std::thread::sleep(std::time::Duration::from_millis(1200));
+        std::thread::sleep(std::time::Duration::from_millis(300));
         let wsola_pos = *shared.play_pos.lock();
         assert!(
-            wsola_pos.is_finite() && wsola_pos > 0.0,
-            "WSOLA path produced an invalid position ({wsola_pos})"
-        );
-        assert!(
-            wsola_pos != bypass_pos,
-            "WSOLA path never advanced past the bypass cursor"
+            wsola_pos.is_finite() && wsola_pos > bypass_pos,
+            "WSOLA engagement jumped backward ({bypass_pos:.0} -> {wsola_pos:.0}): stale cursor restarted the track"
         );
         let wsola_peak = shared.spectrum_tx.lock().iter().fold(0.0f32, |m, v| m.max(v.abs()));
         assert!(wsola_peak.is_finite() && wsola_peak < 1e6, "WSOLA output diverged");
