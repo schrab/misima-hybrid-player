@@ -477,7 +477,9 @@ canvas.addEventListener(
   "wheel",
   (ev) => {
     ev.preventDefault();
-    if (ev.ctrlKey) {
+    // Ctrl = Windows/Linux pinch-zoom gesture; Meta = macOS Cmd + scroll.
+    // Both must zoom instead of falling through to the fader/playlist branch.
+    if (ev.ctrlKey || ev.metaKey) {
       cycleScale(ev.deltaY < 0 ? 1 : -1);
       return;
     }
