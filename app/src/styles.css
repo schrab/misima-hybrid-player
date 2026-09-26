@@ -8,13 +8,12 @@ body {
   user-select: none;
 }
 
-/* Dynamic logical size matching Tauri window logical bounds, clamped to viewport */
+/* Exact logical size from applyScale — do not CSS-clamp, that squashes art
+   independently of the Tauri window and hides zoom changes. */
 #ui {
   display: block;
   background: transparent;
   border: 0;
-  margin: 0 auto;
+  margin: 0;
   padding: 0;
-  max-width: 100vw;
-  max-height: 100vh;
 }

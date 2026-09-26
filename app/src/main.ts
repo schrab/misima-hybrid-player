@@ -27,115 +27,104 @@ const ctx = canvas.getContext("2d")!;
 
 const ART_W = 1500;
 const ART_H = 2060;
-const ALL_PRESETS = [0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.75, 1.0];
 
-function getMaxScale(): number {
-  const availH = (window.screen.availHeight || window.screen.height || 1080) - 30;
-  return Math.max(0.25, availH / ART_H);
+type UiScaleInfo = { scale: number; w: number; h: number; max_scale: number };
+
+/** Native scale (Rust owns zoom + window size so WebView2 cannot steal Ctrl+/-). */
+let currentScale = 0.5;
+
+function paintCanvasSize(info: { w: number; h: number }) {
+  canvas.style.width = `${info.w}px`;
+  canvas.style.height = `${info.h}px`;
 }
 
-function getAvailablePresets(): number[] {
-  const max = getMaxScale();
-  const list = ALL_PRESETS.filter((p) => p <= max + 0.02);
-  if (list.length === 0 || Math.abs(list[list.length - 1] - max) > 0.03) {
-    list.push(Math.round(max * 100) / 100);
-  }
-  return list.sort((a, b) => a - b);
+function zoomStatusPct(): number {
+  return Math.round((currentScale / 0.5) * 100);
 }
-
-function getInitialScale(): number {
-  const max = getMaxScale();
-  try {
-    const saved = localStorage.getItem("misima_ui_scale");
-    if (saved) {
-      const val = parseFloat(saved);
-      if (!isNaN(val) && val >= 0.25 && val <= 1.5) {
-        return Math.min(val, max);
-      }
-    }
-  } catch {}
-
-  // Auto-detect: if screen available height is under 1050px (e.g. 1080p scaled laptop screen),
-  // pick a preset that fits cleanly within screen bounds.
-  if (max < 0.5) {
-    return Math.min(max, 0.375);
-  }
-  return 0.5;
-}
-
-let currentScale = getInitialScale();
 
 export function applyScale(scale: number, showStatus = true) {
-  const max = getMaxScale();
-  currentScale = Math.min(max, Math.max(0.25, scale));
-  try {
-    localStorage.setItem("misima_ui_scale", currentScale.toString());
-  } catch {}
-
-  const w = Math.round(ART_W * currentScale);
-  const h = Math.round(ART_H * currentScale);
-
-  canvas.style.width = `${w}px`;
-  canvas.style.height = `${h}px`;
-  void invoke("resize_window_px", { w, h }).catch(() => {});
-
-  if (showStatus) {
-    const pct = Math.round((currentScale / 0.5) * 100);
-    status = `ZOOM ${pct}%`;
-  }
+  void invoke<UiScaleInfo>("set_ui_scale", { scale })
+    .then((info) => {
+      currentScale = info.scale;
+      paintCanvasSize(info);
+      if (showStatus) {
+        status = `ZOOM ${zoomStatusPct()}%`;
+      }
+    })
+    .catch((err) => {
+      console.warn("set_ui_scale failed", err);
+      const s = Math.max(0.25, Math.min(0.5, scale));
+      currentScale = s;
+      paintCanvasSize({ w: Math.round(ART_W * s), h: Math.round(ART_H * s) });
+    });
 }
+
+let lastCycleAt = 0;
 
 function cycleScale(direction: 1 | -1) {
-  const presets = getAvailablePresets();
-  let idx = presets.findIndex((s) => Math.abs(s - currentScale) < 0.02);
-  if (idx < 0) {
-    idx = presets.reduce(
-      (prev, curr, i) =>
-        Math.abs(curr - currentScale) < Math.abs(presets[prev] - currentScale) ? i : prev,
-      0,
-    );
-  }
-  const nextIdx = idx + direction;
-  if (nextIdx >= presets.length) {
-    status = "MAX ZOOM (SCREEN LIMIT)";
-    return;
-  }
-  if (nextIdx < 0) {
-    status = "MIN ZOOM";
-    return;
-  }
-  applyScale(presets[nextIdx]);
+  // Global-shortcut (Rust) and DOM keydown can both fire on Windows.
+  const now = Date.now();
+  if (now - lastCycleAt < 100) return;
+  lastCycleAt = now;
+  void invoke<UiScaleInfo>("cycle_ui_scale", { direction })
+    .then((info) => {
+      currentScale = info.scale;
+      paintCanvasSize(info);
+      status = `ZOOM ${zoomStatusPct()}%`;
+    })
+    .catch((err) => console.warn("cycle_ui_scale failed", err));
 }
 
-function fitPixelPerfect() {
-  applyScale(currentScale, false);
+/** Ctrl/Cmd + / - also handled in Rust via global-shortcut (WebView2-safe). */
+function isZoomInKey(ev: KeyboardEvent): boolean {
+  return (
+    ev.key === "+" ||
+    ev.key === "=" ||
+    ev.key === "Add" ||
+    ev.code === "Equal" ||
+    ev.code === "NumpadAdd"
+  );
 }
 
-window.addEventListener("resize", fitPixelPerfect);
-matchMedia("(resolution: 1dppx)").addEventListener("change", () => {
-  fitPixelPerfect();
-});
+function isZoomOutKey(ev: KeyboardEvent): boolean {
+  return (
+    ev.key === "-" ||
+    ev.key === "_" ||
+    ev.key === "Subtract" ||
+    ev.code === "Minus" ||
+    ev.code === "NumpadSubtract"
+  );
+}
 
-window.addEventListener("keydown", (ev) => {
-  const isCmdOrCtrl = ev.ctrlKey || ev.metaKey;
-  if (isCmdOrCtrl) {
-    if (ev.key === "+" || ev.key === "=") {
+// DOM backup for zoom (Rust global-shortcut is the primary path on Windows).
+window.addEventListener(
+  "keydown",
+  (ev) => {
+    const isCmdOrCtrl = ev.ctrlKey || ev.metaKey;
+    if (!isCmdOrCtrl) return;
+
+    if (isZoomInKey(ev)) {
       ev.preventDefault();
+      ev.stopPropagation();
       cycleScale(1);
-    } else if (ev.key === "-" || ev.key === "_") {
+    } else if (isZoomOutKey(ev)) {
       ev.preventDefault();
+      ev.stopPropagation();
       cycleScale(-1);
-    } else if (ev.key === "0") {
+    } else if (ev.key === "0" || ev.code === "Digit0" || ev.code === "Numpad0") {
       ev.preventDefault();
-      applyScale(Math.min(0.5, getMaxScale())); // Reset to 100% (or max that fits)
+      ev.stopPropagation();
+      applyScale(0.5);
     } else if (ev.key.toLowerCase() === "d") {
       ev.preventDefault();
-      // Winamp classic Ctrl+D: toggle Double Size vs Standard (or max that fits)
-      const target = currentScale >= 0.9 ? Math.min(0.5, getMaxScale()) : Math.min(1.0, getMaxScale());
-      applyScale(target);
+      ev.stopPropagation();
+      void invoke<UiScaleInfo>("get_ui_scale").then((info) => {
+        applyScale(info.scale >= 0.9 ? 0.5 : Math.min(1.0, info.max_scale));
+      });
     }
-  }
-});
+  },
+  true,
+);
 
 let skin: SkinManifestV2;
 /** Cryptic bitmap glyphs — decorative only; functional text uses canvas font. */
@@ -576,7 +565,18 @@ function loadImageSafe(url: string): Promise<HTMLImageElement | null> {
 }
 
 async function init() {
-  fitPixelPerfect();
+  // Native side already fitted the window; sync canvas CSS to that scale.
+  await listen<UiScaleInfo>("ui_scale", (e) => {
+    currentScale = e.payload.scale;
+    paintCanvasSize(e.payload);
+  });
+  try {
+    const info = await invoke<UiScaleInfo>("get_ui_scale");
+    currentScale = info.scale;
+    paintCanvasSize(info);
+  } catch {
+    paintCanvasSize({ w: Math.round(ART_W * 0.5), h: Math.round(ART_H * 0.5) });
+  }
   skin = await loadJson(BASE + "skin.json");
   const resolve = (p: string) => BASE + p.replace(/^\/?/, "");
 
