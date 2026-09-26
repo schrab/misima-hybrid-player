@@ -100,7 +100,7 @@ Hardware Output Stream (cpal) ──► Spectrum Analyzer (rustfft) ──► Ca
 |---|---|---|---|
 | **Windows 11** | **Tested & Verified** | WASAPI | Frameless, transparent window, DPI scaling supported |
 | **Linux** | **In Progress** | ALSA / PipeWire / PulseAudio | Requires compositing window manager for transparency. Wayland uses `xdg_toplevel.move()` for dragging. |
-| **macOS** | **Planned** | CoreAudio | Frameless window, Retina display backing-store handling |
+| **macOS** | **Verified (dev)** | CoreAudio | Frameless transparent window (requires `macOSPrivateApi`), Cmd+scroll zoom, 44.1/48 kHz playback |
 
 For platform-specific troubleshooting and development guidelines, refer to [`agents.md`](agents.md).
 
@@ -154,6 +154,9 @@ npm run tauri dev
 # Execute Rust backend unit and DSP tests (26/26 tests)
 cd app/src-tauri
 cargo test -- --nocapture
+
+# Live CoreAudio smoke test (requires a real output device; #[ignore]d by default)
+cargo test coreaudio_smoke -- --ignored --nocapture
 
 # Typecheck frontend code
 cd ../app
