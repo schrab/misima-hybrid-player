@@ -172,6 +172,15 @@ npm run tauri build
 
 Installable bundles (MSI/NSIS on Windows, DEB/AppImage on Linux, DMG on macOS) will be generated under `app/src-tauri/target/release/bundle/`.
 
+### Installing on macOS (unsigned build)
+
+GitHub Releases carry an unsigned, unnotarized DMG (`Misima Hybrid Player_*_aarch64.dmg`, Apple Silicon, macOS 11+). Since there is no Developer ID signature, Gatekeeper will block the first launch. To install:
+
+1. Open the DMG and drag `Misima Hybrid Player.app` to Applications.
+2. **Right-click (Ctrl-click) the app → Open → Open** in the dialog. This whitelists it permanently; double-click works from then on.
+
+Alternative (Terminal): `xattr -d com.apple.quarantine "/Applications/Misima Hybrid Player.app"`.
+
 ---
 
 ## Project Structure & Agents
