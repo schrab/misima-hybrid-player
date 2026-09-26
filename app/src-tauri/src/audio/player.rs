@@ -321,23 +321,79 @@ pub fn take_ended() -> bool {
     shared().ended.swap(false, Ordering::SeqCst)
 }
 
+/// Commands for the stream-owner thread — the only thread that ever creates,
+/// holds, or drops the `cpal::Stream` (`cpal::Stream` is `!Send + !Sync`, so
+/// it cannot live in shared state; see agents.md 3.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StreamCmd {
+    /// Build + play the output stream if none is live (idempotent).
+    Start,
+    /// Pause, drop the stream (CoreAudio HAL teardown), and exit the thread.
+    Shutdown,
+}
+
+static OWNER_TX: OnceLock<crossbeam_channel::Sender<StreamCmd>> = OnceLock::new();
+/// Set by the owner thread: true while a live stream exists.
+static STREAM_LIVE: AtomicBool = AtomicBool::new(false);
+
 fn ensure_stream() {
-    static STARTED: OnceLock<()> = OnceLock::new();
-    // Retry if the first attempt failed (device not ready, etc.)
-    if STARTED.get().is_some() {
-        return;
+    let tx = OWNER_TX.get_or_init(|| {
+        let (tx, rx) = crossbeam_channel::unbounded();
+        std::thread::Builder::new()
+            .name("misima-stream-owner".into())
+            .spawn(move || stream_owner(rx))
+            .expect("spawn stream owner thread");
+        tx
+    });
+    // Retry if the first attempt failed (device not ready, etc.): a failed
+    // Start leaves STREAM_LIVE false, so the next play re-sends it.
+    if !STREAM_LIVE.load(Ordering::SeqCst) {
+        let _ = tx.send(StreamCmd::Start);
     }
-    match start_output_stream() {
-        Ok(()) => {
-            let _ = STARTED.set(());
-        }
-        Err(e) => {
-            log::error!("audio device error (will retry): {e}");
+}
+
+/// Runs on its own thread for the life of the process (or until Shutdown).
+/// All device lookup, stream construction, and teardown happen here so the
+/// `!Send` stream object never crosses a thread boundary.
+fn stream_owner(rx: crossbeam_channel::Receiver<StreamCmd>) {
+    let mut stream: Option<cpal::Stream> = None;
+    for cmd in rx {
+        match cmd {
+            StreamCmd::Start => {
+                if stream.is_some() {
+                    continue;
+                }
+                match start_output_stream() {
+                    Ok(s) => {
+                        stream = Some(s);
+                        STREAM_LIVE.store(true, Ordering::SeqCst);
+                    }
+                    Err(e) => {
+                        log::error!("audio device error (will retry): {e}");
+                    }
+                }
+            }
+            StreamCmd::Shutdown => {
+                shared().playing.store(false, Ordering::SeqCst);
+                SHUTDOWN.store(true, Ordering::SeqCst);
+                if let Some(s) = stream.take() {
+                    use cpal::traits::StreamTrait;
+                    if let Err(e) = s.pause() {
+                        log::warn!("error pausing stream during shutdown: {e}");
+                    }
+                    // Drop runs CoreAudio's AudioOutputUnitStop +
+                    // AudioComponentInstanceDispose: the HAL device is
+                    // released cleanly instead of being reclaimed by death.
+                    drop(s);
+                }
+                STREAM_LIVE.store(false, Ordering::SeqCst);
+                return;
+            }
         }
     }
 }
 
-fn start_output_stream() -> anyhow::Result<()> {
+fn start_output_stream() -> anyhow::Result<cpal::Stream> {
     use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
     let host = cpal::default_host();
@@ -349,34 +405,59 @@ fn start_output_stream() -> anyhow::Result<()> {
     let stream_config: cpal::StreamConfig = config.clone().into();
     let out_channels = stream_config.channels as usize;
     let rate = config.sample_rate().0;
+    let block = block_frames(&config);
     shared().device_rate.store(rate as usize, Ordering::SeqCst);
     let shared = shared();
 
     let stream = match sample_format {
         cpal::SampleFormat::F32 => {
-            build_stream::<f32>(&device, &stream_config, out_channels, &shared)?
+            build_stream::<f32>(&device, &stream_config, out_channels, &shared, block)?
         }
         cpal::SampleFormat::I16 => {
-            build_stream::<i16>(&device, &stream_config, out_channels, &shared)?
+            build_stream::<i16>(&device, &stream_config, out_channels, &shared, block)?
         }
         cpal::SampleFormat::U16 => {
-            build_stream::<u16>(&device, &stream_config, out_channels, &shared)?
+            build_stream::<u16>(&device, &stream_config, out_channels, &shared, block)?
         }
         _ => anyhow::bail!("unsupported sample format {sample_format:?}"),
     };
     stream.play()?;
-    // Stream is !Sync — leak it; exit() tears the process down.
-    std::mem::forget(stream);
-    Ok(())
+    Ok(stream)
 }
 
-/// Mark UI/audio idle; process exit is forced from lib.rs so dev watcher unblocks.
+/// Mark UI/audio idle and release the output device.
+///
+/// Hands Shutdown to the owner thread and waits (bounded) for it to drop the
+/// stream, so CoreAudio tears the HAL unit down properly. `lib.rs` still
+/// forces `process::exit` afterwards as a belt-and-braces net for the dev
+/// watcher.
 pub fn shutdown() {
     shared().playing.store(false, Ordering::SeqCst);
     SHUTDOWN.store(true, Ordering::SeqCst);
+    if let Some(tx) = OWNER_TX.get() {
+        let _ = tx.send(StreamCmd::Shutdown);
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        while STREAM_LIVE.load(Ordering::SeqCst) && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
 }
 
 static SHUTDOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Upper bound on frames per output buffer, taken from the device's supported
+/// range so the real-time callback can never hit the allocator (agents.md 3.1).
+/// We deliberately take `max`, not `min`: the stream is opened with
+/// `BufferSize::Default`, so the backend may pick anywhere in the range.
+fn block_frames(config: &cpal::SupportedStreamConfig) -> usize {
+    const FALLBACK: usize = 2048;
+    match config.buffer_size() {
+        cpal::SupportedBufferSize::Range { min, max } => {
+            (*max as usize).max(*min as usize).max(512)
+        }
+        cpal::SupportedBufferSize::Unknown => FALLBACK,
+    }
+}
 
 
 fn build_stream<T>(
@@ -384,6 +465,7 @@ fn build_stream<T>(
     config: &cpal::StreamConfig,
     out_channels: usize,
     shared: &Arc<SharedPlay>,
+    block: usize,
 ) -> anyhow::Result<cpal::Stream>
 where
     T: cpal::SizedSample + cpal::FromSample<f32>,
@@ -391,9 +473,11 @@ where
     use cpal::traits::DeviceTrait;
     let shared = shared.clone();
     let mut wsola = crate::audio::wsola::WsolaProcessor::new();
-    let mut bl: Vec<f32> = Vec::with_capacity(1024);
-    let mut br: Vec<f32> = Vec::with_capacity(1024);
-    let mut mono_scratch: Vec<f32> = Vec::with_capacity(1024);
+    // Pre-sized from the device's buffer range so the callback only resizes
+    // within existing capacity — never allocates on the RT thread.
+    let mut bl: Vec<f32> = Vec::with_capacity(block);
+    let mut br: Vec<f32> = Vec::with_capacity(block);
+    let mut mono_scratch: Vec<f32> = Vec::with_capacity(block);
     let mut last_seek_gen = usize::MAX;
 
     let stream = device.build_output_stream(
@@ -713,7 +797,11 @@ mod tests {
         set_params(1.0, 0.0, 0.0, [0.0; 10], 1.0);
         stop();
         shutdown();
-        println!("shutdown() returned cleanly (note: stream is mem::forget-ed, never dropped)");
+        assert!(
+            !STREAM_LIVE.load(Ordering::SeqCst),
+            "owner thread did not drop the stream within shutdown()'s wait bound"
+        );
+        println!("shutdown() returned cleanly (owner thread dropped the stream)");
     }
 
     #[test]
