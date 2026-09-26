@@ -635,6 +635,87 @@ mod tests {
         assert!(buf.iter().any(|s| s.abs() > 0.01));
     }
 
+    /// Live CoreAudio smoke test. `#[ignore]`d because it opens the real output
+    /// device and permanently flips the process-wide SHUTDOWN latch, which would
+    /// poison the other tests sharing the `shared()` singleton.
+    ///
+    /// Run with: cargo test coreaudio_smoke -- --ignored --nocapture
+    #[test]
+    #[ignore = "requires a live CoreAudio output device"]
+    fn coreaudio_smoke() {
+        use cpal::traits::{DeviceTrait, HostTrait};
+
+        let host = cpal::default_host();
+        let device = host
+            .default_output_device()
+            .expect("no default CoreAudio output device");
+        let cfg = device.default_output_config().expect("default_output_config");
+        let rate = cfg.sample_rate().0;
+        let ch = cfg.channels();
+        println!(
+            "device: {:?} rate={} ch={} format={:?}",
+            device.name(),
+            rate,
+            ch,
+            cfg.sample_format()
+        );
+        assert!(
+            rate == 44_100 || rate == 48_000,
+            "expected 44.1k/48k hardware rate, got {rate}"
+        );
+
+        // 44.1k source must be resampled up to the hardware rate.
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("smoke.wav");
+        write_test_wav(&path, 440.0, 3.0, 44_100).unwrap();
+        load_and_play(&path).expect("load_and_play must open CoreAudio stream");
+
+        let shared = shared();
+        assert_eq!(
+            shared.sample_rate.load(Ordering::SeqCst),
+            shared.device_rate.load(Ordering::SeqCst),
+            "buffer must be resampled to the device rate"
+        );
+        assert_eq!(shared.device_rate.load(Ordering::SeqCst), rate as usize);
+
+        // Let the real IOProc pull several buffers.
+        std::thread::sleep(std::time::Duration::from_millis(1200));
+        let bypass_pos = *shared.play_pos.lock();
+        assert!(
+            bypass_pos > 0.0,
+            "bypass playback did not advance the play cursor"
+        );
+        assert!(
+            shared.spectrum_ready.load(Ordering::Relaxed),
+            "spectrum tap never became ready"
+        );
+        let tap_peak = shared.spectrum_tx.lock().iter().fold(0.0f32, |m, v| m.max(v.abs()));
+        assert!(tap_peak.is_finite(), "spectrum tap produced non-finite data");
+        println!("bypass: pos={bypass_pos:.1} frames  spectrum peak={tap_peak:.4}");
+
+        // Now force the WSOLA + Cubic Hermite path (speed != 1.0, pitch != 0).
+        set_params(0.8, 3.0, 0.35, [4.0; 10], 1.25);
+        std::thread::sleep(std::time::Duration::from_millis(1200));
+        let wsola_pos = *shared.play_pos.lock();
+        assert!(
+            wsola_pos.is_finite() && wsola_pos > 0.0,
+            "WSOLA path produced an invalid position ({wsola_pos})"
+        );
+        assert!(
+            wsola_pos != bypass_pos,
+            "WSOLA path never advanced past the bypass cursor"
+        );
+        let wsola_peak = shared.spectrum_tx.lock().iter().fold(0.0f32, |m, v| m.max(v.abs()));
+        assert!(wsola_peak.is_finite() && wsola_peak < 1e6, "WSOLA output diverged");
+        println!("wsola: pos={wsola_pos:.1} frames  spectrum peak={wsola_peak:.4}");
+
+        // Teardown must be panic-free and must not block.
+        set_params(1.0, 0.0, 0.0, [0.0; 10], 1.0);
+        stop();
+        shutdown();
+        println!("shutdown() returned cleanly (note: stream is mem::forget-ed, never dropped)");
+    }
+
     #[test]
     fn wsola_pipeline_integration() {
         let mut wsola = crate::audio::wsola::WsolaProcessor::new();
