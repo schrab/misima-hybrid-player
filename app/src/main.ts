@@ -132,6 +132,77 @@ window.addEventListener(
   true,
 );
 
+/** m:ss for the status line. */
+function fmtTime(secs: number): string {
+  const s = Math.max(0, Math.floor(secs));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+// Bare-key transport and cue hotkeys. Modified presses are left alone so the
+// Ctrl/Cmd zoom combos above keep working, and so we never swallow a key the
+// user meant for something else. Window focus only — not a global shortcut.
+window.addEventListener("keydown", (ev) => {
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+
+  // 0..9 → 0%..90% of the loaded track. ev.key matches numpad digits too.
+  if (/^[0-9]$/.test(ev.key)) {
+    ev.preventDefault();
+    const pct = Number(ev.key) * 10;
+    void invoke<number>("cue_percent", { fraction: pct / 100 })
+      .then((target) => {
+        status = target < 0 ? "No track" : `CUE ${pct}% ${fmtTime(target)}`;
+      })
+      .catch((err) => console.warn("cue_percent failed", err));
+    return;
+  }
+
+  switch (ev.key) {
+    case " ":
+      ev.preventDefault();
+      void invoke<boolean>("toggle_play")
+        .then((playing) => {
+          status = playing ? "Playing" : "Paused";
+        })
+        .catch((err) => console.warn("toggle_play failed", err));
+      return;
+    case "ArrowLeft":
+    case "ArrowRight": {
+      ev.preventDefault();
+      const delta = ev.key === "ArrowRight" ? 10 : -10;
+      void invoke<number>("get_position")
+        .then((pos) => {
+          const target = Math.max(0, pos + delta);
+          return invoke<void>("seek", { seconds: target }).then(() => target);
+        })
+        .then((target) => {
+          status = `SEEK ${delta > 0 ? "+" : "-"}${Math.abs(delta)} ${fmtTime(target)}`;
+        })
+        .catch((err) => console.warn("seek failed", err));
+      return;
+    }
+    case "z":
+    case "Z":
+      ev.preventDefault();
+      void invoke("prev")
+        .then(() => {
+          status = "Prev";
+        })
+        .catch((err) => console.warn("prev failed", err));
+      return;
+    case "x":
+    case "X":
+      ev.preventDefault();
+      void invoke("next")
+        .then(() => {
+          status = "Next";
+        })
+        .catch((err) => console.warn("next failed", err));
+      return;
+    default:
+      return;
+  }
+});
+
 let skin: SkinManifestV2;
 /** Cryptic bitmap glyphs — decorative only; functional text uses canvas font. */
 let font: BitmapFont | null = null;
