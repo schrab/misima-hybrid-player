@@ -2,6 +2,7 @@
 
 use crate::audio::clouds_reverb::CloudsReverb;
 use crate::audio::decoder::decode_file;
+use crate::audio::eq::Biquad;
 use crate::audio::eq::EqState;
 use crate::audio::phase_vocoder::PhaseVocoder;
 use crate::audio::spectrum::SpectrumAnalyzer;
@@ -107,11 +108,9 @@ pub struct Reverb {
     mix: f32,
     env_dry: f32,
     env_wet: f32,
+    env_attack: f32,
+    env_release: f32,
 }
-
-/// Level follower: fast attack, ~0.3 s release at 44.1 kHz (per-sample coeff).
-const ENV_ATTACK: f32 = 0.7;
-const ENV_RELEASE: f32 = 0.999_95;
 
 impl Default for Reverb {
     fn default() -> Self {
@@ -134,6 +133,11 @@ impl Reverb {
             mix: 0.0,
             env_dry: 0.0,
             env_wet: 0.0,
+            // Level follower coefficients: fast attack, ~0.3 s release at any
+            // sample rate.  The release time constant is -1 / (sr * ln(coeff)),
+            // so coeff = exp(-1 / (sr * tau)).
+            env_attack: 0.7,
+            env_release: (-1.0 / (sample_rate * 0.3)).exp(),
         }
     }
 
@@ -147,23 +151,29 @@ impl Reverb {
     pub fn clear(&mut self) {
         self.inner.clear();
         self.env_wet = 0.0;
+        self.env_dry = 0.0;
     }
 
-    /// Run one stereo frame through the reverb and the dry/wet balance.
     #[inline]
-    pub fn process(&mut self, frame: &mut [f32; 2]) {
+    pub fn process_with_gain(&mut self, frame: &mut [f32; 2], wg: f32) {
         let dry_l = frame[0];
         let dry_r = frame[1];
-        self.env_dry = follow(self.env_dry, (dry_l + dry_r) * 0.5);
+        self.env_dry = follow(self.env_dry, (dry_l + dry_r) * 0.5, self.env_attack, self.env_release);
 
         let [wet_l, wet_r] = self.inner.process([dry_l, dry_r]);
         // Follow the louder tail channel: the two loops are symmetric, so the
         // peak is the pair's shared level and neither channel gets pulled down.
-        self.env_wet = follow(self.env_wet, wet_l.abs().max(wet_r.abs()));
+        self.env_wet = follow(self.env_wet, wet_l.abs().max(wet_r.abs()), self.env_attack, self.env_release);
 
-        let wg = self.wet_gain();
         frame[0] = mix_reverb_frame(dry_l, wet_l, wg, self.mix);
         frame[1] = mix_reverb_frame(dry_r, wet_r, wg, self.mix);
+    }
+
+    /// Run one stereo frame through the reverb and the dry/wet balance.
+    #[inline]
+    #[allow(dead_code)]
+    pub fn process(&mut self, frame: &mut [f32; 2]) {
+        self.process_with_gain(frame, self.wet_gain());
     }
 
     /// Wet gain that holds the tail near dry loudness so 100% mix is a full
@@ -182,12 +192,12 @@ impl Reverb {
 }
 
 #[inline]
-fn follow(env: f32, x: f32) -> f32 {
+fn follow(env: f32, x: f32, attack: f32, release: f32) -> f32 {
     let ax = x.abs();
     if ax > env {
-        env + (ax - env) * ENV_ATTACK
+        env + (ax - env) * attack
     } else {
-        env * ENV_RELEASE + ax * (1.0 - ENV_RELEASE)
+        env * release + ax * (1.0 - release)
     }
 }
 
@@ -232,14 +242,35 @@ pub fn resample_interleaved(
     let ratio = from_rate as f64 / to_rate as f64;
     let out_frames = ((in_frames as f64) * (to_rate as f64 / from_rate as f64)).floor() as usize;
     let mut out = Vec::with_capacity(out_frames * channels);
+    
+    // Anti-alias filter for downsampling: a 2nd-order Butterworth at 90% of
+    // the target Nyquist prevents the linear interpolator from folding
+    // high-frequency content back into the audible band.
+    let mut filtered;
+    let src_data: &[f32] = if to_rate < from_rate {
+        let cutoff = to_rate as f32 * 0.45;
+        let lp = Biquad::lowpass(from_rate as f32, cutoff, std::f32::consts::FRAC_1_SQRT_2);
+        filtered = input.to_vec();
+        for c in 0..channels {
+            let (mut z1, mut z2) = (0.0f32, 0.0f32);
+            for frame in 0..in_frames {
+                let i = frame * channels + c;
+                filtered[i] = lp.tick(filtered[i], &mut z1, &mut z2);
+            }
+        }
+        &filtered
+    } else {
+        input
+    };
+    
     for of in 0..out_frames {
         let src = of as f64 * ratio;
         let i0 = src.floor() as usize;
         let i1 = (i0 + 1).min(in_frames - 1);
         let t = (src - i0 as f64) as f32;
         for c in 0..channels {
-            let s0 = input[i0 * channels + c];
-            let s1 = input[i1 * channels + c];
+            let s0 = src_data[i0 * channels + c];
+            let s1 = src_data[i1 * channels + c];
             out.push(s0 + (s1 - s0) * t);
         }
     }
@@ -658,10 +689,10 @@ where
             let mut finished = false;
 
             let cur_seek_gen = shared.seek_gen.load(Ordering::SeqCst);
+            let mut cur_play_pos = *shared.play_pos.lock();
             if cur_seek_gen != last_seek_gen {
                 last_seek_gen = cur_seek_gen;
-                let cur_pos = *shared.play_pos.lock();
-                stretcher.reset(cur_pos);
+                stretcher.reset(cur_play_pos);
                 // A seek must not drag the previous position's tail along
                 // with it.
                 shared.reverb.lock().clear();
@@ -675,7 +706,7 @@ where
                 // so re-seed it at the live position. Without this the track
                 // audibly restarts from the stale cursor. reset() re-enters
                 // via the fade-in init grain path, so engagement stays clean.
-                stretcher.reset(*shared.play_pos.lock());
+                stretcher.reset(cur_play_pos);
             }
             if playing {
                 was_bypass = is_bypass;
@@ -683,15 +714,14 @@ where
 
             // Pick the stretching engine for the current pitch. Re-seeds at
             // the live position when the choice changes.
-            stretcher.select(speed, pr, *shared.play_pos.lock());
+            stretcher.select(speed, pr, cur_play_pos);
 
             if !playing || total_frames == 0 {
                 bl[..frames].fill(0.0);
                 br[..frames].fill(0.0);
             } else if is_bypass {
                 // Bit-perfect 1:1 playback bypass for normal speed & pitch
-                let mut pos = *shared.play_pos.lock();
-                let start = (pos as usize).min(total_frames);
+                let start = (cur_play_pos as usize).min(total_frames);
                 let to_copy = (total_frames - start).min(frames);
                 for f in 0..to_copy {
                     let idx = (start + f) * ch_in;
@@ -702,12 +732,11 @@ where
                     bl[to_copy..frames].fill(0.0);
                     br[to_copy..frames].fill(0.0);
                 }
-                pos += frames as f64;
-                if pos as usize >= total_frames {
+                cur_play_pos += frames as f64;
+                if cur_play_pos as usize >= total_frames {
                     finished = true;
                 }
-                *shared.play_pos.lock() = pos;
-                shared.cursor.store((pos as usize) * ch_in, Ordering::SeqCst);
+                shared.cursor.store((cur_play_pos as usize) * ch_in, Ordering::SeqCst);
             } else {
                 // WSOLA time-stretch + Cubic Hermite resample for tempo, the
                 // phase vocoder for the granular pitch-up region — see
@@ -724,10 +753,11 @@ where
                     &mut br,
                     &mut finished,
                 );
-                let pos = stretcher.get_play_pos(speed, pr);
-                *shared.play_pos.lock() = pos;
-                shared.cursor.store((pos as usize) * ch_in, Ordering::SeqCst);
+                cur_play_pos = stretcher.get_play_pos(speed, pr);
+                shared.cursor.store((cur_play_pos as usize) * ch_in, Ordering::SeqCst);
             }
+
+            *shared.play_pos.lock() = cur_play_pos;
 
             mono_scratch.clear();
             let mut eq = shared.eq.lock();
@@ -739,13 +769,14 @@ where
             } else {
                 None
             };
+            let wg = reverb_guard.as_ref().map(|r| r.wet_gain()).unwrap_or(1.0);
 
             for f in 0..frames {
                 let mut frame = [bl[f], br[f]];
+                eq.process_frame(&mut frame);
                 mono_scratch.push((frame[0] + frame[1]) * 0.5);
-                eq.process_interleaved(&mut frame, 2);
                 if let Some(reverb) = reverb_guard.as_deref_mut() {
-                    reverb.process(&mut frame);
+                    reverb.process_with_gain(&mut frame, wg);
                 }
                 let l = (frame[0] * volume).clamp(-1.0, 1.0);
                 let r = (frame[1] * volume).clamp(-1.0, 1.0);

@@ -55,6 +55,7 @@
 use rustfft::num_complex::Complex;
 use rustfft::{Fft, FftPlanner};
 use std::sync::Arc;
+use crate::audio::dsp_utils::{cubic_hermite as hermite, read_stereo_f64 as read_stereo};
 
 /// FFT size. 2048 is ~46 ms at 44.1 kHz — long enough to resolve partials,
 /// short enough to track transients.
@@ -75,28 +76,6 @@ fn princarg(a: f32) -> f32 {
         x += TAU;
     }
     x
-}
-
-/// 4-point Catmull-Rom, matching `wsola.rs` so the two engines sound alike
-/// where their ranges overlap.
-#[inline]
-fn hermite(y_m1: f32, y0: f32, y1: f32, y2: f32, t: f32) -> f32 {
-    let c0 = y0;
-    let c1 = 0.5 * (y1 - y_m1);
-    let c2 = y_m1 - 2.5 * y0 + 2.0 * y1 - 0.5 * y2;
-    let c3 = 0.5 * (y2 - y_m1) + 1.5 * (y0 - y1);
-    ((c3 * t + c2) * t + c1) * t + c0
-}
-
-#[inline]
-fn read_stereo(samples: &[f32], ch: usize, total_frames: usize, f: f64) -> (f32, f32) {
-    if f < 0.0 || f as usize >= total_frames {
-        return (0.0, 0.0);
-    }
-    let idx = f as usize * ch;
-    let l = samples[idx];
-    let r = if ch > 1 { samples[idx + 1] } else { l };
-    (l, r)
 }
 
 /// Rewrite one channel's spectrum with locked, stretched phases.

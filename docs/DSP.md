@@ -12,26 +12,30 @@ the critical parts, but this document explains the reasoning.
 
 ```
 decoded source buffer (device rate, f32 interleaved)
-        │
+        │  ← anti-alias Butterworth lowpass when downsampling (resample_interleaved)
         ▼
 bit-perfect bypass ──or──► Stretcher (player.rs)
         │                    ├─ stretch = speed/pitch ≤ 1 → PhaseVocoder
         │                    └─ stretch > 1              → WsolaProcessor
         │                    then Cubic Hermite resample by pitch ratio
+        │                    (cubic_hermite lives in dsp_utils.rs, shared by both engines)
         ▼
 10-band peaking EQ (eq.rs, RBJ biquads, in-place coefficient updates)
+        ├─► spectrum tap (48 log-spaced bins, rustfft)  ← post-EQ
+        ├─► waveform tap (226-pt decimated, echo scope) ← post-EQ
         ▼
 stereo reverb (clouds_reverb.rs) + dry/wet balance + envelope gain (player.rs::Reverb)
         ▼
 master volume, soft clip, cpal output
-        ├─► spectrum tap (48 log-spaced bins, rustfft)
-        └─► waveform tap (226-pt decimated, echo scope)
 ```
 
 Every stage runs on the cpal audio callback thread (see agents.md §3.1 for the
 real-time rules: no allocation, no per-sample locks, no delay-line resets).
 `SharedPlay` is the only state shared with the UI thread; parameters are
-hoisted once per callback buffer, never per sample.
+hoisted once per callback buffer, never per sample.  `play_pos` is locked once
+at the start of each callback and written back once at the end; `wet_gain()` is
+likewise computed once per buffer and passed to each per-sample reverb call via
+`process_with_gain`.
 
 **Engine selection** (`player.rs::Stretcher`): the vocoder handles
 `stretch ≤ 1`, the WSOLA everything else. The split is not arbitrary — see
@@ -213,8 +217,17 @@ costs ~3 dB at `w = 1`; measured wet level lands at +0.1 dB (half mix) and
 +1.3 dB (full mix) against dry on broadband material. Never calibrate reverb
 gain on a sine — tones phase-cancel against their own tails.
 
+The envelope's attack and release coefficients are stored in the `Reverb` struct
+and computed from the actual device sample rate at construction:
+`env_release = exp(-1 / (sr × 0.3))` gives a ~0.3 s release at any rate (the
+old constants were correct only at 44.1 kHz — at 96 kHz the release halved to
+~0.15 s and caused pump artifacts).  `wet_gain()` is hoisted once per callback
+buffer and passed to `process_with_gain()` — per-sample computation was
+redundant because the envelope moves slowly relative to individual samples.
+
 Seeks flush the reverb (`shared.reverb.lock().clear()` on `seek_gen` change) so
-the previous position's tail does not bleed across a jump.
+the previous position's tail does not bleed across a jump.  `clear()` resets
+both `env_wet` and `env_dry` to zero.
 
 ---
 
@@ -262,3 +275,17 @@ Measurement conventions that have bitten us:
 - WSOLA remains the only tempo engine; Elastique-class quality would need
   multi-resolution vocoder + transient detection (Rubber Band is GPL-2.0+ —
   do not adopt without a licence decision).
+
+## 7. Module map
+
+| File | Purpose |
+|---|---|
+| `decoder.rs` | Symphonia decode to interleaved f32 PCM |
+| `dsp_utils.rs` | Shared DSP utilities: `cubic_hermite`, `read_stereo_*`, `read_mono` |
+| `eq.rs` | 10-band RBJ biquad EQ; `process_frame` for single stereo frames, `process_interleaved` for bulk |
+| `phase_vocoder.rs` | Stereo STFT pitch shifter with Laroche & Dolson phase locking |
+| `wsola.rs` | WSOLA time-stretcher + Cubic Hermite resampler |
+| `clouds_reverb.rs` | Dattorro/Griesinger FDN reverb (Clouds port) |
+| `spectrum.rs` | 1024-point FFT → 48 log-spaced bins for the visualizer |
+| `player.rs` | Playback engine: cpal output, `SharedPlay`, `Stretcher`, `Reverb` envelope policy |
+| `mod.rs` | Module declarations and re-exports |

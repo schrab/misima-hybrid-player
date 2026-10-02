@@ -29,7 +29,7 @@ Misima Hybrid Player is a high-performance, skinnable, multiplatform (Windows, m
 ├────────────────────────────────────┴───────────────────────────────────┤
 │                     Backend Core (Rust / CPAL / Symphonia)             │
 │  - Symphonia: Multi-format synchronous & streaming decoding            │
-│  - Resampler: Interleaved sample-rate conversion to device rate        │
+│  - Resampler: Interleaved SRC to device rate + anti-alias lowpass      │
 │  - DSP Pipeline:                                                       │
 │      1) Bit-perfect bypass (1.0x speed, 0 st pitch)                     │
 │      2) Time/pitch engine, split by stretch = speed/pitch:              │
@@ -37,9 +37,10 @@ Misima Hybrid Player is a high-performance, skinnable, multiplatform (Windows, m
 │         stretch  > 1 → WSOLA time-stretch (expansion; WSOLA's good side)│
 │         then Cubic Hermite resample by the pitch ratio                  │
 │      3) 10-Band Peaking EQ (RBJ biquad filters, seamless updates)      │
-│      4) Stereo FDN Reverb (Dattorro/Griesinger, Clouds port)            │
-│      5) Output soft-clipping & master volume attenuation               │
-│  - Real-time Visualizer Taps:                                          │
+│      4) Post-EQ visualizer taps (spectrum + waveform)                  │
+│      5) Stereo FDN Reverb (Dattorro/Griesinger, Clouds port)            │
+│      6) Output soft-clipping & master volume attenuation               │
+│  - Real-time Visualizer Taps (post-EQ):                                │
 │      * rustfft 1024-point FFT analyzer → 48 log-spaced energy bins     │
 │      * Decimated 226-point mono PCM buffer for echo scope              │
 │  - CPAL Output: Low-latency audio stream to hardware device             │

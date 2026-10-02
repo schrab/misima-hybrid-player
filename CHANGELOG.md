@@ -4,6 +4,39 @@ All notable changes to the Misima Hybrid Player. Versions follow semver
 loosely; the version lives in `app/package.json`, `app/src-tauri/tauri.conf.json`
 and `app/src-tauri/Cargo.toml` and must be bumped together.
 
+## [0.2.1] — 2026-10-03
+
+### Added
+- **`audio/dsp_utils.rs`** — shared DSP utility module: `cubic_hermite`,
+  `read_stereo_isize`, `read_stereo_f64`, `read_mono`. Eliminates duplicate
+  implementations that lived in `phase_vocoder.rs` and `wsola.rs`.
+- **`EqState::process_frame`** — dedicated single-frame EQ method that avoids
+  the `chunks_mut` iterator overhead of `process_interleaved` in the audio
+  callback's per-sample loop.
+- **`Reverb::process_with_gain`** — accepts a pre-computed `wet_gain`, enabling
+  per-buffer hoisting instead of per-sample computation.
+
+### Changed
+- **Visualizer taps moved post-EQ** — spectrum and waveform displays now show
+  the signal after EQ processing, matching user expectations when boosting or
+  cutting bands.
+- **Anti-alias filter on resampler** — `resample_interleaved` now applies a
+  2nd-order Butterworth lowpass at 90% of the target Nyquist when downsampling
+  (e.g. 96 kHz → 44.1 kHz), preventing aliased high-frequency content.
+- **Reverb envelope is sample-rate-independent** — `env_attack` and
+  `env_release` are now computed from the actual device rate
+  (`exp(-1 / (sr × 0.3))`) instead of being baked as constants for 44.1 kHz.
+  Fixes pump artifacts at 96 kHz where the release was 2× faster.
+- **`wet_gain()` hoisted per-buffer** — computed once per callback buffer and
+  passed to `process_with_gain()`, matching the code's documented intent.
+- **`play_pos` lock consolidated** — locked once at the start of each callback,
+  used as a local variable, written back once at the end (was 2–3 lock/unlock
+  cycles per callback).
+- **`Reverb::clear()` resets `env_dry`** — prevents stale envelope state from
+  leaking across seeks.
+- `docs/DSP.md` updated: signal chain diagram, reverb envelope docs, module map.
+- `agents.md` architecture diagram updated for post-EQ taps and anti-alias SRC.
+
 ## [0.2.0] — 2026-10-03
 
 ### Added

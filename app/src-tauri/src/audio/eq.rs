@@ -143,6 +143,7 @@ impl EqState {
     }
 
     /// Process interleaved stereo in place (or mono pairs).
+    #[allow(dead_code)]
     pub fn process_interleaved(&mut self, data: &mut [f32], channels: usize) {
         if channels == 0 {
             return;
@@ -164,6 +165,23 @@ impl EqState {
                 frame[1] = xr;
             }
         }
+    }
+
+    /// Process a single stereo frame in place — avoids the `chunks_mut`
+    /// overhead of `process_interleaved` when the caller already has a
+    /// `[f32; 2]` (the audio callback's inner loop).
+    #[inline]
+    pub fn process_frame(&mut self, frame: &mut [f32; 2]) {
+        let mut x = frame[0];
+        for i in 0..10 {
+            x = Self::tick(&self.bands[i], x, &mut self.z1[i], &mut self.z2[i]);
+        }
+        frame[0] = x;
+        let mut xr = frame[1];
+        for i in 0..10 {
+            xr = Self::tick(&self.bands[i], xr, &mut self.z1r[i], &mut self.z2r[i]);
+        }
+        frame[1] = xr;
     }
 }
 

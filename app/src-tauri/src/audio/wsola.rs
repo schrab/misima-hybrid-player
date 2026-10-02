@@ -10,6 +10,7 @@
 //! - Zero steady-state heap allocations in hot audio processing loop
 
 use crate::audio::eq::Biquad;
+use crate::audio::dsp_utils::{cubic_hermite, read_stereo_isize as get_stereo_frame, read_mono as get_mono_frame};
 
 pub const WSOLA_WIN: usize = 1024;
 pub const WSOLA_HOP: usize = 512;
@@ -385,42 +386,6 @@ impl WsolaProcessor {
     }
 }
 
-/// 4-point Cubic Hermite (Catmull-Rom) interpolation.
-/// Exact at t=0 and t=1, C^1 smooth continuous derivative across intervals.
-#[inline(always)]
-fn cubic_hermite(y_m1: f32, y0: f32, y1: f32, y2: f32, t: f32) -> f32 {
-    let c0 = y0;
-    let c1 = 0.5 * (y1 - y_m1);
-    let c2 = y_m1 - 2.5 * y0 + 2.0 * y1 - 0.5 * y2;
-    let c3 = 0.5 * (y2 - y_m1) + 1.5 * (y0 - y1);
-    ((c3 * t + c2) * t + c1) * t + c0
-}
-
-#[inline(always)]
-fn get_mono_frame(samples: &[f32], ch: usize, total_frames: usize, f: isize) -> f32 {
-    if f < 0 || f as usize >= total_frames {
-        0.0
-    } else {
-        let idx = (f as usize) * ch;
-        if ch > 1 {
-            (samples[idx] + samples[idx + 1]) * 0.5
-        } else {
-            samples[idx]
-        }
-    }
-}
-
-#[inline(always)]
-fn get_stereo_frame(samples: &[f32], ch: usize, total_frames: usize, f: isize) -> (f32, f32) {
-    if f < 0 || f as usize >= total_frames {
-        (0.0, 0.0)
-    } else {
-        let idx = (f as usize) * ch;
-        let l = samples[idx];
-        let r = if ch > 1 { samples[idx + 1] } else { l };
-        (l, r)
-    }
-}
 
 #[cfg(test)]
 mod tests {
