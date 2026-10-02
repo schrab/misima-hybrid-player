@@ -133,6 +133,12 @@ platform-specific troubleshooting and development guidelines: [`agents.md`](agen
   - **Auto-Fit**: checks available display height on launch; screens under 1050px (e.g. 1080p scaled laptops) open in compact 75% mode so the player does not fall off the screen. (MI$IM∆ has fallen off screens. it is not dignified.)
 - **Playlist Navigation**: single-click or double-click any track row to play immediately.
 - **Playlist Scrolling**: mouse wheel over the playlist for libraries with more than 10 tracks.
+- **Keyboard Cue & Transport** (player window focused, bare keys):
+  - `1`…`9`: jump to 10 %…90 % of the current track and start playing from there.
+  - `0`: jump back to the start.
+  - `Space`: play/pause.
+  - `←` / `→`: seek ∓10 seconds.
+  - `z` / `x`: previous / next track.
 - **FX Enable / Bypass**: toggles master EQ, reverb and pitch processing.
 - **FX Reset**: EQ to 0 dB, reverb to 0%, pitch to 0 st, speed to 1.0x.
 - **Power Button**: clean application shutdown.
