@@ -573,47 +573,47 @@
           "xShift": 0,
           "segments": [
             {
-              "image": "spectrum/chip_0.png",
+              "image": "spectrum/chip_1_0.png",
               "origin": {
                 "x": 370,
-                "y": 552
+                "y": 562
               },
               "reveal": 0
             },
             {
-              "image": "spectrum/chip_1.png",
+              "image": "spectrum/chip_1_1.png",
               "origin": {
                 "x": 370,
-                "y": 522
+                "y": 518
               },
               "reveal": 0.111
             },
             {
-              "image": "spectrum/chip_2.png",
+              "image": "spectrum/chip_1_2.png",
               "origin": {
                 "x": 370,
-                "y": 505
+                "y": 460
               },
               "reveal": 0.222
             },
             {
-              "image": "spectrum/chip_3.png",
+              "image": "spectrum/chip_1_3.png",
               "origin": {
                 "x": 370,
-                "y": 470
+                "y": 454
               },
               "reveal": 0.333
             },
             {
-              "image": "spectrum/chip_4.png",
+              "image": "spectrum/chip_1_4.png",
               "origin": {
                 "x": 369,
-                "y": 440
+                "y": 420
               },
               "reveal": 0.444
             },
             {
-              "image": "spectrum/chip_5.png",
+              "image": "spectrum/chip_1_5.png",
               "origin": {
                 "x": 370,
                 "y": 405
@@ -621,31 +621,31 @@
               "reveal": 0.556
             },
             {
-              "image": "spectrum/chip_6.png",
+              "image": "spectrum/chip_1_6.png",
               "origin": {
                 "x": 372,
-                "y": 384
+                "y": 376
               },
               "reveal": 0.667
             },
             {
-              "image": "spectrum/chip_7.png",
+              "image": "spectrum/chip_1_7.png",
               "origin": {
                 "x": 382,
-                "y": 368
+                "y": 358
               },
               "reveal": 0.778
             },
             {
-              "image": "spectrum/chip_8.png",
+              "image": "spectrum/chip_1_8.png",
               "origin": {
                 "x": 366,
-                "y": 342
+                "y": 332
               },
               "reveal": 0.889
             },
             {
-              "image": "spectrum/chip_9.png",
+              "image": "spectrum/chip_1_9.png",
               "origin": {
                 "x": 376,
                 "y": 324
@@ -659,23 +659,23 @@
           "xShift": 6,
           "segments": [
             {
-              "image": "spectrum/chip_0.png",
+              "image": "spectrum/chip_2_0.png",
               "origin": {
                 "x": 411,
-                "y": 552
+                "y": 560
               },
               "reveal": 0
             },
             {
-              "image": "spectrum/chip_1.png",
+              "image": "spectrum/chip_2_1.png",
               "origin": {
                 "x": 411,
-                "y": 522
+                "y": 534
               },
               "reveal": 0.111
             },
             {
-              "image": "spectrum/chip_2.png",
+              "image": "spectrum/chip_2_2.png",
               "origin": {
                 "x": 411,
                 "y": 505
@@ -683,58 +683,58 @@
               "reveal": 0.222
             },
             {
-              "image": "spectrum/chip_3.png",
+              "image": "spectrum/chip_2_3.png",
               "origin": {
                 "x": 411,
-                "y": 470
+                "y": 480
               },
               "reveal": 0.333
             },
             {
-              "image": "spectrum/chip_4.png",
+              "image": "spectrum/chip_2_4.png",
               "origin": {
                 "x": 410,
-                "y": 440
+                "y": 448
               },
               "reveal": 0.444
             },
             {
-              "image": "spectrum/chip_5.png",
+              "image": "spectrum/chip_2_5.png",
               "origin": {
                 "x": 411,
-                "y": 405
+                "y": 390
               },
               "reveal": 0.556
             },
             {
-              "image": "spectrum/chip_6.png",
+              "image": "spectrum/chip_2_6.png",
               "origin": {
                 "x": 413,
-                "y": 384
+                "y": 366
               },
               "reveal": 0.667
             },
             {
-              "image": "spectrum/chip_7.png",
+              "image": "spectrum/chip_2_7.png",
               "origin": {
                 "x": 423,
-                "y": 368
+                "y": 348
               },
               "reveal": 0.778
             },
             {
-              "image": "spectrum/chip_8.png",
+              "image": "spectrum/chip_2_8.png",
               "origin": {
                 "x": 407,
-                "y": 342
+                "y": 322
               },
               "reveal": 0.889
             },
             {
-              "image": "spectrum/chip_9.png",
+              "image": "spectrum/chip_2_9.png",
               "origin": {
                 "x": 417,
-                "y": 324
+                "y": 314
               },
               "reveal": 1
             }
@@ -831,47 +831,47 @@
           "xShift": 16,
           "segments": [
             {
-              "image": "spectrum/chip_0.png",
+              "image": "spectrum/chip_1_0.png",
               "origin": {
                 "x": 496,
-                "y": 552
+                "y": 562
               },
               "reveal": 0
             },
             {
-              "image": "spectrum/chip_1.png",
+              "image": "spectrum/chip_1_1.png",
               "origin": {
                 "x": 496,
-                "y": 522
+                "y": 518
               },
               "reveal": 0.111
             },
             {
-              "image": "spectrum/chip_2.png",
+              "image": "spectrum/chip_1_2.png",
               "origin": {
                 "x": 496,
-                "y": 505
+                "y": 460
               },
               "reveal": 0.222
             },
             {
-              "image": "spectrum/chip_3.png",
+              "image": "spectrum/chip_1_3.png",
               "origin": {
                 "x": 496,
-                "y": 470
+                "y": 454
               },
               "reveal": 0.333
             },
             {
-              "image": "spectrum/chip_4.png",
+              "image": "spectrum/chip_1_4.png",
               "origin": {
                 "x": 495,
-                "y": 440
+                "y": 420
               },
               "reveal": 0.444
             },
             {
-              "image": "spectrum/chip_5.png",
+              "image": "spectrum/chip_1_5.png",
               "origin": {
                 "x": 496,
                 "y": 405
@@ -879,31 +879,31 @@
               "reveal": 0.556
             },
             {
-              "image": "spectrum/chip_6.png",
+              "image": "spectrum/chip_1_6.png",
               "origin": {
                 "x": 498,
-                "y": 384
+                "y": 376
               },
               "reveal": 0.667
             },
             {
-              "image": "spectrum/chip_7.png",
+              "image": "spectrum/chip_1_7.png",
               "origin": {
                 "x": 508,
-                "y": 368
+                "y": 358
               },
               "reveal": 0.778
             },
             {
-              "image": "spectrum/chip_8.png",
+              "image": "spectrum/chip_1_8.png",
               "origin": {
                 "x": 492,
-                "y": 342
+                "y": 332
               },
               "reveal": 0.889
             },
             {
-              "image": "spectrum/chip_9.png",
+              "image": "spectrum/chip_1_9.png",
               "origin": {
                 "x": 502,
                 "y": 324
@@ -917,23 +917,23 @@
           "xShift": 14,
           "segments": [
             {
-              "image": "spectrum/chip_0.png",
+              "image": "spectrum/chip_2_0.png",
               "origin": {
                 "x": 546,
-                "y": 552
+                "y": 560
               },
               "reveal": 0
             },
             {
-              "image": "spectrum/chip_1.png",
+              "image": "spectrum/chip_2_1.png",
               "origin": {
                 "x": 546,
-                "y": 522
+                "y": 534
               },
               "reveal": 0.111
             },
             {
-              "image": "spectrum/chip_2.png",
+              "image": "spectrum/chip_2_2.png",
               "origin": {
                 "x": 546,
                 "y": 505
@@ -941,58 +941,58 @@
               "reveal": 0.222
             },
             {
-              "image": "spectrum/chip_3.png",
+              "image": "spectrum/chip_2_3.png",
               "origin": {
                 "x": 546,
-                "y": 470
+                "y": 480
               },
               "reveal": 0.333
             },
             {
-              "image": "spectrum/chip_4.png",
+              "image": "spectrum/chip_2_4.png",
               "origin": {
                 "x": 545,
-                "y": 440
+                "y": 448
               },
               "reveal": 0.444
             },
             {
-              "image": "spectrum/chip_5.png",
+              "image": "spectrum/chip_2_5.png",
               "origin": {
                 "x": 546,
-                "y": 405
+                "y": 390
               },
               "reveal": 0.556
             },
             {
-              "image": "spectrum/chip_6.png",
+              "image": "spectrum/chip_2_6.png",
               "origin": {
                 "x": 548,
-                "y": 384
+                "y": 366
               },
               "reveal": 0.667
             },
             {
-              "image": "spectrum/chip_7.png",
+              "image": "spectrum/chip_2_7.png",
               "origin": {
                 "x": 558,
-                "y": 368
+                "y": 348
               },
               "reveal": 0.778
             },
             {
-              "image": "spectrum/chip_8.png",
+              "image": "spectrum/chip_2_8.png",
               "origin": {
                 "x": 542,
-                "y": 342
+                "y": 322
               },
               "reveal": 0.889
             },
             {
-              "image": "spectrum/chip_9.png",
+              "image": "spectrum/chip_2_9.png",
               "origin": {
                 "x": 552,
-                "y": 324
+                "y": 314
               },
               "reveal": 1
             }
@@ -1089,47 +1089,47 @@
           "xShift": 0,
           "segments": [
             {
-              "image": "spectrum/chip_0.png",
+              "image": "spectrum/chip_1_0.png",
               "origin": {
                 "x": 655,
-                "y": 552
+                "y": 562
               },
               "reveal": 0
             },
             {
-              "image": "spectrum/chip_1.png",
+              "image": "spectrum/chip_1_1.png",
               "origin": {
                 "x": 655,
-                "y": 522
+                "y": 518
               },
               "reveal": 0.111
             },
             {
-              "image": "spectrum/chip_2.png",
+              "image": "spectrum/chip_1_2.png",
               "origin": {
                 "x": 655,
-                "y": 505
+                "y": 460
               },
               "reveal": 0.222
             },
             {
-              "image": "spectrum/chip_3.png",
+              "image": "spectrum/chip_1_3.png",
               "origin": {
                 "x": 655,
-                "y": 470
+                "y": 454
               },
               "reveal": 0.333
             },
             {
-              "image": "spectrum/chip_4.png",
+              "image": "spectrum/chip_1_4.png",
               "origin": {
                 "x": 654,
-                "y": 440
+                "y": 420
               },
               "reveal": 0.444
             },
             {
-              "image": "spectrum/chip_5.png",
+              "image": "spectrum/chip_1_5.png",
               "origin": {
                 "x": 655,
                 "y": 405
@@ -1137,31 +1137,31 @@
               "reveal": 0.556
             },
             {
-              "image": "spectrum/chip_6.png",
+              "image": "spectrum/chip_1_6.png",
               "origin": {
                 "x": 657,
-                "y": 384
+                "y": 376
               },
               "reveal": 0.667
             },
             {
-              "image": "spectrum/chip_7.png",
+              "image": "spectrum/chip_1_7.png",
               "origin": {
                 "x": 667,
-                "y": 368
+                "y": 358
               },
               "reveal": 0.778
             },
             {
-              "image": "spectrum/chip_8.png",
+              "image": "spectrum/chip_1_8.png",
               "origin": {
                 "x": 651,
-                "y": 342
+                "y": 332
               },
               "reveal": 0.889
             },
             {
-              "image": "spectrum/chip_9.png",
+              "image": "spectrum/chip_1_9.png",
               "origin": {
                 "x": 661,
                 "y": 324
@@ -1175,23 +1175,23 @@
           "xShift": 0,
           "segments": [
             {
-              "image": "spectrum/chip_0.png",
+              "image": "spectrum/chip_2_0.png",
               "origin": {
                 "x": 703,
-                "y": 552
+                "y": 560
               },
               "reveal": 0
             },
             {
-              "image": "spectrum/chip_1.png",
+              "image": "spectrum/chip_2_1.png",
               "origin": {
                 "x": 703,
-                "y": 522
+                "y": 534
               },
               "reveal": 0.111
             },
             {
-              "image": "spectrum/chip_2.png",
+              "image": "spectrum/chip_2_2.png",
               "origin": {
                 "x": 703,
                 "y": 505
@@ -1199,58 +1199,58 @@
               "reveal": 0.222
             },
             {
-              "image": "spectrum/chip_3.png",
+              "image": "spectrum/chip_2_3.png",
               "origin": {
                 "x": 703,
-                "y": 470
+                "y": 480
               },
               "reveal": 0.333
             },
             {
-              "image": "spectrum/chip_4.png",
+              "image": "spectrum/chip_2_4.png",
               "origin": {
                 "x": 702,
-                "y": 440
+                "y": 448
               },
               "reveal": 0.444
             },
             {
-              "image": "spectrum/chip_5.png",
+              "image": "spectrum/chip_2_5.png",
               "origin": {
                 "x": 703,
-                "y": 405
+                "y": 390
               },
               "reveal": 0.556
             },
             {
-              "image": "spectrum/chip_6.png",
+              "image": "spectrum/chip_2_6.png",
               "origin": {
                 "x": 705,
-                "y": 384
+                "y": 366
               },
               "reveal": 0.667
             },
             {
-              "image": "spectrum/chip_7.png",
+              "image": "spectrum/chip_2_7.png",
               "origin": {
                 "x": 715,
-                "y": 328
+                "y": 348
               },
               "reveal": 0.778
             },
             {
-              "image": "spectrum/chip_8.png",
+              "image": "spectrum/chip_2_8.png",
               "origin": {
                 "x": 699,
-                "y": 302
+                "y": 322
               },
               "reveal": 0.889
             },
             {
-              "image": "spectrum/chip_9.png",
+              "image": "spectrum/chip_2_9.png",
               "origin": {
                 "x": 709,
-                "y": 280
+                "y": 314
               },
               "reveal": 1
             }
@@ -1347,47 +1347,47 @@
           "xShift": 0,
           "segments": [
             {
-              "image": "spectrum/chip_0.png",
+              "image": "spectrum/chip_1_0.png",
               "origin": {
                 "x": 805,
-                "y": 552
+                "y": 562
               },
               "reveal": 0
             },
             {
-              "image": "spectrum/chip_1.png",
+              "image": "spectrum/chip_1_1.png",
               "origin": {
                 "x": 805,
-                "y": 522
+                "y": 518
               },
               "reveal": 0.111
             },
             {
-              "image": "spectrum/chip_2.png",
+              "image": "spectrum/chip_1_2.png",
               "origin": {
                 "x": 805,
-                "y": 505
+                "y": 460
               },
               "reveal": 0.222
             },
             {
-              "image": "spectrum/chip_3.png",
+              "image": "spectrum/chip_1_3.png",
               "origin": {
                 "x": 805,
-                "y": 470
+                "y": 454
               },
               "reveal": 0.333
             },
             {
-              "image": "spectrum/chip_4.png",
+              "image": "spectrum/chip_1_4.png",
               "origin": {
                 "x": 804,
-                "y": 440
+                "y": 420
               },
               "reveal": 0.444
             },
             {
-              "image": "spectrum/chip_5.png",
+              "image": "spectrum/chip_1_5.png",
               "origin": {
                 "x": 805,
                 "y": 405
@@ -1395,31 +1395,31 @@
               "reveal": 0.556
             },
             {
-              "image": "spectrum/chip_6.png",
+              "image": "spectrum/chip_1_6.png",
               "origin": {
                 "x": 807,
-                "y": 384
+                "y": 376
               },
               "reveal": 0.667
             },
             {
-              "image": "spectrum/chip_7.png",
+              "image": "spectrum/chip_1_7.png",
               "origin": {
                 "x": 817,
-                "y": 368
+                "y": 358
               },
               "reveal": 0.778
             },
             {
-              "image": "spectrum/chip_8.png",
+              "image": "spectrum/chip_1_8.png",
               "origin": {
                 "x": 801,
-                "y": 342
+                "y": 332
               },
               "reveal": 0.889
             },
             {
-              "image": "spectrum/chip_9.png",
+              "image": "spectrum/chip_1_9.png",
               "origin": {
                 "x": 811,
                 "y": 324
