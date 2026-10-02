@@ -1,7 +1,7 @@
 {
   "model": "claude-opus-4-6-thinking",
   "subagents": {
-    "default_model": "gemini-3.8-flash-medium",
+    "default_model": "72b2d050-e42e-450a-a93f-c3c03a65b27f/gemini-flash-latest",
     "context_isolation": true
   }
 }
