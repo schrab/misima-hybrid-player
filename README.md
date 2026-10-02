@@ -1,6 +1,6 @@
-# Misima Hybrid Player
+# MI$IM∆ hybrid player
 
-![Misima Hybrid Player](docs/misima-hybrid-player-ui.png)
+![MI$IM∆ hybrid player](docs/misima-hybrid-player-ui.png)
 
 A multiplatform skinnable music player featuring a custom organic sprite-based UI, high-performance Rust audio engine with real-time DSP, and live dynamic visualizers.
 
