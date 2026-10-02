@@ -15,6 +15,10 @@ Skin (single folder): app/public/sprite/ (skin.json + bg/ ui/ font/ spectrum/ an
 7. Use unchecked usize subtraction around WSOLA fifo_read_pos (underflow kills the audio thread)
 8. Scale reverb delay offsets as well as lengths when changing sample rate (agents.md §3.1.4)
 9. Map the reverb fader onto loop gain as `0.35 + 0.63 * amount` (reaches 0.98, diverges the loop — agents.md §3.1.9)
+10. Let the vocoder's synthesis hop vary (must stay fixed at n/4; varying it makes the WOLA normalisation ripple and diverge — docs/DSP.md §3.2)
+11. Expect the vocoder's tempo convention to match the WSOLA's (it inverts: hs = ha / stretch — docs/DSP.md §3.2)
+12. Drop the −28 dB peak floor in the vocoder's peak picking (Hann sidelobes at −31.5 dB then split partials against themselves — docs/DSP.md §3.2)
+13. Diagnose DSP faults without the identity test first (phase_vocoder `identity_phases_reconstruct_exactly` splits overlap-add faults from phase-logic faults — docs/DSP.md §5)
 
 ## Audio
 

@@ -14,8 +14,8 @@ A multiplatform skinnable music player featuring a custom organic sprite-based U
 - **Custom Organic Sprite UI**: No generic OS window frames or HTML form widgets. The interface is composed entirely of hand-drawn transparent PNG plates, interactive knobs, button overlays, and a custom bitmap glyph font engine.
 - **Real-Time DSP Engine**:
   - **Bit-Perfect Studio Bypass**: Zero-DSP passthrough at 1.0x speed and 0 semitones pitch shift for 100% original master fidelity.
+  - **Dual Time/Pitch Engines**: a stereo phase vocoder handles pitch-up (where overlap-add time-stretchers go granular) and a WSOLA time-stretcher handles tempo and pitch-down, selected automatically per fader position; 4-point Catmull-Rom resampling sets the final pitch, with dynamic anti-alias filtering on upward shifts.
   - **High-Fidelity WSOLA Time-Stretcher**: Waveform Similarity Overlap-Add with mono-sum cross-correlation phase alignment, preserving natural timbre and stereo coherence without hollow flanging or comb filtering.
-  - **Cubic Hermite Pitch-Shifter**: 4-point Catmull-Rom interpolation for smooth, artifact-free pitch adjustments with dynamic 2-pole Butterworth anti-aliasing filter during upward pitch shifts.
   - **10-Band Peaking Equalizer**: High-precision RBJ biquad filters with in-place coefficient updates for click-free adjustment during playback.
   - **Stereo Feedback-Delay Reverb**: Dattorro/Griesinger topology ported from [Mutable Instruments Clouds](https://github.com/pichenettes/eurorack) (MIT, © 2014 Emilie Gillet) — four allpass input diffusers feeding two cross-coupled feedback loops, with slow LFO modulation on the first diffuser and on the long delays for shimmer. The two output taps decorrelate, so the tail has real stereo width instead of the dead-centre image a mono Schroeder tail gives. `f32` delay storage, with the delay-line layout recomputed per sample rate (44.1 kHz, 48 kHz, 96 kHz). The wet tail is gain-normalized against a dry-signal level follower, so the mix fader sweeps from dry to **full wet at matched loudness** (100% = wet-only) without the volume dips of a naive crossfade.
   - **Master FX Toggle & Reset**: One-click bypass and reset for all effects.
@@ -78,10 +78,12 @@ Interleaved Resampler (Device Rate: 44.1k / 48k / 96k)
 [Bypass Check: Speed == 1.0 && Pitch == 0.0] ──► (Bit-perfect direct PCM transfer)
       │ (if FX active)
       ▼
-WSOLA Time-Stretcher (Phase-Aligned Overlap-Add, Speed: 0.5x – 2.0x)
+Stretcher (Speed: 0.5x – 2.0x, Pitch: ±12 st)
+      ├─ stretch ≤ 1 → Stereo Phase Vocoder (pitch-up, smooth partials)
+      └─ stretch > 1 → WSOLA Time-Stretcher (tempo + pitch-down)
       │
       ▼
-Cubic Hermite Resampler + Anti-Alias Lowpass (Pitch: -24.0 – +24.0 st)
+Cubic Hermite Resampler + Anti-Alias Lowpass
       │
       ▼
 10-Band Peaking Biquad EQ (60 Hz – 16 kHz)
@@ -195,4 +197,7 @@ Alternative (Terminal): `xattr -d com.apple.quarantine "/Applications/Misima Hyb
 
 For architectural guidelines, subagent definitions, and development invariants, see:
 - [`agents.md`](agents.md) — Comprehensive guide for AI subagents (`coder`, `reviewer`, `tester`, `debugger`, `research`, `documenter`) and architectural invariants.
+- [`docs/DSP.md`](docs/DSP.md) — Deep-dive on the audio engines: signal chain, WSOLA vs phase vocoder, the reverb topology and loudness policy, invariants, and test methodology. **Read before touching `src/audio/`.**
+- [`HANDOFF.md`](HANDOFF.md) — Quick-reference for agents: hard "do not" list, layout coordinates, skin layers, font atlas.
+- [`CHANGELOG.md`](CHANGELOG.md) — Milestone history with commit references.
 - [`docs/compose/spec/`](docs/compose/spec/) — Historical feature specifications and design decisions.

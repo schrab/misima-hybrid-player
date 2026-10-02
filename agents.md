@@ -32,11 +32,13 @@ Misima Hybrid Player is a high-performance, skinnable, multiplatform (Windows, m
 │  - Resampler: Interleaved sample-rate conversion to device rate        │
 │  - DSP Pipeline:                                                       │
 │      1) Bit-perfect bypass (1.0x speed, 0 st pitch)                     │
-│      2) WSOLA Time-Stretch (phase-aligned similarity OLA)               │
-│      3) Cubic Hermite Pitch-Shift + Dynamic anti-aliasing lowpass       │
-│      4) 10-Band Peaking EQ (RBJ biquad filters, seamless updates)      │
-│      5) Stereo FDN Reverb (Dattorro/Griesinger, Clouds port)            │
-│      6) Output soft-clipping & master volume attenuation               │
+│      2) Time/pitch engine, split by stretch = speed/pitch:              │
+│         stretch <= 1 → stereo phase vocoder (pitch-up; smooth)          │
+│         stretch  > 1 → WSOLA time-stretch (expansion; WSOLA's good side)│
+│         then Cubic Hermite resample by the pitch ratio                  │
+│      3) 10-Band Peaking EQ (RBJ biquad filters, seamless updates)      │
+│      4) Stereo FDN Reverb (Dattorro/Griesinger, Clouds port)            │
+│      5) Output soft-clipping & master volume attenuation               │
 │  - Real-time Visualizer Taps:                                          │
 │      * rustfft 1024-point FFT analyzer → 48 log-spaced energy bins     │
 │      * Decimated 226-point mono PCM buffer for echo scope              │
@@ -141,7 +143,7 @@ The player is designed for cross-platform deployment. Agents must verify platfor
 Before committing or completing any task, agents must run and pass the following checks:
 
 ```bash
-# 1. Rust Audio Core & DSP Unit Tests (Must pass 26/26)
+# 1. Rust Audio Core & DSP Unit Tests (Must pass 39/39, 1 ignored smoke test)
 cd app/src-tauri
 export PATH="$HOME/.cargo/bin:$PATH"
 cargo test -- --nocapture
@@ -192,7 +194,18 @@ misima-hybrid-player/
 │               ├── clouds_reverb.rs # Stereo FDN reverb (Clouds port, MIT © Emilie Gillet)
 │               ├── decoder.rs  # Symphonia multi-format audio decoder
 │               ├── eq.rs       # 10-band peaking biquad EQ & anti-aliasing lowpass
-│               ├── player.rs   # Playback state, cpal audio callback, Reverb mix policy
+│               ├── phase_vocoder.rs # Stereo phase vocoder (pitch-up engine)
+│               ├── player.rs   # Playback state, cpal audio callback, Stretcher, Reverb mix policy
 │               ├── spectrum.rs # FFT spectrum analyzer (rustfft)
-│               └── wsola.rs    # Real-time WSOLA time-stretcher & Cubic Hermite pitch-shifter
+│               └── wsola.rs    # Real-time WSOLA time-stretcher (tempo + pitch-down)
 ```
+
+## 7. DSP Documentation
+
+`docs/DSP.md` is the deep-dive for anyone reviewing or modifying the audio
+engines: the full signal chain, both time-stretch engines (WSOLA and the phase
+vocoder) with their measured trade-offs, the reverb topology and loudness
+policy, and the test methodology (including the identity-bypass trick for
+separating overlap-add faults from phase-logic faults). Read it before touching
+anything under `src/audio/`.
+
