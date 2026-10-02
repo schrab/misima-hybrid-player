@@ -232,6 +232,8 @@ pub fn run() {
             commands::prev,
             commands::play_index,
             commands::seek,
+            commands::cue_percent,
+            commands::toggle_play,
             commands::get_position,
             commands::set_volume,
             commands::set_eq,

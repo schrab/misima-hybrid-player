@@ -147,6 +147,20 @@ pub fn seek(seconds: f64) {
     player::seek_secs(seconds);
 }
 
+/// Cue to `fraction` (0.0..=0.9) of the loaded track and start playing there.
+/// Returns the target position in seconds, or -1.0 when nothing is loaded.
+#[tauri::command]
+pub fn cue_percent(fraction: f64) -> f64 {
+    player::cue_fraction(fraction)
+}
+
+/// Flip between playing and paused. Returns the new playing state so the UI
+/// never has to guess.
+#[tauri::command]
+pub fn toggle_play() -> bool {
+    player::toggle_play()
+}
+
 #[tauri::command]
 pub fn get_position() -> f64 {
     player::position_secs()
