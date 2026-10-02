@@ -2,7 +2,7 @@
 
 ![MI$IM∆ hybrid player](docs/misima-hybrid-player-ui.png)
 
-the pig built a music player. no boring window frames. no html widgets. hand-drawn plates, glowing wireframes, and rust doing real-time dsp underneath the skin. it plays mp3, flac, wav, ogg. it has visualizers. the pig lives inside the art.
+MI$IM∆ built a music player. no boring window frames. no html widgets. hand-drawn plates, glowing wireframes, and rust doing real-time dsp underneath the skin. it plays mp3, flac, wav, ogg. it has visualizers. MI$IM∆ lives inside the art.
 
 [![Rust 2021](https://img.shields.io/badge/Rust-2021-orange.svg)](https://www.rust-lang.org/)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2.0-blue.svg)](https://tauri.app/)
@@ -13,20 +13,20 @@ the pig built a music player. no boring window frames. no html widgets. hand-dra
 
 ## Key Features
 
-- **Custom Organic Sprite UI**: no generic os chrome. the whole interface is hand-drawn transparent png plates, interactive knobs, button overlays and a custom bitmap glyph font engine. (the pig's skin is literally the skin.)
+- **Custom Organic Sprite UI**: no generic os chrome. the whole interface is hand-drawn transparent png plates, interactive knobs, button overlays and a custom bitmap glyph font engine. (MI$IM∆'s skin is literally the skin.)
 - **Real-Time DSP Engine**:
-  - **Bit-Perfect Studio Bypass**: at 1.0x speed and 0 st the dsp steps aside completely. 100% original master. the pig respects the master.
+  - **Bit-Perfect Studio Bypass**: at 1.0x speed and 0 st the dsp steps aside completely. 100% original master. MI$IM∆ respects the master.
   - **Dual Time/Pitch Engines**: a stereo phase vocoder handles pitch-up — the region where overlap-add time-stretchers go granular — and a WSOLA time-stretcher handles tempo and pitch-down. picked automatically per fader position. 4-point catmull-rom resampling sets the final pitch, with dynamic anti-alias filtering on upward shifts.
-  - **High-Fidelity WSOLA Time-Stretcher**: waveform similarity overlap-add with mono-sum cross-correlation phase alignment. no hollow flanging. no comb filtering. the pig tested. the pig approves.
+  - **High-Fidelity WSOLA Time-Stretcher**: waveform similarity overlap-add with mono-sum cross-correlation phase alignment. no hollow flanging. no comb filtering. MI$IM∆ tested. MI$IM∆ approves.
   - **10-Band Peaking Equalizer**: high-precision RBJ biquads with in-place coefficient updates. drag the faders mid-song and nothing clicks.
-  - **Stereo Feedback-Delay Reverb**: Dattorro/Griesinger topology ported from [Mutable Instruments Clouds](https://github.com/pichenettes/eurorack) (MIT, © 2014 Emilie Gillet — the pig says thank you, emilie). four allpass input diffusers feeding two cross-coupled feedback loops, slow LFO shimmer on the first diffuser and the long delays. two decorrelated output taps, so the tail has real stereo width instead of the dead-centre image a mono Schroeder tail gives. `f32` delay storage, layout recomputed per sample rate (44.1/48/96 kHz). the wet tail is gain-normalized against a dry-signal level follower, so the mix fader sweeps from dry to **full wet at matched loudness** (100% = wet-only) without the volume dips of a naive crossfade.
+  - **Stereo Feedback-Delay Reverb**: Dattorro/Griesinger topology ported from [Mutable Instruments Clouds](https://github.com/pichenettes/eurorack) (MIT, © 2014 Emilie Gillet — MI$IM∆ says thank you, emilie). four allpass input diffusers feeding two cross-coupled feedback loops, slow LFO shimmer on the first diffuser and the long delays. two decorrelated output taps, so the tail has real stereo width instead of the dead-centre image a mono Schroeder tail gives. `f32` delay storage, layout recomputed per sample rate (44.1/48/96 kHz). the wet tail is gain-normalized against a dry-signal level follower, so the mix fader sweeps from dry to **full wet at matched loudness** (100% = wet-only) without the volume dips of a naive crossfade.
   - **Master FX Toggle & Reset**: one button. all effects. off they go.
 - **Dynamic Visualizers**:
   - **Organic Raster Spectrum**: 10 bands that light up irregular hand-drawn segment chips, not boring rectangles. +3 dB/octave display tilt (low bins carry far more raw energy), idle noise gating, and per-band `xShift` so whole columns move with one number.
   - **Sprite-Sheet Animations**: looping artboard animations sliced from uniform-grid sheets, composited in screen blend mode over the background.
   - **Waveform Echo Scope**: 226-point real-time polyline oscilloscope with an 8-frame fading trail and hann envelope windowing.
 - **Multi-Format Playback**: native decoding of MP3, FLAC, WAV and OGG via Symphonia, resampled to the hardware output rate.
-- **Asynchronous, Glitch-Free Track Switching**: generation-indexed decode queue (`load_gen`) and DSP buffer flush (`seek_gen`). rapid track skips never overlap, never stutter. (the pig learned this one the hard way. see the changelog.)
+- **Asynchronous, Glitch-Free Track Switching**: generation-indexed decode queue (`load_gen`) and DSP buffer flush (`seek_gen`). rapid track skips never overlap, never stutter. (MI$IM∆ learned this one the hard way. see the changelog.)
 - **Multiplatform Architecture**: Tauri 2 on Windows 11, Linux (X11 & Wayland) and macOS.
 
 ---
@@ -49,7 +49,7 @@ the pig built a music player. no boring window frames. no html widgets. hand-dra
 - **Artboard Reference**: everything in `skin.json` is measured in **Photoshop 2x artboard pixels (1500×2060)**. measure twice. place once.
 - **Display Target**: pixel-perfect at **750×1030 device pixels** on 1080p and 4K.
 - **Knob Sizing**: knob and button sprites render at their natural pixel size. always. the art is pixel art; scaling it is disrespect.
-- **Display Resolution Scaling**: resizing accounts for `window.devicePixelRatio`. DPI changes trigger a canvas refit without a page reload (a reload resets active audio fx — the pig does not reload).
+- **Display Resolution Scaling**: resizing accounts for `window.devicePixelRatio`. DPI changes trigger a canvas refit without a page reload (a reload resets active audio fx — MI$IM∆ does not reload).
 
 ### Layout Reference
 - **Playlist Area**: `(1028, 1490)`, size `378×310`, 10 visible rows with mouse-wheel scrolling. rows read `NN · NAME···· · MM` (2-digit index, up to 6 title glyphs with filename index prefixes stripped, minutes-only duration).
@@ -64,7 +64,7 @@ the pig built a music player. no boring window frames. no html widgets. hand-dra
 - **`background.overlays[]`**: still png layers composited above the background plate, below all controls (e.g. `bg/UI_highlights.png`). animated regions are erased from the layer art by the artist; the engine draws overlays unmasked. (no engine-side masking. the artist owns the mask.)
 - **`animations[]`**: sprite-sheet loops. uniform grid (`grid.cols/rows`), real `frames` count (trailing empty cells allowed), `origin` = top-left of frame 0 on the 2× artboard, optional `size` to scale cells in code (omit = native), `fps`, `blend: "screen"` (default — drops solid black sheet backgrounds), `playback: "always" | "on-playing"`.
 - **`visuals.spectrum.bands[].xShift`**: whole-column X nudge (artboard px) applied to every segment of that band at draw time.
-- **Spectrum chip set variations**: bands don't share one chip pool — each band's 10 segments can reference any freeform-size chip png (`spectrum/chip_*.png`). the current layout cycles three tuned variants across the columns (`chip_1_*` / `chip_2_*` / default `chip_*`). to retune: adjust one band's segment origins, then clone to the others **anchor-relative** (keep each column's own left edge and `xShift`, copy the variant's Y-stack and X jitter). display energy tilt lives in `BAND_GAIN` (`main.ts`), not in rust. the pig checked twice.
+- **Spectrum chip set variations**: bands don't share one chip pool — each band's 10 segments can reference any freeform-size chip png (`spectrum/chip_*.png`). the current layout cycles three tuned variants across the columns (`chip_1_*` / `chip_2_*` / default `chip_*`). to retune: adjust one band's segment origins, then clone to the others **anchor-relative** (keep each column's own left edge and `xShift`, copy the variant's Y-stack and X jitter). display energy tilt lives in `BAND_GAIN` (`main.ts`), not in rust. MI$IM∆ checked twice.
 
 ---
 
@@ -97,14 +97,14 @@ Clouds-Style Stereo Reverb (FDN, Modulated, Envelope-Normalized Wet, Dry→Wet C
 Hardware Output Stream (cpal) ──► Spectrum Analyzer (rustfft) ──► Canvas Visuals
 ```
 
-the horse said one time-stretcher was enough. the barn overruled. (the barn IS the horse. denial is structural.) both engines have a job: the vocoder is smooth where the wsola goes granular (pitch-up, 4x grain overlap at +1 octave — the pig measured), and the wsola is cheap and clean where it expands (tempo, pitch-down). the full reasoning, the failure modes and the numbers live in [`docs/DSP.md`](docs/DSP.md). read it before touching `src/audio/`. the pig means it.
+the horse said one time-stretcher was enough. the barn overruled. (the barn IS the horse. denial is structural.) both engines have a job: the vocoder is smooth where the wsola goes granular (pitch-up, 4x grain overlap at +1 octave — MI$IM∆ measured), and the wsola is cheap and clean where it expands (tempo, pitch-down). the full reasoning, the failure modes and the numbers live in [`docs/DSP.md`](docs/DSP.md). read it before touching `src/audio/`. MI$IM∆ means it.
 
 ### Audio Performance Invariants
 1. **Zero Steady-State Allocations**: processing vectors (`bl`, `br`, `mono_scratch`, `fifo_l`, `fifo_r`) are pre-allocated and reused. allocation on the audio thread makes the bones creak. the bones do not creak here.
 2. **Hoisted Mutex Locks**: `eq`, `reverb`, `reverb_mix` are acquired once per callback block, not per sample — lock contention drops from ~3,000 acquisitions/buffer to 2.
 3. **Click-Free EQ**: `EqState::set_gains` modifies biquad coefficients in-place while preserving the delay registers (`z1`, `z2`, `z1r`, `z2r`). no pops. no clicks. MALLOC SAYS NOTHING, FOR ONCE.
 4. **Async Race-Free Loading**: `player::prepare_load()` bumps the generation counters (`load_gen`, `seek_gen`) and silences the previous track instantly. rapid track skips never overlap or stutter.
-5. **Saturating WSOLA FIFO Bookkeeping**: the resampler read position can legally run past the FIFO length near track end (overreads are zero-padded); all length arithmetic around `fifo_read_pos` must stay saturating/clamped. an unchecked `usize` underflow here panics the audio thread and kills output. the pig warned you. the pig always warns you.
+5. **Saturating WSOLA FIFO Bookkeeping**: the resampler read position can legally run past the FIFO length near track end (overreads are zero-padded); all length arithmetic around `fifo_read_pos` must stay saturating/clamped. an unchecked `usize` underflow here panics the audio thread and kills output. MI$IM∆ warned you. MI$IM∆ always warns you.
 
 ---
 
@@ -130,7 +130,7 @@ platform-specific troubleshooting and development guidelines: [`agents.md`](agen
   - `Ctrl` / `Cmd` + `0`: reset to 100% standard size (750×1030).
   - `Ctrl` / `Cmd` + `D`: toggle double size (200% native 1:1 artboard) vs standard (100%).
   - `Ctrl` + **Mouse Wheel**: zoom across scale presets.
-  - **Auto-Fit**: checks available display height on launch; screens under 1050px (e.g. 1080p scaled laptops) open in compact 75% mode so the player does not fall off the screen. (the pig has fallen off screens. it is not dignified.)
+  - **Auto-Fit**: checks available display height on launch; screens under 1050px (e.g. 1080p scaled laptops) open in compact 75% mode so the player does not fall off the screen. (MI$IM∆ has fallen off screens. it is not dignified.)
 - **Playlist Navigation**: single-click or double-click any track row to play immediately.
 - **Playlist Scrolling**: mouse wheel over the playlist for libraries with more than 10 tracks.
 - **FX Enable / Bypass**: toggles master EQ, reverb and pitch processing.
@@ -199,10 +199,10 @@ Alternative (Terminal): `xattr -d com.apple.quarantine "/Applications/Misima Hyb
 
 ## Project Structure & Agents
 
-the pig keeps the paperwork too.
+MI$IM∆ keeps the paperwork too.
 
 - [`agents.md`](agents.md) — architectural guidelines, subagent definitions (`coder`, `reviewer`, `tester`, `debugger`, `research`, `documenter`), development invariants.
-- [`docs/DSP.md`](docs/DSP.md) — deep-dive on the audio engines: signal chain, WSOLA vs phase vocoder, reverb topology and loudness policy, invariants, test methodology. **read before touching `src/audio/`.** the pig means it.
+- [`docs/DSP.md`](docs/DSP.md) — deep-dive on the audio engines: signal chain, WSOLA vs phase vocoder, reverb topology and loudness policy, invariants, test methodology. **read before touching `src/audio/`.** MI$IM∆ means it.
 - [`HANDOFF.md`](HANDOFF.md) — quick-reference: the hard "do not" list, layout coordinates, skin layers, font atlas.
 - [`CHANGELOG.md`](CHANGELOG.md) — milestone history with commit references. (scars, documented.)
 - [`docs/compose/spec/`](docs/compose/spec/) — historical feature specifications and design decisions.
