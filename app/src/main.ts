@@ -707,12 +707,18 @@ async function init() {
     const out = new Float32Array(10);
     const n = raw.length;
     const edges = [0, 0.04, 0.1, 0.18, 0.3, 0.45, 0.6, 0.75, 0.85, 0.93, 1.0];
+    // Display tilt: low bins carry far more raw energy (band 0 alone spans
+    // ~43-600 Hz of bass) — without compensation it pins at max while high
+    // bands never light. ≈ +1.5 dB per band (+3 dB/octave for this spacing).
+    const BAND_GAIN = [0.5, 0.58, 0.67, 0.78, 0.9, 1.0, 1.3, 1.7, 2.1, 2.6];
     for (let b = 0; b < 10; b++) {
       const i0 = Math.floor(edges[b] * n);
       const i1 = Math.max(i0 + 1, Math.floor(edges[b + 1] * n));
       let s = 0;
       for (let i = i0; i < i1 && i < n; i++) s += raw[i] ?? 0;
-      out[b] = s / Math.max(1, i1 - i0);
+      const v = (s / Math.max(1, i1 - i0)) * (BAND_GAIN[b] ?? 1);
+      // Gate display noise so idle tails don't light chips (AGENTS rule).
+      out[b] = v <= 0.02 ? 0 : Math.min(1, v);
     }
     bins = out;
   });

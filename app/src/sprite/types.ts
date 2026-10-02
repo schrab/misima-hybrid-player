@@ -48,6 +48,8 @@ export type SpectrumBand = {
   id: string | number;
   /** Pieces may share vertical space and vary in size. */
   segments: SpectrumSegment[];
+  /** Whole-column X nudge (artboard px) applied to every segment at draw. */
+  xShift?: number;
 };
 
 export type FontClass = {

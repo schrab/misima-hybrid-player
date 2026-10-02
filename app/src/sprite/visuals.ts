@@ -17,6 +17,7 @@ export function drawSpectrumSegments(
     const e = Math.min(1, Math.max(0, energies[b] ?? 0));
     // Silence / idle: draw NOTHING (bottom chip used to stick at reveal 0)
     if (e <= 0.01) continue;
+    const dx = band.xShift ?? 0;
     const segs = [...band.segments].sort((s1, s2) => (s1.reveal ?? 0) - (s2.reveal ?? 0));
     for (const seg of segs) {
       const t = seg.reveal ?? 0;
@@ -25,7 +26,7 @@ export function drawSpectrumSegments(
       if (!img) continue;
       const w = seg.size?.w ?? img.width;
       const h = seg.size?.h ?? img.height;
-      ctx.drawImage(img, seg.origin.x, seg.origin.y, w, h);
+      ctx.drawImage(img, seg.origin.x + dx, seg.origin.y, w, h);
     }
   }
 }
