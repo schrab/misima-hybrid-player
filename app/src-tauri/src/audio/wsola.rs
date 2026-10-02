@@ -96,7 +96,7 @@ impl WsolaProcessor {
     /// Calculate the actual source playback frame currently being heard,
     /// compensating for buffered samples in the output FIFO and time-stretch ratio.
     pub fn get_play_pos(&self, speed: f32, pitch_ratio: f32) -> f64 {
-        let pr = pitch_ratio.clamp(0.25, 4.0) as f64;
+        let pr = pitch_ratio.clamp(0.5, 2.0) as f64;
         let stretch = (speed as f64 / pr).clamp(0.1, 10.0);
         let avail_fifo = (self.fifo_l.len().saturating_sub(self.fifo_read_pos) as f64) - self.resample_phase;
         let lag_in_source_frames = avail_fifo.max(0.0) * stretch;
@@ -256,7 +256,12 @@ impl WsolaProcessor {
             return;
         }
 
-        let pr = pitch_ratio.clamp(0.25, 4.0);
+        // ±1 octave, matching the pitch fader's range in skin.json and the
+        // clamp in player::set_params. Past 1 octave the grain overlap
+        // (WIN / (HOP * stretch)) exceeds 4x and the tail becomes audibly
+        // granular — widening this needs a different stretcher, not a bigger
+        // constant.
+        let pr = pitch_ratio.clamp(0.5, 2.0);
         let stretch = (speed / pr).clamp(0.1, 10.0) as f64;
         let pitch_shifting = (pr - 1.0).abs() >= 0.002;
 

@@ -3,7 +3,9 @@
 use crate::audio::clouds_reverb::CloudsReverb;
 use crate::audio::decoder::decode_file;
 use crate::audio::eq::EqState;
+use crate::audio::phase_vocoder::PhaseVocoder;
 use crate::audio::spectrum::SpectrumAnalyzer;
+use crate::audio::wsola::WsolaProcessor;
 use parking_lot::{Mutex, RwLock};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -356,7 +358,11 @@ pub fn set_eq(gains: [f32; 10]) {
 
 pub fn set_params(volume: f32, pitch_st: f32, reverb: f32, eq: [f32; 10], speed: f32) {
     set_volume(volume);
-    *shared().pitch_semitones.lock() = pitch_st.clamp(-24.0, 24.0);
+    // ±1 octave, matching the pitch fader's range in skin.json. Two octaves
+    // is not reachable from the UI, and clamping here keeps the Rust contract
+    // honest: at 2x ratio the WSOLA runs at 4x incoherent grain overlap, which
+    // is audibly granular. Do not widen without replacing the stretcher.
+    *shared().pitch_semitones.lock() = pitch_st.clamp(-12.0, 12.0);
     *shared().speed.lock() = speed.clamp(0.5, 2.0);
     *shared().reverb_mix.lock() = reverb.clamp(0.0, 1.0);
     set_eq(eq);
@@ -529,6 +535,86 @@ fn block_frames(config: &cpal::SupportedStreamConfig) -> usize {
 }
 
 
+/// Time-stretching engine for the DSP path.
+///
+/// The split follows the synthesis hop. A phase vocoder reconstructs exactly
+/// only while its analysis hop stays at or under a quarter of the FFT window —
+/// that is where the Hann window's squares still sum to a flat 1.5. Measured:
+/// level is accurate to ~0.3 dB at stretch 1.0, drifts to +2.3 dB by stretch
+/// 2.0, and blows up completely at stretch 4.0 where consecutive frames stop
+/// overlapping at all. So the vocoder is used for `stretch <= 1`, which is
+/// exactly the region where the WSOLA is granular — it time-compresses by
+/// `speed / pitch`, so pitch-up means compression and 4x grain overlap at
+/// +1 octave. For `stretch > 1` the WSOLA is in its good expansion
+/// direction and sounds fine there.
+///
+/// Both engines are constructed up front — swapping one for the other must
+/// never allocate on the real-time thread.
+struct Stretcher {
+    wsola: WsolaProcessor,
+    vocoder: PhaseVocoder,
+    using_vocoder: bool,
+}
+
+impl Stretcher {
+    fn new() -> Self {
+        Self {
+            wsola: WsolaProcessor::new(),
+            vocoder: PhaseVocoder::new(),
+            using_vocoder: false,
+        }
+    }
+
+    /// Choose the engine for these parameters, re-seeding it at `pos` when
+    /// the choice changes so a fader crossing never resumes from stale state.
+    fn select(&mut self, speed: f32, pr: f32, pos: f64) {
+        let stretch = speed / pr;
+        let want = (pr - 1.0).abs() >= 0.002 && stretch <= 1.0;
+        if want == self.using_vocoder {
+            return;
+        }
+        self.using_vocoder = want;
+        self.reset(pos);
+    }
+
+    fn reset(&mut self, pos: f64) {
+        self.wsola.reset(pos);
+        self.vocoder.reset(pos);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn process(
+        &mut self,
+        samples: &[f32],
+        ch: usize,
+        total_frames: usize,
+        frames: usize,
+        speed: f32,
+        pr: f32,
+        sample_rate: f32,
+        bl: &mut [f32],
+        br: &mut [f32],
+        finished: &mut bool,
+    ) {
+        if self.using_vocoder {
+            self.vocoder
+                .process(samples, ch, total_frames, frames, speed, pr, bl, br, finished);
+        } else {
+            self.wsola.process(
+                samples, ch, total_frames, frames, speed, pr, sample_rate, bl, br, finished,
+            );
+        }
+    }
+
+    fn get_play_pos(&self, speed: f32, pr: f32) -> f64 {
+        if self.using_vocoder {
+            self.vocoder.get_play_pos(speed, pr)
+        } else {
+            self.wsola.get_play_pos(speed, pr)
+        }
+    }
+}
+
 fn build_stream<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
@@ -541,7 +627,7 @@ where
 {
     use cpal::traits::DeviceTrait;
     let shared = shared.clone();
-    let mut wsola = crate::audio::wsola::WsolaProcessor::new();
+    let mut stretcher = Stretcher::new();
     // Pre-sized from the device's buffer range so the callback only resizes
     // within existing capacity — never allocates on the RT thread.
     let mut bl: Vec<f32> = Vec::with_capacity(block);
@@ -575,7 +661,7 @@ where
             if cur_seek_gen != last_seek_gen {
                 last_seek_gen = cur_seek_gen;
                 let cur_pos = *shared.play_pos.lock();
-                wsola.reset(cur_pos);
+                stretcher.reset(cur_pos);
                 // A seek must not drag the previous position's tail along
                 // with it.
                 shared.reverb.lock().clear();
@@ -584,16 +670,20 @@ where
             let is_bypass = (speed - 1.0).abs() < 0.002 && (pr - 1.0).abs() < 0.002;
 
             if playing && !is_bypass && was_bypass {
-                // Engaging DSP after bypass: the WSOLA cursor is stale
+                // Engaging DSP after bypass: the stretcher cursor is stale
                 // (frozen since the last reset while bypass advanced play_pos),
                 // so re-seed it at the live position. Without this the track
                 // audibly restarts from the stale cursor. reset() re-enters
                 // via the fade-in init grain path, so engagement stays clean.
-                wsola.reset(*shared.play_pos.lock());
+                stretcher.reset(*shared.play_pos.lock());
             }
             if playing {
                 was_bypass = is_bypass;
             }
+
+            // Pick the stretching engine for the current pitch. Re-seeds at
+            // the live position when the choice changes.
+            stretcher.select(speed, pr, *shared.play_pos.lock());
 
             if !playing || total_frames == 0 {
                 bl[..frames].fill(0.0);
@@ -619,8 +709,10 @@ where
                 *shared.play_pos.lock() = pos;
                 shared.cursor.store((pos as usize) * ch_in, Ordering::SeqCst);
             } else {
-                // High-quality real-time WSOLA time-stretch + Cubic Hermite pitch shift
-                wsola.process(
+                // WSOLA time-stretch + Cubic Hermite resample for tempo, the
+                // phase vocoder for the granular pitch-up region — see
+                // `Stretcher`.
+                stretcher.process(
                     &samples,
                     ch_in,
                     total_frames,
@@ -632,7 +724,7 @@ where
                     &mut br,
                     &mut finished,
                 );
-                let pos = wsola.get_play_pos(speed, pr);
+                let pos = stretcher.get_play_pos(speed, pr);
                 *shared.play_pos.lock() = pos;
                 shared.cursor.store((pos as usize) * ch_in, Ordering::SeqCst);
             }

@@ -19,12 +19,17 @@ Skin (single folder): app/public/sprite/ (skin.json + bg/ ui/ font/ spectrum/ an
 ## Audio
 
 - tempo = OLA time-stretch (speed only)
-- pitch = OLA pitch-shift (tone only)
+- pitch = OLA pitch-shift (tone only), clamped to ±1 octave (matches the fader range in skin.json)
 - then EQ, reverb, volume
 - reverb: dry→wet crossfade of an envelope-normalized tail; 100% fader = full wet at ~dry loudness
 - reverb DSP is a stereo FDN (Dattorro/Griesinger) ported from Mutable Instruments Clouds —
   MIT, © 2014 Emilie Gillet — in `audio/clouds_reverb.rs`; `player.rs::Reverb` only owns the
   mix and the envelopes. Tail length is a fixed `REVERB_TIME`, deliberately NOT tied to the fader.
+- pitch-up runs through a stereo phase vocoder (`audio/phase_vocoder.rs`) because WSOLA
+  time-compression is audibly granular there; stretch > 1 stays on the WSOLA. The engine
+  split lives in `player.rs::Stretcher`. Vocoder invariants: synthesis hop FIXED at n/4
+  (exact WOLA at every ratio), strict identity locking with a -28 dB peak floor, phases
+  seeded from the first signal-bearing frame.
 
 ## Display
 

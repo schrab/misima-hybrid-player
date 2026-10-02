@@ -99,6 +99,34 @@
         "y": 166
       },
       "fps": 3
+    },
+    {
+      "id": "head_left",
+      "image": "anim/head_sheet.png",
+      "grid": {
+        "cols": 8,
+        "rows": 1
+      },
+      "frames": 8,
+      "origin": {
+        "x": 230,
+        "y": 300
+      },
+      "fps": 3
+    },
+    {
+      "id": "head_right",
+      "image": "anim/head_sheet.png",
+      "grid": {
+        "cols": 8,
+        "rows": 1
+      },
+      "frames": 8,
+      "origin": {
+        "x": 1300,
+        "y": 1380
+      },
+      "fps": 3
     }
   ],
   "faders": [
