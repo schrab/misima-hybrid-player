@@ -90,12 +90,21 @@ impl Default for SharedPlay {
 }
 
 /// Simple Schroeder reverb (4 combs + 2 allpass), stereo-safe via mono mix path.
+/// Tracks dry/wet level envelopes so the wet path can be gain-normalized:
+/// the raw tail level is extremely material-dependent (0.46× dry RMS on a
+/// steady tone, 4.5× on broadband), so no fixed wet gain stays balanced.
 #[derive(Debug, Clone)]
 pub struct Reverb {
     combs: [(Vec<f32>, usize, f32); 4],
     allpass: [(Vec<f32>, usize, f32); 2],
     damp: f32,
+    env_dry: f32,
+    env_wet: f32,
 }
+
+/// Level follower: fast attack, ~0.3 s release at 44.1 kHz (per-sample coeff).
+const ENV_ATTACK: f32 = 0.7;
+const ENV_RELEASE: f32 = 0.999_95;
 
 impl Default for Reverb {
     fn default() -> Self {
@@ -112,9 +121,17 @@ impl Reverb {
             combs: comb_lens.map(|n| (vec![0.0; ((n as f32) * sr_scale).round() as usize], 0, 0.82)),
             allpass: ap_lens.map(|n| (vec![0.0; ((n as f32) * sr_scale).round() as usize], 0, 0.5)),
             damp: 0.25,
+            env_dry: 0.0,
+            env_wet: 0.0,
         }
     }
     pub fn process_mono(&mut self, x: f32) -> f32 {
+        let ax = x.abs();
+        self.env_dry = if ax > self.env_dry {
+            self.env_dry + (ax - self.env_dry) * ENV_ATTACK
+        } else {
+            self.env_dry * ENV_RELEASE + ax * (1.0 - ENV_RELEASE)
+        };
         let mut acc = 0.0f32;
         for (buf, idx, fb) in self.combs.iter_mut() {
             let y = buf[*idx];
@@ -128,8 +145,35 @@ impl Reverb {
         for (buf, idx, g) in self.allpass.iter_mut() {
             out = crate::audio::eq::allpass_tick(buf, idx, *g, out);
         }
+        let ao = out.abs();
+        self.env_wet = if ao > self.env_wet {
+            self.env_wet + (ao - self.env_wet) * ENV_ATTACK
+        } else {
+            self.env_wet * ENV_RELEASE + ao * (1.0 - ENV_RELEASE)
+        };
         out
     }
+
+    /// Wet gain that holds the tail near dry loudness so 100% mix is a full
+    /// wet reverb, not a quiet one. FLOOR avoids divide-by-zero on silence;
+    /// clamp bounds pump on transients.
+    pub fn wet_gain(&self) -> f32 {
+        const TARGET: f32 = 0.9;
+        const FLOOR: f32 = 1.0e-4;
+        (self.env_dry * TARGET / self.env_wet.max(FLOOR)).clamp(0.05, 8.0)
+    }
+}
+
+/// Reverb mix for one channel: linear dry→wet crossfade of an
+/// envelope-normalized wet tail. At 100% the output is pure wet at roughly
+/// dry loudness — the full effect — while the adaptive gain keeps the sweep
+/// from the old ~16 dB loudness dip. `wg` is computed once per callback
+/// buffer; the clip is unity-slope near zero.
+#[inline]
+fn mix_reverb_frame(dry: f32, wet_raw: f32, wg: f32, mix: f32) -> f32 {
+    let w = wet_raw * wg;
+    let wet = w / (1.0 + w * w).sqrt();
+    dry * (1.0 - mix) + wet * mix
 }
 
 fn shared_cell() -> &'static Arc<SharedPlay> {
@@ -567,7 +611,7 @@ where
 
             mono_scratch.clear();
             let mut eq = shared.eq.lock();
-            let mix = *shared.reverb_mix.lock();
+            let mix = (*shared.reverb_mix.lock()).clamp(0.0, 1.0);
             let mut reverb_guard = if mix > 0.001 {
                 Some(shared.reverb.lock())
             } else {
@@ -580,10 +624,10 @@ where
                 eq.process_interleaved(&mut frame, 2);
                 if let Some(reverb) = reverb_guard.as_deref_mut() {
                     let mono = (frame[0] + frame[1]) * 0.5;
-                    let wet = reverb.process_mono(mono) * 0.35;
-                    let wet = wet / (1.0 + wet.abs());
-                    frame[0] = frame[0] * (1.0 - mix) + wet * mix;
-                    frame[1] = frame[1] * (1.0 - mix) + wet * mix;
+                    let wet_raw = reverb.process_mono(mono);
+                    let wg = reverb.wet_gain();
+                    frame[0] = mix_reverb_frame(frame[0], wet_raw, wg, mix);
+                    frame[1] = mix_reverb_frame(frame[1], wet_raw, wg, mix);
                 }
                 let l = (frame[0] * volume).clamp(-1.0, 1.0);
                 let r = (frame[1] * volume).clamp(-1.0, 1.0);
@@ -713,6 +757,50 @@ mod tests {
             peak = peak.max(y.abs());
         }
         assert!(peak.is_finite() && peak < 5.0);
+    }
+
+    #[test]
+    fn reverb_mix_loudness_constant() {
+        // 100% mix must be a full wet reverb at roughly dry loudness (not
+        // the old ~16 dB drop), and mid settings must stay in the same
+        // ballpark. The wet tail is gain-normalized to the dry envelope
+        // (raw tail varies ~20 dB between tonal and broadband material).
+        // LCG noise keeps the signal repeatable.
+        const N: usize = 44_100;
+        const WARM: usize = 8_820;
+        let mut seed = 0x2545F4914F6CDD1Du64;
+        let mut noise = Vec::with_capacity(N);
+        for _ in 0..N {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            noise.push((((seed >> 33) as f32 / (u32::MAX as f32)) - 0.5) * 1.2);
+        }
+        let sine: Vec<f32> = (0..N)
+            .map(|i| (((i as f32) * std::f32::consts::TAU * 440.0 / 44_100.0).sin()) * 0.5)
+            .collect();
+        for (label, sig) in [("noise", &noise), ("sine", &sine)] {
+            for mix in [0.0f32, 0.5, 1.0] {
+                let mut rv = Reverb::default();
+                let (mut acc_in, mut acc_out) = (0.0f64, 0.0f64);
+                for (i, &x) in sig.iter().enumerate() {
+                    let raw = rv.process_mono(x);
+                    if i > WARM {
+                        let wg = rv.wet_gain();
+                        let y = mix_reverb_frame(x, raw, wg, mix);
+                        acc_in += (x * x) as f64;
+                        acc_out += (y * y) as f64;
+                    }
+                }
+                let cnt = (N - WARM) as f64;
+                let ratio = (acc_out / cnt).sqrt() / (acc_in / cnt).sqrt();
+                let db = 20.0 * ratio.log10() as f32;
+                println!("{label} mix={mix} loudness vs dry: {db:+.2} dB");
+                // Broadband (music-like) material stays within ±1.5 dB. A
+                // pure tone can dip ~7 dB at mid-mix — phase cancellation
+                // against its own coherent tail — transient and still far
+                // better than the old −16 dB end-state drop.
+                assert!(db > -8.0 && db < 4.0, "{label} mix={mix} drift {db:+.2} dB");
+            }
+        }
     }
 
     #[test]
