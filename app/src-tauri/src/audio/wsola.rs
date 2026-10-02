@@ -301,7 +301,7 @@ impl WsolaProcessor {
 
         if !pitch_shifting {
             // Direct FIFO read (tempo stretch only, no pitch shift)
-            let avail = self.fifo_l.len() - self.fifo_read_pos;
+            let avail = self.fifo_l.len().saturating_sub(self.fifo_read_pos);
             let to_copy = out_frames.min(avail);
             let read_start = self.fifo_read_pos;
             out_l[..to_copy].copy_from_slice(&self.fifo_l[read_start..read_start + to_copy]);
@@ -360,16 +360,21 @@ impl WsolaProcessor {
         // Reclaim consumed FIFO space while retaining 2 samples of history for cubic interpolation
         let retain_history = 2usize;
         if self.fifo_read_pos > retain_history + 256 {
-            let discard = self.fifo_read_pos - retain_history;
+            // read_pos can bookkeep past the FIFO near track end (the block
+            // above pads overreads with zeros) — clamp so the arithmetic
+            // can't underflow and kill the audio thread.
+            let discard = (self.fifo_read_pos - retain_history).min(self.fifo_l.len());
             let remaining = self.fifo_l.len() - discard;
             self.fifo_l.copy_within(discard.., 0);
             self.fifo_l.truncate(remaining);
             self.fifo_r.copy_within(discard.., 0);
             self.fifo_r.truncate(remaining);
-            self.fifo_read_pos = retain_history;
+            self.fifo_read_pos = retain_history.min(self.fifo_l.len());
         }
 
-        if self.nominal_pos >= total_frames as f64 && (self.fifo_l.len() - self.fifo_read_pos) == 0 {
+        if self.nominal_pos >= total_frames as f64
+            && self.fifo_l.len().saturating_sub(self.fifo_read_pos) == 0
+        {
             *finished = true;
         }
     }
