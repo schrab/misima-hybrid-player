@@ -62,6 +62,7 @@ A multiplatform skinnable music player featuring a custom organic sprite-based U
 - **`background.overlays[]`**: still PNG layers composited above the background plate, below all controls (e.g. `bg/UI_highlights.png`). Animated regions are erased from the layer art by the artist; the engine draws overlays unmasked.
 - **`animations[]`**: sprite-sheet loops. Uniform grid (`grid.cols/rows`), real `frames` count (trailing empty cells allowed), `origin` = top-left of frame 0 on the 2× artboard, optional `size` to scale cells in code (omit = native), `fps`, `blend: "screen"` (default — drops solid black sheet backgrounds), `playback: "always" | "on-playing"`.
 - **`visuals.spectrum.bands[].xShift`**: whole-column X nudge (artboard px) applied to every segment of that band at draw time.
+- **Spectrum chip set variations**: bands don't have to share one chip pool — each band's 10 segments can reference any freeform-size chip PNG (`spectrum/chip_*.png`). Current layout cycles three tuned variants across the columns (`chip_1_*` / `chip_2_*` / default `chip_*`). To retune: adjust one band's segment origins, then clone to the others **anchor-relative** (keep each column's own left edge and `xShift`, copy the variant's Y-stack and X jitter). Display energy tilt lives in `BAND_GAIN` (`main.ts`), not in Rust.
 
 ---
 

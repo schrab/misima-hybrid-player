@@ -36,6 +36,7 @@ Playlist row: 2-digit number + up to 6 title glyphs (filename index prefixes str
 - overlays[]: still layers above bg (e.g. UI_highlights.png); artist erases animated areas from the art, engine draws unmasked
 - animations[]: uniform-grid sprite sheets, screen blend (black drops out), origin = frame-0 top-left, fps per entry
 - spectrum bands[].xShift: whole-column X nudge; energies have a display tilt (BAND_GAIN in main.ts) — tune it there, not in Rust
+- spectrum chip sets: bands may use different chip PNG sets (default chip_*, chip_1_*, chip_2_*); currently cycled 1-2-3 across columns. Tune one band, then clone anchor-relative (keep each column's left edge/xShift, copy Y-stack + X jitter)
 
 ## Art
 

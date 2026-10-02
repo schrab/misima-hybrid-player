@@ -103,6 +103,8 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
    - Never reload the webview on DPI/resolution changes (this wipes dynamic UI/FX state). Refit canvas dimensions via `fitPixelPerfect()`.
 4. **Clamping & Visual Feedback**:
    - Spectrum segments light up organically based on energy thresholds (`reveal: 0.0..1.0`). If energy is near zero (`<= 0.01`), do not render idle visualizer noise.
+5. **Per-Band Spectrum Chip Sets**:
+   - Each band may use its own chip set (`spectrum/chip_*.png`, freeform sizes); never normalize bands onto one shared pool. Clone a tuned band's layout anchor-relative: keep every column's own left edge / `xShift`, copy only the variant's Y-stack and per-chip X jitter.
 
 ---
 
