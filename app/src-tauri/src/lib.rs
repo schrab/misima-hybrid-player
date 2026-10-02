@@ -1,4 +1,4 @@
-﻿od audio;
+mod audio;
 mod commands;
 mod playlist;
 mod skin;
