@@ -87,6 +87,9 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
 6. **Stream Ownership (cpal::Stream is !Send + !Sync)**:
    - Only the `misima-stream-owner` thread may create, hold, pause, or drop the output stream. Never move it into shared state or statics.
    - Other threads request `Start` / `Shutdown` via the owner channel (`OWNER_TX`); `shutdown()` waits (bounded, 2 s) for `STREAM_LIVE` to clear so CoreAudio HAL teardown completes before process exit.
+7. **Saturating WSOLA FIFO Arithmetic**:
+   - The WSOLA resampler read position may legally advance past the FIFO length near track end (overreads are zero-padded); all `usize` arithmetic around `fifo_read_pos` must use `saturating_sub` / clamps. An unchecked underflow panics the audio callback thread and silences output (debug builds).
+   - Reverb wet path is envelope-normalized (`Reverb::wet_gain`, level-follower state inside `Reverb`); never replace it with a fixed wet gain — raw tail loudness varies ~20 dB between tonal and broadband material.
 
 ### 3.2 Frontend & UI Compositor Rules
 

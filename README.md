@@ -17,10 +17,11 @@ A multiplatform skinnable music player featuring a custom organic sprite-based U
   - **High-Fidelity WSOLA Time-Stretcher**: Waveform Similarity Overlap-Add with mono-sum cross-correlation phase alignment, preserving natural timbre and stereo coherence without hollow flanging or comb filtering.
   - **Cubic Hermite Pitch-Shifter**: 4-point Catmull-Rom interpolation for smooth, artifact-free pitch adjustments with dynamic 2-pole Butterworth anti-aliasing filter during upward pitch shifts.
   - **10-Band Peaking Equalizer**: High-precision RBJ biquad filters with in-place coefficient updates for click-free adjustment during playback.
-  - **Sample-Rate-Scaled Schroeder Reverb**: 4 comb filters and 2 allpass filters tuned to automatically scale with output hardware sample rates (44.1 kHz, 48 kHz, 96 kHz).
+  - **Sample-Rate-Scaled Schroeder Reverb**: 4 comb filters and 2 allpass filters tuned to automatically scale with output hardware sample rates (44.1 kHz, 48 kHz, 96 kHz). The wet tail is gain-normalized against a dry-signal level follower, so the mix fader sweeps from dry to **full wet at matched loudness** (100% = wet-only) without the volume dips of a naive crossfade.
   - **Master FX Toggle & Reset**: One-click bypass and reset for all effects.
 - **Dynamic Visualizers**:
-  - **Organic Raster Spectrum**: 10-band energy visualizer where bands light up irregularly shaped segment chips rather than standard rectangular bars.
+  - **Organic Raster Spectrum**: 10-band energy visualizer where bands light up irregularly shaped segment chips rather than standard rectangular bars. Band energies get a +3 dB/octave display tilt (low bins carry far more raw energy) and idle noise gating; each band accepts an `xShift` so whole columns can be repositioned with one number.
+  - **Sprite-Sheet Animations**: looping artboard animations sliced from uniform-grid sheets, composited in screen blend mode over the background.
   - **Waveform Echo Scope**: 226-point real-time polyline oscilloscope with an 8-frame fading trail and Hann envelope windowing.
 - **Multi-Format Playback**: Native decoding of MP3, FLAC, WAV, and OGG via Symphonia with interleaved resampler to hardware output rates.
 - **Asynchronous, Glitch-Free Track Switching**: Generation-indexed decode queue (`load_gen`) and DSP buffer flush (`seek_gen`) immediately halt previous playback and eliminate buffer boundary clicks.
@@ -49,13 +50,18 @@ A multiplatform skinnable music player featuring a custom organic sprite-based U
 - **Display Resolution Scaling**: Window resizing dynamically accounts for `window.devicePixelRatio`. DPI changes trigger a canvas refit without page reloads to prevent resetting active audio FX.
 
 ### Layout Reference
-- **Playlist Area**: `(1028, 1490)`, size `378×310`, 10 visible rows with mouse-wheel scrolling.
+- **Playlist Area**: `(1028, 1490)`, size `378×310`, 10 visible rows with mouse-wheel scrolling. Rows read `NN · NAME···· · MM` (2-digit index, up to 6 title glyphs with filename index prefixes stripped, minutes-only duration).
 - **Status Indicator**: `(1153, 1817)`, width `220`.
 - **Echo Scope**: `(911, 180)`, size `226×142`.
 - **Bitmap Font Atlas**:
   - Digits (24×24) at origin `(0, 0)`
-  - Symbols (24×18) at origin `(0, 72)`
+  - Symbols (24×18) at origin `(0, 72)` — note: the symbol band is currently empty art; symbol glyphs render invisible
   - Letters (36×18) at origin `(0, 120)`, rows 0–3
+
+### Skin Layers & Animation (skin.json)
+- **`background.overlays[]`**: still PNG layers composited above the background plate, below all controls (e.g. `bg/UI_highlights.png`). Animated regions are erased from the layer art by the artist; the engine draws overlays unmasked.
+- **`animations[]`**: sprite-sheet loops. Uniform grid (`grid.cols/rows`), real `frames` count (trailing empty cells allowed), `origin` = top-left of frame 0 on the 2× artboard, optional `size` to scale cells in code (omit = native), `fps`, `blend: "screen"` (default — drops solid black sheet backgrounds), `playback: "always" | "on-playing"`.
+- **`visuals.spectrum.bands[].xShift`**: whole-column X nudge (artboard px) applied to every segment of that band at draw time.
 
 ---
 
@@ -80,7 +86,7 @@ Cubic Hermite Resampler + Anti-Alias Lowpass (Pitch: -24.0 – +24.0 st)
 10-Band Peaking Biquad EQ (60 Hz – 16 kHz)
       │
       ▼
-Schroeder Reverb (4 Combs + 2 Allpass, Soft-Clipped Wet Mix)
+Schroeder Reverb (4 Combs + 2 Allpass, Envelope-Normalized Wet, Dry→Wet Crossfade)
       │
       ▼
 Hardware Output Stream (cpal) ──► Spectrum Analyzer (rustfft) ──► Canvas Visuals
@@ -91,6 +97,7 @@ Hardware Output Stream (cpal) ──► Spectrum Analyzer (rustfft) ──► Ca
 2. **Hoisted Mutex Locks**: Mutex locks (`eq`, `reverb`, `reverb_mix`) are acquired once per callback block instead of per-sample, dropping lock contention from ~3,000 acquisitions/buffer to 2.
 3. **Click-Free EQ**: `EqState::set_gains` modifies biquad coefficients in-place while preserving filter delay registers (`z1`, `z2`, `z1r`, `z2r`), preventing pops or clicks when dragging sliders.
 4. **Async Race-Free Loading**: `player::prepare_load()` bumps generation counters (`load_gen`, `seek_gen`) and silences the previous track instantly, ensuring rapid track skips never overlap or stutter.
+5. **Saturating WSOLA FIFO Bookkeeping**: the resampler read position can legally advance past the FIFO length near track end (overreads are padded with zeros); all length arithmetic around `fifo_read_pos` must stay saturating/clamped — an unchecked `usize` underflow here panics the audio callback thread and kills output.
 
 ---
 
@@ -151,7 +158,7 @@ npm run tauri dev
 ### Running Tests
 
 ```bash
-# Execute Rust backend unit and DSP tests (26/26 tests)
+# Execute Rust backend unit and DSP tests (27/27 tests)
 cd app/src-tauri
 cargo test -- --nocapture
 
