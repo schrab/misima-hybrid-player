@@ -131,6 +131,7 @@ let skin: SkinManifestV2;
 let font: BitmapFont | null = null;
 const images = new Map<string, HTMLImageElement>();
 let bg: HTMLImageElement | null = null;
+let bgOverlays: { img: HTMLImageElement; x: number; y: number }[] = [];
 
 const params: AudioParams = {
   volume: 1.0,
@@ -339,6 +340,7 @@ function render(_time: number) {
   ctx.clearRect(0, 0, width, height);
 
   if (bg) ctx.drawImage(bg, skin.background.origin.x, skin.background.origin.y);
+  for (const o of bgOverlays) ctx.drawImage(o.img, o.x, o.y);
 
   if (playing) {
     drawSpectrumSegments(ctx, images, skin.visuals.spectrum.bands, bins);
@@ -597,6 +599,11 @@ async function init() {
   }
 
   bg = await loadImageSafe(resolve(skin.background.image));
+  bgOverlays = [];
+  for (const o of skin.background.overlays ?? []) {
+    const img = await loadImageSafe(resolve(o.image));
+    if (img) bgOverlays.push({ img, x: o.origin.x, y: o.origin.y });
+  }
   // spectrum segments
   for (const band of skin.visuals.spectrum.bands) {
     for (const seg of band.segments) {

@@ -18,7 +18,16 @@
     "size": {
       "w": 1500,
       "h": 2060
-    }
+    },
+    "overlays": [
+      {
+        "image": "bg/UI_highlights.png",
+        "origin": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    ]
   },
   "faders": [
     {

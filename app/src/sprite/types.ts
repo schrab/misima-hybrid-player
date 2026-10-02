@@ -27,6 +27,8 @@ export type BackgroundDef = {
   image: string;
   origin: XY;
   size: Size;
+  /** Still layers composited above `image`, below all controls (artboard coords). */
+  overlays?: { image: string; origin: XY }[];
 };
 
 /** One organic bar piece. Absolute artboard position; may overlap other segments. */
