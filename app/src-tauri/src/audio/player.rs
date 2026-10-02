@@ -364,13 +364,45 @@ pub fn stop() {
     shared.seek_gen.fetch_add(1, Ordering::SeqCst);
 }
 
+/// Clamp a seek time to a frame index inside the loaded buffer.
+/// `None` when there is nothing to seek into (empty buffer or zero rate) —
+/// the caller decides whether that is an error or a no-op.
+fn clamped_frame(secs: f64, sr: f64, total_frames: usize) -> Option<usize> {
+    if sr <= 0.0 || total_frames == 0 {
+        return None;
+    }
+    // One frame of margin: the cursor is consumed as a read index, and the
+    // renderer needs at least one frame left to emit anything.
+    let last = total_frames.saturating_sub(1);
+    let frame = (secs.max(0.0) * sr).round().max(0.0);
+    // `as usize` saturates, so an absurd seek time clamps to `last` too.
+    Some((frame as usize).min(last))
+}
+
+/// Cue target in seconds for `fraction` of a track lasting `dur` seconds.
+/// `None` when there is no track to cue into.
+fn cue_target_secs(fraction: f64, dur: f64) -> Option<f64> {
+    if !dur.is_finite() || dur <= 0.0 {
+        return None;
+    }
+    // Never aim at the very last sample: nothing would be left to render and
+    // the player would look stuck at the end.
+    let max = (dur - 0.05).max(0.0);
+    Some((fraction.clamp(0.0, 0.9) * dur).min(max))
+}
+
 pub fn seek_secs(secs: f64) {
     let shared = shared();
     let sr = shared.sample_rate.load(Ordering::SeqCst) as f64;
-    let frame = secs.max(0.0) * sr;
-    *shared.play_pos.lock() = frame;
     let ch = shared.channels.load(Ordering::SeqCst).max(1);
-    shared.cursor.store((frame as usize) * ch, Ordering::SeqCst);
+    // Drop the samples guard before taking play_pos — never hold two locks.
+    let total_frames = { shared.samples.read().len() / ch };
+    let frame = clamped_frame(secs, sr, total_frames).unwrap_or_else(|| {
+        // Nothing loaded yet: still record the intent, clamped at zero.
+        (secs.max(0.0) * sr).round().max(0.0) as usize
+    });
+    *shared.play_pos.lock() = frame as f64;
+    shared.cursor.store(frame * ch, Ordering::SeqCst);
     shared.ended.store(false, Ordering::SeqCst);
     shared.seek_gen.fetch_add(1, Ordering::SeqCst);
 }
@@ -879,6 +911,36 @@ mod tests {
         let input = vec![0.1, 0.2, 0.3, 0.4];
         let out = resample_interleaved(&input, 2, 44100, 44100);
         assert_eq!(out, input);
+    }
+
+    #[test]
+    fn clamped_frame_clamps_both_ends() {
+        // Negative seeks land at the start.
+        assert_eq!(clamped_frame(-5.0, 100.0, 1000), Some(0));
+        // In-range seek is unchanged.
+        assert_eq!(clamped_frame(2.0, 100.0, 1000), Some(200));
+        // Past the end clamps to the last frame, never beyond the buffer.
+        assert_eq!(clamped_frame(99.0, 100.0, 1000), Some(999));
+        // Nothing loaded / no rate: the caller decides what that means.
+        assert_eq!(clamped_frame(2.0, 0.0, 1000), None);
+        assert_eq!(clamped_frame(2.0, 100.0, 0), None);
+    }
+
+    #[test]
+    fn cue_target_secs_maps_fraction_and_clamps() {
+        // 40% of a 100 s track.
+        assert_eq!(cue_target_secs(0.4, 100.0), Some(40.0));
+        // 0 restarts the track.
+        assert_eq!(cue_target_secs(0.0, 100.0), Some(0.0));
+        // The fraction is clamped at 0.9 even if a caller asks for more.
+        assert_eq!(cue_target_secs(1.0, 100.0), Some(90.0));
+        assert_eq!(cue_target_secs(0.95, 100.0), Some(90.0));
+        // The 50 ms end back-off only shows up close to the end of a track.
+        assert!((cue_target_secs(0.9, 10.0).unwrap() - 9.0).abs() < 1e-9);
+        assert_eq!(cue_target_secs(0.9, 0.03), Some(0.0));
+        // No track loaded.
+        assert_eq!(cue_target_secs(0.5, 0.0), None);
+        assert_eq!(cue_target_secs(0.5, f64::NAN), None);
     }
 
     #[test]
