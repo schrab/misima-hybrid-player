@@ -455,6 +455,50 @@ pub fn position_secs() -> f64 {
     pos / sr
 }
 
+/// Length of the loaded track in seconds, from the decoded buffer.
+/// 0.0 when nothing is loaded. Read from the real buffer rather than the
+/// playlist's `mm:ss` string, which is a display hint and minutes-only.
+pub fn duration_secs() -> f64 {
+    let shared = shared();
+    let sr = shared.sample_rate.load(Ordering::SeqCst) as f64;
+    if sr <= 0.0 {
+        return 0.0;
+    }
+    let ch = shared.channels.load(Ordering::SeqCst).max(1);
+    let frames = { shared.samples.read().len() / ch };
+    frames as f64 / sr
+}
+
+/// Cue to `fraction` (clamped to 0.0..=0.9) of the loaded track, starting
+/// playback if the player was paused. Returns the target position in
+/// seconds, or -1.0 when nothing is loaded.
+pub fn cue_fraction(fraction: f64) -> f64 {
+    let target = match cue_target_secs(fraction, duration_secs()) {
+        Some(t) => t,
+        None => return -1.0,
+    };
+    let shared = shared();
+    let was_playing = shared.playing.load(Ordering::SeqCst);
+    // seek_secs bumps seek_gen, which flushes the WSOLA/vocoder tail — a cue
+    // must not drag the previous position's sound along with it.
+    seek_secs(target);
+    if !was_playing {
+        play();
+    }
+    target
+}
+
+/// Flip between playing and paused, returning the new playing state.
+pub fn toggle_play() -> bool {
+    if shared().playing.load(Ordering::SeqCst) {
+        pause();
+        false
+    } else {
+        play();
+        true
+    }
+}
+
 pub fn take_ended() -> bool {
     shared().ended.swap(false, Ordering::SeqCst)
 }
@@ -941,6 +985,31 @@ mod tests {
         // No track loaded.
         assert_eq!(cue_target_secs(0.5, 0.0), None);
         assert_eq!(cue_target_secs(0.5, f64::NAN), None);
+    }
+
+    #[test]
+    fn cue_fraction_moves_playhead_and_starts_playback() {
+        let shared = shared();
+        // 100 s stereo track at whatever rate the shared state is using.
+        let sr = shared.sample_rate.load(Ordering::SeqCst).max(1);
+        {
+            let mut buf = shared.samples.write();
+            *buf = vec![0.0; 100 * sr * 2];
+        }
+        shared.channels.store(2, Ordering::SeqCst);
+        shared.playing.store(false, Ordering::SeqCst);
+        shared.ended.store(false, Ordering::SeqCst);
+        *shared.play_pos.lock() = 0.0;
+        shared.cursor.store(0, Ordering::SeqCst);
+
+        let target = cue_fraction(0.4);
+        assert!((target - 40.0).abs() < 0.001, "target was {target}");
+        assert!((position_secs() - 40.0).abs() < 0.001);
+        assert!(
+            shared.playing.load(Ordering::SeqCst),
+            "cue should start playback"
+        );
+        stop();
     }
 
     #[test]
