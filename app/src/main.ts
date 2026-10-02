@@ -6,7 +6,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { AudioParams, FaderDef, PlaylistRow, SkinManifestV2 } from "./sprite/types";
+import type {
+  AudioParams,
+  FaderDef,
+  PlaylistRow,
+  SkinAnimDef,
+  SkinManifestV2,
+} from "./sprite/types";
 import {
   canvasPointFrom,
   faderHit,
@@ -132,6 +138,7 @@ let font: BitmapFont | null = null;
 const images = new Map<string, HTMLImageElement>();
 let bg: HTMLImageElement | null = null;
 let bgOverlays: { img: HTMLImageElement; x: number; y: number }[] = [];
+let anims: { def: SkinAnimDef; img: HTMLImageElement; cw: number; ch: number; start: number }[] = [];
 
 const params: AudioParams = {
   volume: 1.0,
@@ -335,12 +342,45 @@ function drawEchoScope(ctx: CanvasRenderingContext2D) {
   ctx.restore();
 }
 
+/** Sprite-sheet frames: slice current cell, screen-blend drops solid black. */
+function drawAnimations() {
+  if (anims.length === 0) return;
+  const now = performance.now();
+  for (const a of anims) {
+    if (a.def.playback === "on-playing" && !playing) continue;
+    const fps = a.def.fps ?? 8;
+    const frames = Math.max(1, a.def.frames);
+    const idx = Math.floor(((now - a.start) / 1000) * fps) % frames;
+    const col = idx % a.def.grid.cols;
+    const row = Math.floor(idx / a.def.grid.cols);
+    const sw = a.cw;
+    const sh = a.ch;
+    const dw = a.def.size?.w ?? sw;
+    const dh = a.def.size?.h ?? sh;
+    ctx.save();
+    if ((a.def.blend ?? "screen") === "screen") ctx.globalCompositeOperation = "screen";
+    ctx.drawImage(
+      a.img,
+      col * sw,
+      row * sh,
+      sw,
+      sh,
+      a.def.origin.x,
+      a.def.origin.y,
+      dw,
+      dh,
+    );
+    ctx.restore();
+  }
+}
+
 function render(_time: number) {
   const { width, height } = skin.canvas;
   ctx.clearRect(0, 0, width, height);
 
   if (bg) ctx.drawImage(bg, skin.background.origin.x, skin.background.origin.y);
   for (const o of bgOverlays) ctx.drawImage(o.img, o.x, o.y);
+  drawAnimations();
 
   if (playing) {
     drawSpectrumSegments(ctx, images, skin.visuals.spectrum.bands, bins);
@@ -599,6 +639,23 @@ async function init() {
   }
 
   bg = await loadImageSafe(resolve(skin.background.image));
+
+  // Sprite-sheet animations (uniform grid, solid black BG → screen blend).
+  anims = [];
+  for (const def of skin.animations ?? []) {
+    const img = await loadImageSafe(resolve(def.image));
+    if (!img) continue;
+    anims.push({
+      def,
+      img,
+      cw: Math.floor(img.width / def.grid.cols),
+      ch: Math.floor(img.height / def.grid.rows),
+      start: performance.now(),
+    });
+  }
+
+  // Still highlight overlays are drawn as-is; the artist erases animated
+  // regions from the layer in the PSD, so no engine-side masking.
   bgOverlays = [];
   for (const o of skin.background.overlays ?? []) {
     const img = await loadImageSafe(resolve(o.image));

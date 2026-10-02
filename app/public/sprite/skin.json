@@ -29,6 +29,48 @@
       }
     ]
   },
+  "animations": [
+    {
+      "id": "ring",
+      "image": "anim/ring_sheet.png",
+      "grid": { "cols": 3, "rows": 2 },
+      "frames": 6,
+      "origin": { "x": 107, "y": 804 },
+      "fps": 5
+    },
+    {
+      "id": "form",
+      "image": "anim/form_sheet.png",
+      "grid": { "cols": 3, "rows": 3 },
+      "frames": 9,
+      "origin": { "x": 860, "y": 373 },
+      "fps": 5
+    },
+    {
+      "id": "blob",
+      "image": "anim/blob_sheet.png",
+      "grid": { "cols": 3, "rows": 3 },
+      "frames": 8,
+      "origin": { "x": 1227, "y": 1841 },
+      "fps": 5
+    },
+    {
+      "id": "cones",
+      "image": "anim/cones_sheet.png",
+      "grid": { "cols": 5, "rows": 1 },
+      "frames": 5,
+      "origin": { "x": 996, "y": 1379 },
+      "fps": 5
+    },
+    {
+      "id": "dna",
+      "image": "anim/dna_sheet.png",
+      "grid": { "cols": 3, "rows": 2 },
+      "frames": 6,
+      "origin": { "x": 1248, "y": 166 },
+      "fps": 5
+    }
+  ],
   "faders": [
     {
       "id": "volume",

@@ -78,6 +78,24 @@ export type FontSpec = {
   fallback: string;
 };
 
+/** One sprite-sheet animation: uniform grid of frames on solid black. */
+export type SkinAnimDef = {
+  id: string;
+  image: string;
+  grid: { cols: number; rows: number };
+  /** Real frame count — may be < cols*rows; trailing cells are empty. */
+  frames: number;
+  /** Top-left of frame 0 on the artboard (2x px). */
+  origin: XY;
+  /** Dest size; omit to draw cells at native sheet scale. */
+  size?: Size;
+  fps?: number;
+  /** Composite mode; "screen" (default) drops the solid black sheet BG. */
+  blend?: "screen" | "source-over";
+  /** "always" (default) or only while a track is playing. */
+  playback?: "always" | "on-playing";
+};
+
 export type SkinManifestV2 = {
   formatVersion: 2;
   id: string;
@@ -86,6 +104,7 @@ export type SkinManifestV2 = {
   canvas: { width: number; height: number; scale?: number };
   background: BackgroundDef;
   blocks?: Record<string, BackgroundDef>;
+  animations?: SkinAnimDef[];
   faders: FaderDef[];
   buttons: ButtonDef[];
   visuals: {
