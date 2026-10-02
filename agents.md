@@ -35,7 +35,7 @@ Misima Hybrid Player is a high-performance, skinnable, multiplatform (Windows, m
 │      2) WSOLA Time-Stretch (phase-aligned similarity OLA)               │
 │      3) Cubic Hermite Pitch-Shift + Dynamic anti-aliasing lowpass       │
 │      4) 10-Band Peaking EQ (RBJ biquad filters, seamless updates)      │
-│      5) Schroeder Reverb (4 comb + 2 allpass, sample-rate scaled)      │
+│      5) Stereo FDN Reverb (Dattorro/Griesinger, Clouds port)            │
 │      6) Output soft-clipping & master volume attenuation               │
 │  - Real-time Visualizer Taps:                                          │
 │      * rustfft 1024-point FFT analyzer → 48 log-spaced energy bins     │
@@ -79,7 +79,8 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
    - When updating DSP parameters (such as EQ gains or volume), update the filter coefficients in-place.
    - **Never wipe delay-line registers (`z1`, `z2`, `z1r`, `z2r`)** during gain adjustments. Doing so causes sharp discontinuities (clicks and pops).
 4. **Sample-Rate Scaling**:
-   - Reverb delay lines (comb filter lengths and allpass buffers) must scale proportionally with `device_sample_rate / 44,100.0`. Never assume fixed 44.1 kHz.
+   - Reverb delay lengths must scale proportionally with `device_sample_rate / 32,000.0` (the rate Clouds' table is written for). Never assume a fixed rate.
+   - Scale the delay-line **offsets as well as the lengths**. `clouds_reverb::layout()` recomputes both per rate; leaving offsets at their 32 kHz positions while lengths grow makes `del1` overrun `del2`, and the loop diverges.
 5. **Asynchronous Load & Race-Free Track Changing**:
    - Always call `player::prepare_load()` on the caller thread before initiating a background decode.
    - `prepare_load()` immediately stops previous audio and increments `load_gen`.
@@ -89,7 +90,12 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
    - Other threads request `Start` / `Shutdown` via the owner channel (`OWNER_TX`); `shutdown()` waits (bounded, 2 s) for `STREAM_LIVE` to clear so CoreAudio HAL teardown completes before process exit.
 7. **Saturating WSOLA FIFO Arithmetic**:
    - The WSOLA resampler read position may legally advance past the FIFO length near track end (overreads are zero-padded); all `usize` arithmetic around `fifo_read_pos` must use `saturating_sub` / clamps. An unchecked underflow panics the audio callback thread and silences output (debug builds).
+8. **Envelope-Normalized Reverb Wet**:
    - Reverb wet path is envelope-normalized (`Reverb::wet_gain`, level-follower state inside `Reverb`); never replace it with a fixed wet gain — raw tail loudness varies ~20 dB between tonal and broadband material.
+   - `TARGET` in `wet_gain()` sits above 1.0 because `mix_reverb_frame`'s `w/√(1+w²)` soft clip costs ~3 dB at `w = 1`; the envelope has to aim above unity to land on the dry level.
+9. **Reverb Loop Gain**:
+   - `CloudsReverb::write` stores the accumulator **unscaled** and returns it scaled; the scale applies to the running accumulator only. Scaling the stored sample as well doubles the feedback gain and diverges the loop to NaN.
+   - `REVERB_TIME` (loop gain) sets the tail's RT60 and has a stability cliff: ~0.6 is the practical ceiling, 0.65 already rings for 10 s, and past 0.9 the loop builds up instead of decaying. The original caps its internal reverb amount at 0.54 so `krt` never exceeds 0.69 — do not map a 0..1 fader onto `0.35 + 0.63 * amount` (that reaches 0.98 and diverges). `tail_decays_in_a_musical_time` guards this.
 
 ### 3.2 Frontend & UI Compositor Rules
 
@@ -183,9 +189,10 @@ misima-hybrid-player/
 │           ├── playlist.rs     # Playlist state, track metadata, and reordering
 │           ├── skin.rs         # Skin zip archive parser and validator
 │           └── audio/          # Real-time audio engine
+│               ├── clouds_reverb.rs # Stereo FDN reverb (Clouds port, MIT © Emilie Gillet)
 │               ├── decoder.rs  # Symphonia multi-format audio decoder
 │               ├── eq.rs       # 10-band peaking biquad EQ & anti-aliasing lowpass
-│               ├── player.rs   # Playback state, cpal audio callback, Reverb
+│               ├── player.rs   # Playback state, cpal audio callback, Reverb mix policy
 │               ├── spectrum.rs # FFT spectrum analyzer (rustfft)
 │               └── wsola.rs    # Real-time WSOLA time-stretcher & Cubic Hermite pitch-shifter
 ```

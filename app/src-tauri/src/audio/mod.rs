@@ -1,3 +1,4 @@
+pub mod clouds_reverb;
 pub mod decoder;
 pub mod eq;
 pub mod player;

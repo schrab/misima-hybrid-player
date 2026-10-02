@@ -17,7 +17,7 @@ A multiplatform skinnable music player featuring a custom organic sprite-based U
   - **High-Fidelity WSOLA Time-Stretcher**: Waveform Similarity Overlap-Add with mono-sum cross-correlation phase alignment, preserving natural timbre and stereo coherence without hollow flanging or comb filtering.
   - **Cubic Hermite Pitch-Shifter**: 4-point Catmull-Rom interpolation for smooth, artifact-free pitch adjustments with dynamic 2-pole Butterworth anti-aliasing filter during upward pitch shifts.
   - **10-Band Peaking Equalizer**: High-precision RBJ biquad filters with in-place coefficient updates for click-free adjustment during playback.
-  - **Sample-Rate-Scaled Schroeder Reverb**: 4 comb filters and 2 allpass filters tuned to automatically scale with output hardware sample rates (44.1 kHz, 48 kHz, 96 kHz). The wet tail is gain-normalized against a dry-signal level follower, so the mix fader sweeps from dry to **full wet at matched loudness** (100% = wet-only) without the volume dips of a naive crossfade.
+  - **Stereo Feedback-Delay Reverb**: Dattorro/Griesinger topology ported from [Mutable Instruments Clouds](https://github.com/pichenettes/eurorack) (MIT, © 2014 Emilie Gillet) — four allpass input diffusers feeding two cross-coupled feedback loops, with slow LFO modulation on the first diffuser and on the long delays for shimmer. The two output taps decorrelate, so the tail has real stereo width instead of the dead-centre image a mono Schroeder tail gives. `f32` delay storage, with the delay-line layout recomputed per sample rate (44.1 kHz, 48 kHz, 96 kHz). The wet tail is gain-normalized against a dry-signal level follower, so the mix fader sweeps from dry to **full wet at matched loudness** (100% = wet-only) without the volume dips of a naive crossfade.
   - **Master FX Toggle & Reset**: One-click bypass and reset for all effects.
 - **Dynamic Visualizers**:
   - **Organic Raster Spectrum**: 10-band energy visualizer where bands light up irregularly shaped segment chips rather than standard rectangular bars. Band energies get a +3 dB/octave display tilt (low bins carry far more raw energy) and idle noise gating; each band accepts an `xShift` so whole columns can be repositioned with one number.
@@ -37,7 +37,7 @@ A multiplatform skinnable music player featuring a custom organic sprite-based U
 | **Backend Core** | Rust 2021 | Audio pipeline, multi-format decoding, real-time DSP, IPC command handlers |
 | **Audio I/O** | [cpal](https://crates.io/crates/cpal) | Cross-platform hardware audio stream management |
 | **Audio Decoding** | [Symphonia](https://crates.io/crates/symphonia) | Pure-Rust decoding for MP3, FLAC, WAV, OGG/Vorbis, PCM |
-| **DSP & Analysis** | [rustfft](https://crates.io/crates/rustfft), custom biquads | 1024-point FFT spectrum analysis, 10-band peaking EQ, Schroeder reverb |
+| **DSP & Analysis** | [rustfft](https://crates.io/crates/rustfft), custom biquads | 1024-point FFT spectrum analysis, 10-band peaking EQ, Clouds-style feedback-delay reverb |
 | **Frontend UI** | TypeScript, Canvas 2D, Vite | 60 FPS sprite compositor, bitmap glyph font, pointer capture fader math |
 
 ---
@@ -87,7 +87,7 @@ Cubic Hermite Resampler + Anti-Alias Lowpass (Pitch: -24.0 – +24.0 st)
 10-Band Peaking Biquad EQ (60 Hz – 16 kHz)
       │
       ▼
-Schroeder Reverb (4 Combs + 2 Allpass, Envelope-Normalized Wet, Dry→Wet Crossfade)
+Clouds-Style Stereo Reverb (FDN, Modulated, Envelope-Normalized Wet, Dry→Wet Crossfade)
       │
       ▼
 Hardware Output Stream (cpal) ──► Spectrum Analyzer (rustfft) ──► Canvas Visuals

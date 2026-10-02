@@ -167,16 +167,6 @@ impl EqState {
     }
 }
 
-/// Standard Schroeder allpass: y = -g*x + d;  d' = x + g*y
-#[inline]
-pub fn allpass_tick(buf: &mut [f32], idx: &mut usize, g: f32, x: f32) -> f32 {
-    let bufout = buf[*idx];
-    let y = -g * x + bufout;
-    buf[*idx] = x + g * y;
-    *idx = (*idx + 1) % buf.len();
-    y
-}
-
 /// RMS energy helper used by tests.
 #[allow(dead_code)]
 pub fn rms(data: &[f32]) -> f32 {
@@ -189,6 +179,18 @@ pub fn rms(data: &[f32]) -> f32 {
 
 #[cfg(test)]
 mod tests {
+    /// Standard Schroeder allpass: y = -g*x + d;  d' = x + g*y.
+    /// Reference implementation — the reverb no longer uses a delay-line
+    /// allpass, but this still pins the topology's pulse behaviour.
+    #[inline]
+    fn allpass_tick(buf: &mut [f32], idx: &mut usize, g: f32, x: f32) -> f32 {
+        let bufout = buf[*idx];
+        let y = -g * x + bufout;
+        buf[*idx] = x + g * y;
+        *idx = (*idx + 1) % buf.len();
+        y
+    }
+
     use super::*;
 
     fn sine(freq: f32, sr: f32, n: usize) -> Vec<f32> {

@@ -11,8 +11,10 @@ Skin (single folder): app/public/sprite/ (skin.json + bg/ ui/ font/ spectrum/ an
 3. Add a second skin folder (app/public/sprite is the only copy; dist/ is build output only)
 4. Reload page on DPI change (resets EQ)
 5. Mix up pitch vs tempo (they are independent)
-6. Put fixed gain on the reverb wet path (raw tail varies ~20 dB by material — it is envelope-normalized, see agents.md §3.1.7)
+6. Put fixed gain on the reverb wet path (raw tail varies ~20 dB by material — it is envelope-normalized, see agents.md §3.1.8)
 7. Use unchecked usize subtraction around WSOLA fifo_read_pos (underflow kills the audio thread)
+8. Scale reverb delay offsets as well as lengths when changing sample rate (agents.md §3.1.4)
+9. Map the reverb fader onto loop gain as `0.35 + 0.63 * amount` (reaches 0.98, diverges the loop — agents.md §3.1.9)
 
 ## Audio
 
@@ -20,6 +22,9 @@ Skin (single folder): app/public/sprite/ (skin.json + bg/ ui/ font/ spectrum/ an
 - pitch = OLA pitch-shift (tone only)
 - then EQ, reverb, volume
 - reverb: dry→wet crossfade of an envelope-normalized tail; 100% fader = full wet at ~dry loudness
+- reverb DSP is a stereo FDN (Dattorro/Griesinger) ported from Mutable Instruments Clouds —
+  MIT, © 2014 Emilie Gillet — in `audio/clouds_reverb.rs`; `player.rs::Reverb` only owns the
+  mix and the envelopes. Tail length is a fixed `REVERB_TIME`, deliberately NOT tied to the fader.
 
 ## Display
 

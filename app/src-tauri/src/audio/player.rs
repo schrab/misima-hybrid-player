@@ -1,5 +1,6 @@
 //! Playback engine: cpal output + EQ + spectrum tap.
 
+use crate::audio::clouds_reverb::CloudsReverb;
 use crate::audio::decoder::decode_file;
 use crate::audio::eq::EqState;
 use crate::audio::spectrum::SpectrumAnalyzer;
@@ -89,15 +90,19 @@ impl Default for SharedPlay {
     }
 }
 
-/// Simple Schroeder reverb (4 combs + 2 allpass), stereo-safe via mono mix path.
-/// Tracks dry/wet level envelopes so the wet path can be gain-normalized:
-/// the raw tail level is extremely material-dependent (0.46× dry RMS on a
-/// steady tone, 4.5× on broadband), so no fixed wet gain stays balanced.
-#[derive(Debug, Clone)]
+/// Stereo feedback-delay reverb, with the loudness policy that sits in front
+/// of it. The DSP graph itself is `CloudsReverb` (Mutable Instruments
+/// Clouds, MIT, Copyright 2014 Emilie Gillet — ported in
+/// `audio/clouds_reverb.rs`); this wrapper owns the dry/wet balance and the
+/// level envelopes that gain-normalise the tail.
+///
+/// The envelopes exist because the raw tail level is extremely
+/// material-dependent: 0.46x dry RMS on a steady tone, 4.5x on broadband, so
+/// no fixed wet gain stays balanced.
+#[derive(Debug)]
 pub struct Reverb {
-    combs: [(Vec<f32>, usize, f32); 4],
-    allpass: [(Vec<f32>, usize, f32); 2],
-    damp: f32,
+    inner: CloudsReverb,
+    mix: f32,
     env_dry: f32,
     env_wet: f32,
 }
@@ -114,53 +119,73 @@ impl Default for Reverb {
 
 impl Reverb {
     pub fn new(sample_rate: f32) -> Self {
-        let sr_scale = (sample_rate / 44_100.0).max(0.5);
-        let comb_lens = [1557, 1617, 1491, 1422];
-        let ap_lens = [225, 556];
+        let mut inner = CloudsReverb::new(sample_rate);
+        // The voice, in one place. Diffusion is tail density (higher is
+        // denser and rings longer), `lp` is damping in the feedback loops
+        // (higher is darker and decays faster), and input gain feeds the
+        // diffuser bank. These are the original's defaults.
+        inner.set_diffusion(0.625);
+        inner.set_lp(0.7);
+        inner.set_input_gain(0.2);
         Self {
-            combs: comb_lens.map(|n| (vec![0.0; ((n as f32) * sr_scale).round() as usize], 0, 0.82)),
-            allpass: ap_lens.map(|n| (vec![0.0; ((n as f32) * sr_scale).round() as usize], 0, 0.5)),
-            damp: 0.25,
+            inner,
+            mix: 0.0,
             env_dry: 0.0,
             env_wet: 0.0,
         }
     }
-    pub fn process_mono(&mut self, x: f32) -> f32 {
-        let ax = x.abs();
-        self.env_dry = if ax > self.env_dry {
-            self.env_dry + (ax - self.env_dry) * ENV_ATTACK
-        } else {
-            self.env_dry * ENV_RELEASE + ax * (1.0 - ENV_RELEASE)
-        };
-        let mut acc = 0.0f32;
-        for (buf, idx, fb) in self.combs.iter_mut() {
-            let y = buf[*idx];
-            acc += y;
-            let mut store = y * (1.0 - self.damp) + buf[(*idx + buf.len() - 1) % buf.len()] * self.damp;
-            store = store * *fb + x;
-            buf[*idx] = store.clamp(-2.0, 2.0);
-            *idx = (*idx + 1) % buf.len();
-        }
-        let mut out = acc * 0.25;
-        for (buf, idx, g) in self.allpass.iter_mut() {
-            out = crate::audio::eq::allpass_tick(buf, idx, *g, out);
-        }
-        let ao = out.abs();
-        self.env_wet = if ao > self.env_wet {
-            self.env_wet + (ao - self.env_wet) * ENV_ATTACK
-        } else {
-            self.env_wet * ENV_RELEASE + ao * (1.0 - ENV_RELEASE)
-        };
-        out
+
+    /// Wet/dry balance, 0..1, from the reverb fader.
+    pub fn set_mix(&mut self, mix: f32) {
+        self.mix = mix.clamp(0.0, 1.0);
+    }
+
+    /// Drop the tail — used on seek and track load so the previous track's
+    /// reverb does not bleed into the new one.
+    pub fn clear(&mut self) {
+        self.inner.clear();
+        self.env_wet = 0.0;
+    }
+
+    /// Run one stereo frame through the reverb and the dry/wet balance.
+    #[inline]
+    pub fn process(&mut self, frame: &mut [f32; 2]) {
+        let dry_l = frame[0];
+        let dry_r = frame[1];
+        self.env_dry = follow(self.env_dry, (dry_l + dry_r) * 0.5);
+
+        let [wet_l, wet_r] = self.inner.process([dry_l, dry_r]);
+        // Follow the louder tail channel: the two loops are symmetric, so the
+        // peak is the pair's shared level and neither channel gets pulled down.
+        self.env_wet = follow(self.env_wet, wet_l.abs().max(wet_r.abs()));
+
+        let wg = self.wet_gain();
+        frame[0] = mix_reverb_frame(dry_l, wet_l, wg, self.mix);
+        frame[1] = mix_reverb_frame(dry_r, wet_r, wg, self.mix);
     }
 
     /// Wet gain that holds the tail near dry loudness so 100% mix is a full
     /// wet reverb, not a quiet one. FLOOR avoids divide-by-zero on silence;
     /// clamp bounds pump on transients.
+    ///
+    /// TARGET sits above 1 because `mix_reverb_frame` soft-clips the tail by
+    /// `w / sqrt(1 + w^2)`, which costs about 3 dB at w = 1 — so the envelope
+    /// has to aim higher to land on the dry level. Measured on broadband
+    /// material the wet comes out +0.1 dB at half mix, +1.3 dB at full.
     pub fn wet_gain(&self) -> f32 {
-        const TARGET: f32 = 0.9;
+        const TARGET: f32 = 1.8;
         const FLOOR: f32 = 1.0e-4;
         (self.env_dry * TARGET / self.env_wet.max(FLOOR)).clamp(0.05, 8.0)
+    }
+}
+
+#[inline]
+fn follow(env: f32, x: f32) -> f32 {
+    let ax = x.abs();
+    if ax > env {
+        env + (ax - env) * ENV_ATTACK
+    } else {
+        env * ENV_RELEASE + ax * (1.0 - ENV_RELEASE)
     }
 }
 
@@ -551,6 +576,9 @@ where
                 last_seek_gen = cur_seek_gen;
                 let cur_pos = *shared.play_pos.lock();
                 wsola.reset(cur_pos);
+                // A seek must not drag the previous position's tail along
+                // with it.
+                shared.reverb.lock().clear();
             }
 
             let is_bypass = (speed - 1.0).abs() < 0.002 && (pr - 1.0).abs() < 0.002;
@@ -613,7 +641,9 @@ where
             let mut eq = shared.eq.lock();
             let mix = (*shared.reverb_mix.lock()).clamp(0.0, 1.0);
             let mut reverb_guard = if mix > 0.001 {
-                Some(shared.reverb.lock())
+                let mut guard = shared.reverb.lock();
+                guard.set_mix(mix);
+                Some(guard)
             } else {
                 None
             };
@@ -623,11 +653,7 @@ where
                 mono_scratch.push((frame[0] + frame[1]) * 0.5);
                 eq.process_interleaved(&mut frame, 2);
                 if let Some(reverb) = reverb_guard.as_deref_mut() {
-                    let mono = (frame[0] + frame[1]) * 0.5;
-                    let wet_raw = reverb.process_mono(mono);
-                    let wg = reverb.wet_gain();
-                    frame[0] = mix_reverb_frame(frame[0], wet_raw, wg, mix);
-                    frame[1] = mix_reverb_frame(frame[1], wet_raw, wg, mix);
+                    reverb.process(&mut frame);
                 }
                 let l = (frame[0] * volume).clamp(-1.0, 1.0);
                 let r = (frame[1] * volume).clamp(-1.0, 1.0);
@@ -751,10 +777,10 @@ mod tests {
     fn reverb_dry_ish_stability() {
         let mut rv = Reverb::default();
         let mut peak = 0.0f32;
-        for i in 0..2000 {
-            let x = if i < 50 { 1.0 } else { 0.0 };
-            let y = rv.process_mono(x);
-            peak = peak.max(y.abs());
+        for i in 0..8_000 {
+            let mut frame = [if i < 50 { 1.0 } else { 0.0 }; 2];
+            rv.process(&mut frame);
+            peak = peak.max(frame[0].abs()).max(frame[1].abs());
         }
         assert!(peak.is_finite() && peak < 5.0);
     }
@@ -780,25 +806,28 @@ mod tests {
         for (label, sig) in [("noise", &noise), ("sine", &sine)] {
             for mix in [0.0f32, 0.5, 1.0] {
                 let mut rv = Reverb::default();
+                rv.set_mix(mix);
                 let (mut acc_in, mut acc_out) = (0.0f64, 0.0f64);
                 for (i, &x) in sig.iter().enumerate() {
-                    let raw = rv.process_mono(x);
+                    let mut frame = [x, x];
+                    rv.process(&mut frame);
                     if i > WARM {
-                        let wg = rv.wet_gain();
-                        let y = mix_reverb_frame(x, raw, wg, mix);
-                        acc_in += (x * x) as f64;
-                        acc_out += (y * y) as f64;
+                        // Output is summed over both channels, so the dry
+                        // reference has to be as well — otherwise mix=0 reads
+                        // +3 dB purely from the channel count.
+                        acc_in += 2.0 * (x * x) as f64;
+                        acc_out += (frame[0] * frame[0]) as f64 + (frame[1] * frame[1]) as f64;
                     }
                 }
-                let cnt = (N - WARM) as f64;
+                let cnt = ((N - WARM) * 2) as f64;
                 let ratio = (acc_out / cnt).sqrt() / (acc_in / cnt).sqrt();
                 let db = 20.0 * ratio.log10() as f32;
                 println!("{label} mix={mix} loudness vs dry: {db:+.2} dB");
-                // Broadband (music-like) material stays within ±1.5 dB. A
-                // pure tone can dip ~7 dB at mid-mix — phase cancellation
-                // against its own coherent tail — transient and still far
-                // better than the old −16 dB end-state drop.
-                assert!(db > -8.0 && db < 4.0, "{label} mix={mix} drift {db:+.2} dB");
+                // Broadband (music-like) material must land within ±2 dB of
+                // dry, so pushing the fader changes the character and not the
+                // level. A pure tone can dip a few dB at mid-mix — phase
+                // cancellation against its own coherent tail.
+                assert!(db > -4.0 && db < 4.0, "{label} mix={mix} drift {db:+.2} dB");
             }
         }
     }
