@@ -167,6 +167,8 @@ misima-hybrid-player/
 │   │       ├── spectrumLayout.ts # Organic spectrum segment stacker
 │   │       ├── types.ts        # Skin and layout TypeScript interfaces
 │   │       └── visuals.ts      # Spectrum segments and waterfall drawing
+│   ├── public/sprite/          # THE skin folder (single source of truth):
+│   │                           #   skin.json + bg/ ui/ font/ spectrum/ anim/
 │   └── src-tauri/              # Rust backend core
 │       ├── Cargo.toml          # Rust dependencies (cpal, symphonia, rustfft, tauri)
 │       ├── tauri.conf.json     # Window, bundle, and capability configuration
@@ -181,5 +183,4 @@ misima-hybrid-player/
 │               ├── player.rs   # Playback state, cpal audio callback, Reverb
 │               ├── spectrum.rs # FFT spectrum analyzer (rustfft)
 │               └── wsola.rs    # Real-time WSOLA time-stretcher & Cubic Hermite pitch-shifter
-└── skins/                      # Raw skin sprite source assets
 ```

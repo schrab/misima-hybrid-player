@@ -27,7 +27,7 @@ FADERS = [
 
 from PIL import Image
 
-UI = REPO / "skins/misima-hybrid/sprites/ui"
+UI = REPO / "app" / "public" / "sprite" / "ui"
 faders = []
 for fid, param, png, rng, val, x, maxY, travel in FADERS:
     w, h = Image.open(UI / png).size
