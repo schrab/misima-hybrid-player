@@ -1,5 +1,5 @@
 /**
- * Layout smoke checks. Run: npx --yes tsx src/sprite/spectrumLayout.test.ts
+ * Layout smoke checks. Run: npm test
  */
 import { layoutSpectrumFromPool } from "./spectrumLayout";
 

@@ -1,11 +1,12 @@
 {
   "name": "misima-hybrid-player",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "test": "tsx src/sprite/spectrumLayout.test.ts",
+    "build": "tsc && npm run test && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
   },
@@ -15,6 +16,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.5.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.8.2",
     "vite": "^6.2.0"
   }
