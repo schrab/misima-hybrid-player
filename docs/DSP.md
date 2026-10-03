@@ -14,7 +14,7 @@ the critical parts, but this document explains the reasoning.
 decoded source buffer (device rate, f32 interleaved)
         │  ← anti-alias Butterworth lowpass when downsampling (resample_interleaved)
         ▼
-bit-perfect bypass ──or──► Stretcher (player.rs)
+bit-perfect bypass ──or──► Stretcher (stretcher.rs)
         │                    ├─ stretch = speed/pitch ≤ 1 → PhaseVocoder
         │                    └─ stretch > 1              → WsolaProcessor
         │                    then Cubic Hermite resample by pitch ratio
@@ -24,7 +24,7 @@ bit-perfect bypass ──or──► Stretcher (player.rs)
         ├─► spectrum tap (48 log-spaced bins, rustfft)  ← post-EQ
         ├─► waveform tap (226-pt decimated, echo scope) ← post-EQ
         ▼
-stereo reverb (clouds_reverb.rs) + dry/wet balance + envelope gain (player.rs::Reverb)
+stereo reverb (clouds_reverb.rs) + dry/wet balance + envelope gain (reverb_mix.rs::Reverb)
         ▼
 master volume, soft clip, cpal output
 ```
@@ -37,7 +37,7 @@ at the start of each callback and written back once at the end; `wet_gain()` is
 likewise computed once per buffer and passed to each per-sample reverb call via
 `process_with_gain`.
 
-**Engine selection** (`player.rs::Stretcher`): the vocoder handles
+**Engine selection** (`stretcher.rs::Stretcher`): the vocoder handles
 `stretch ≤ 1`, the WSOLA everything else. The split is not arbitrary — see
 §3.3. Both engines are constructed up front; switching re-seeds the newly
 active engine at the live position so a fader crossing never resumes from
@@ -184,7 +184,7 @@ stretch and the phase-propagation reliability degrades once `ha` exceeds `n/4`.
 
 ---
 
-## 4. Reverb (`clouds_reverb.rs`, `player.rs::Reverb`)
+## 4. Reverb (`clouds_reverb.rs`, `reverb_mix.rs::Reverb`)
 
 Stereo feedback-delay network ported from Mutable Instruments Clouds (MIT,
 © 2014 Emilie Gillet — attribution is in the module header and must stay).
@@ -209,7 +209,7 @@ Deviations from the original, all deliberate:
   `0.35 + 0.63·amount` (reaches 0.98, diverges). Guarded by
   `tail_decays_in_a_musical_time`.
 
-`player.rs::Reverb` owns the policy the DSP must not: the dry/wet crossfade and
+`reverb_mix.rs::Reverb` owns the policy the DSP must not: the dry/wet crossfade and
 the envelope-normalised wet gain. The raw tail level varies ~20 dB between
 tonal and broadband material, so no fixed wet gain stays balanced (agents.md
 §3.1.8). `TARGET = 1.8` sits above unity because the soft clip `w/√(1+w²)`
@@ -287,5 +287,24 @@ Measurement conventions that have bitten us:
 | `wsola.rs` | WSOLA time-stretcher + Cubic Hermite resampler |
 | `clouds_reverb.rs` | Dattorro/Griesinger FDN reverb (Clouds port) |
 | `spectrum.rs` | 1024-point FFT → 48 log-spaced bins for the visualizer |
-| `player.rs` | Playback engine: cpal output, `SharedPlay`, `Stretcher`, `Reverb` envelope policy |
+| `reverb_mix.rs` | Reverb dry/wet balance + envelope-normalized wet gain policy. **Platform-free.** |
+| `stretcher.rs` | Engine selector between the phase vocoder and the WSOLA. **Platform-free.** |
+| `player.rs` | Playback engine: cpal output, `SharedPlay`, stream ownership. **Desktop-only.** |
 | `mod.rs` | Module declarations and re-exports |
+
+### Shared vs desktop-only
+
+The web port (`app/wasm-dsp/`) `#[path]`-includes the platform-free modules
+directly from this directory, so a DSP fix lands on both platforms at once and
+the two builds cannot silently diverge. Anything that touches cpal, tauri,
+parking_lot, or crossbeam stays in `player.rs` and is reimplemented in the
+worklet instead.
+
+**Platform-free (shared):** `clouds_reverb`, `dsp_utils`, `eq`, `phase_vocoder`,
+`spectrum`, `wsola`, `reverb_mix`, `stretcher`.
+
+**Desktop-only:** `player.rs` (cpal stream + `SharedPlay`), `decoder.rs`
+(Symphonia — the browser uses `decodeAudioData`).
+
+CI runs `cargo check --target wasm32-unknown-unknown` in `wasm-dsp/` on every
+PR that touches `src/audio/`.
