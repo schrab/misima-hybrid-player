@@ -990,6 +990,26 @@ async function init() {
       player,
     };
 
+    // Record the first real gesture before any handler can reach `play()`.
+    // Capture phase, so it runs ahead of the canvas listeners below. This is
+    // what lets `ensureContext` call `resume()` only when the browser will
+    // actually honour it.
+    const markGesture = () => player.noteGesture();
+    window.addEventListener("pointerdown", markGesture, { capture: true });
+    window.addEventListener("keydown", markGesture, { capture: true });
+  }
+
+  await pushPlaylist();
+  requestAnimationFrame(render);
+
+  // Everything below runs *after* the first frame is scheduled, on purpose.
+  // Fetching and decoding a track must never sit between the canvas becoming
+  // visible and the loop that draws it: an awaited promise that stalls here
+  // (autoplay-blocked `resume()`, a slow decode, a WASM compile) leaves the
+  // page a blank rectangle with no error to point at.
+  if (transport instanceof WebTransport) {
+    const player = transport.webPlayer;
+
     // Startup tracks: register the whole bundled set so the playlist is
     // populated on arrival, but only fetch the first — it is the one that
     // autoplays. The rest stream in when the listener reaches them.
@@ -1025,9 +1045,6 @@ async function init() {
       window.addEventListener("keydown", kick);
     }
   }
-
-  await pushPlaylist();
-  requestAnimationFrame(render);
 }
 
 void init();

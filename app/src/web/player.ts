@@ -59,6 +59,10 @@ export class WebPlayer {
   private onError: ((msg: string) => void) | null = null;
   private onTrackChanged: ((id: number) => void) | null = null;
   private loading = false;
+  /** Set by a capture-phase listener on the first real user gesture. */
+  private gestureSeen = false;
+  /** True only while `tryAutoplay` is probing; see `ensureContext`. */
+  private autoplayProbe = false;
 
   // ---------------------------------------------------------------- context
 
@@ -70,17 +74,36 @@ export class WebPlayer {
    * DSP worklet must not stop the user from building a playlist. (It did,
    * once, when `openFiles` awaited the whole engine and rejected.)
    *
-   * Must be reachable from a user gesture — Safari refuses a context
-   * constructed outside one.
+   * `resume()` is bounded by a timeout, and outside an autoplay probe it is
+   * only called after a real user gesture. The timeout is the important part:
+   * in Chrome, `resume()` on a context that autoplay policy has blocked
+   * returns a promise that never settles — not rejected, just pending forever,
+   * because the browser is waiting for a gesture that has not come. Awaiting
+   * it unguarded hung `init()` before the first `requestAnimationFrame` and
+   * rendered the page as a blank rectangle, with nothing in the console but a
+   * warning that reads as harmless. Racing it against a short timer means a
+   * blocked browser costs one second and then gets on with it.
+   *
+   * The gesture flag is set by a capture-phase listener in main.ts, so it is
+   * already true by the time a click handler reaches `play()`.
    */
   private async ensureContext(): Promise<AudioContext> {
-    if (this.ctx) {
-      if (this.ctx.state === "suspended") await this.ctx.resume();
+    if (!this.ctx) {
+      this.ctx = new AudioContext({ latencyHint: "interactive" });
       return this.ctx;
     }
-    const ctx = new AudioContext({ latencyHint: "interactive" });
-    this.ctx = ctx;
-    return ctx;
+    if ((this.gestureSeen || this.autoplayProbe) && this.ctx.state === "suspended") {
+      await Promise.race([
+        this.ctx.resume(),
+        new Promise<void>((resolve) => setTimeout(resolve, 1000)),
+      ]);
+    }
+    return this.ctx;
+  }
+
+  /** Record that a real user gesture happened. See `ensureContext`. */
+  noteGesture(): void {
+    this.gestureSeen = true;
   }
 
   /**
@@ -311,10 +334,13 @@ export class WebPlayer {
    * "Playing" over silence is worse than one that says "press play".
    */
   async tryAutoplay(): Promise<boolean> {
+    this.autoplayProbe = true;
     try {
       await this.play();
     } catch {
       return false;
+    } finally {
+      this.autoplayProbe = false;
     }
     if (this.ctx?.state === "running") return true;
     this.pause();
