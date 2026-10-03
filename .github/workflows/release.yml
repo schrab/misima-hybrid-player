@@ -1,0 +1,84 @@
+name: Release
+
+# Build installers for all three platforms and attach them to a GitHub
+# Release on the Releases page.
+#
+# Cut a release by pushing a tag that matches the app version
+# (tauri.conf.json / package.json / Cargo.toml — all three places):
+#
+#   git tag v0.3.2 && git push origin v0.3.2
+#
+# The macOS build is a universal binary (one .dmg for Intel + Apple
+# Silicon). The repo is public, so runner minutes are free and unlimited
+# on the GitHub free plan — including macOS and Windows runners.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+          - platform: windows-latest
+          - platform: macos-latest
+            args: --target universal-apple-darwin
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # System deps for Tauri 2 on Ubuntu 22.04 (webkit2gtk-4.1 line).
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add macOS universal targets
+        if: matrix.platform == 'macos-latest'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: app
+
+      - name: Build and upload release assets
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          tagName: ${{ github.ref_name }}
+          releaseName: "Misima Hybrid Player v__VERSION__"
+          releaseBody: |
+            Installers for Windows (.msi / .exe), macOS (.dmg, Intel + Apple Silicon in one) and Linux (.deb / .rpm / .AppImage).
+
+            The binaries are unsigned:
+            - macOS: right-click the app and choose "Open" the first time, or allow it under System Settings > Privacy & Security.
+            - Windows: if SmartScreen warns, click "More info" > "Run anyway".
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
