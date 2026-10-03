@@ -34,6 +34,37 @@ html.web body {
   overflow: auto;
 }
 
+/* Attribution for the bundled track. Kept deliberately quiet — it is a credit,
+   not chrome. Desktop-only markup stays hidden because the desktop build plays
+   the listener's own files. */
+.credit {
+  display: none;
+}
+
+html.web .credit {
+  display: block;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  margin: 0;
+  text-align: center;
+  font: 11px/1.4 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  color: #4a5a5e;
+}
+
+html.web .credit a {
+  color: #6f8f8a;
+  text-decoration: none;
+  border-bottom: 1px solid #2f4245;
+}
+
+html.web .credit a:hover {
+  color: #8fd8c8;
+  border-bottom-color: #4d7d75;
+}
+
 /* Exact logical size from applyScale — do not CSS-clamp, that squashes art
    independently of the Tauri window and hides zoom changes. */
 #ui {

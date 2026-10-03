@@ -11,6 +11,3 @@ app/dist/
 tools/
 captions/
 
-# Test fixtures copied in from ../../music for local browser testing only.
-# Never part of a deploy.
-app/public/music/

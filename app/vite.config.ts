@@ -17,25 +17,28 @@ const isPages = process.env.GH_PAGES === "1";
 const base = isPages ? "/misima-hybrid-player/" : "/";
 
 /**
- * `public/` is copied verbatim into `dist/`, so the WASM build output rides
- * along on desktop builds too — about 370 KB the desktop app never loads, plus
- * the `.d.ts` files wasm-pack emits. Drop the whole directory unless this is
- * the Pages build, which is the only target that has a worklet.
+ * `public/` is copied verbatim into `dist/`, so the WASM build output and the
+ * bundled demo track ride along on desktop builds too — about 3.7 MB the
+ * desktop app never loads, plus the `.d.ts` files wasm-pack emits. Drop both
+ * unless this is the Pages build, the only target with a worklet and a
+ * startup track.
  */
-function stripWasmForDesktop(): Plugin {
+function stripWebOnlyAssets(): Plugin {
   return {
-    name: "misima-strip-wasm-for-desktop",
+    name: "misima-strip-web-only-assets",
     apply: "build",
     async closeBundle() {
       if (isPages) return;
-      await rm(resolve(__dirname, "dist/wasm"), { recursive: true, force: true });
+      for (const dir of ["dist/wasm", "dist/music"]) {
+        await rm(resolve(__dirname, dir), { recursive: true, force: true });
+      }
     },
   };
 }
 
 export default defineConfig({
   base,
-  plugins: [stripWasmForDesktop()],
+  plugins: [stripWebOnlyAssets()],
   clearScreen: false,
   server: {
     port: 1420,

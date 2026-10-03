@@ -21,7 +21,20 @@ export type AudioParamsInput = {
 
 export type UiScaleInfo = { scale: number; w: number; h: number; max_scale: number };
 
-export type PlaylistRow = { id: number; title: string; duration?: string };
+/**
+ * A playlist row.
+ *
+ * `sourceUrl` marks a row whose audio has not been fetched yet — the web build
+ * registers the bundled startup tracks by URL and only downloads one when the
+ * listener plays it. Desktop rows have no `sourceUrl` because they are decoded
+ * from disk before they ever appear.
+ */
+export type PlaylistRow = {
+  id: number;
+  title: string;
+  duration?: string;
+  sourceUrl?: string;
+};
 
 /** Events pushed from the engine up to the UI. */
 export type TransportEvents = {

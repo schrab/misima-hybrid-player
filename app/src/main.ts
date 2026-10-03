@@ -30,6 +30,24 @@ import { assetUrl } from "./web/base";
 // hardcoded "/sprite/" would 404 in production while working fine in dev.
 const BASE = assetUrl("sprite/");
 
+/**
+ * The demo tracks the web build ships and loads on startup. Music by Wit Chu,
+ * used with his permission; the credit and link live in index.html.
+ *
+ * Kept under `public/` so Vite copies them verbatim into `dist/` and they are
+ * fetched same-origin — no CORS, no third-party host in the request path.
+ *
+ * Only the first is decoded eagerly (that is the one autoplayed). The rest are
+ * fetched when the listener reaches them, so the page does not pull 28 MB on
+ * every visit.
+ */
+const STARTUP_TRACKS = [
+  { url: assetUrl("music/01 Wit Chu - Now.mp3"), title: "01 Wit Chu - Now" },
+  { url: assetUrl("music/02 Wit Chu - In The Loop.mp3"), title: "02 Wit Chu - In The Loop" },
+  { url: assetUrl("music/07 Wit Chu - The Joy.mp3"), title: "07 Wit Chu - The Joy" },
+  { url: assetUrl("music/10 Wit Chu - Technical Problem.mp3"), title: "10 Wit Chu - Technical Problem" },
+];
+
 const canvas = document.getElementById("ui") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
 
@@ -971,6 +989,41 @@ async function init() {
       },
       player,
     };
+
+    // Startup tracks: register the whole bundled set so the playlist is
+    // populated on arrival, but only fetch the first — it is the one that
+    // autoplays. The rest stream in when the listener reaches them.
+    for (const t of STARTUP_TRACKS) player.registerRemote(t.url, t.title);
+    await pushPlaylist();
+    await player.addUrl(STARTUP_TRACKS[0].url, STARTUP_TRACKS[0].title);
+    await pushPlaylist();
+
+    // Autoplay is gated on a user gesture, so this succeeds only on a repeat
+    // visit or where the browser is lenient. When it does not, the track is
+    // already decoded and sitting in the playlist: arm a one-shot handler so
+    // the first click or keypress anywhere starts it, rather than leaving the
+    // visitor to work out that the play button is the thing to press.
+    if (await player.tryAutoplay()) {
+      playing = true;
+      status = "Playing";
+    } else {
+      status = "Press play";
+      const kick = () => {
+        window.removeEventListener("pointerdown", kick);
+        window.removeEventListener("keydown", kick);
+        void (async () => {
+          try {
+            await transport.play();
+            playing = true;
+            status = "Playing";
+          } catch (err) {
+            status = String(err);
+          }
+        })();
+      };
+      window.addEventListener("pointerdown", kick);
+      window.addEventListener("keydown", kick);
+    }
   }
 
   await pushPlaylist();

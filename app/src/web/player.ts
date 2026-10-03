@@ -238,11 +238,51 @@ export class WebPlayer {
       const res = await fetch(url);
       if (!res.ok) throw new Error(String(res.status));
       const buffer = await this.ctx!.decodeAudioData(await res.arrayBuffer());
-      const id = this.nextId++;
+      const id = this.registerRemote(url, name);
       this.tracks.set(id, { buffer, title: name });
-      this.rows.push({ id, title: name, duration: fmtDur(buffer.duration) });
+      this.setDuration(id, buffer.duration);
     } catch {
       this.onError?.(`Cannot load ${name}`);
+    }
+  }
+
+  /**
+   * Add a playlist row for a remote track *without* fetching it.
+   *
+   * The bundled startup set is four tracks totalling ~28 MB, and decoding all
+   * of them on arrival would make every page load pay for the whole library.
+   * Rows registered here carry a `sourceUrl` and are fetched by `playIndex`
+   * when the listener actually reaches them.
+   */
+  registerRemote(url: string, title: string): number {
+    const existing = this.rows.find((r) => r.sourceUrl === url);
+    if (existing) return existing.id;
+    const id = this.nextId++;
+    this.rows.push({ id, title, duration: "--:--", sourceUrl: url });
+    return id;
+  }
+
+  private setDuration(id: number, seconds: number) {
+    const row = this.rows.find((r) => r.id === id);
+    if (row) row.duration = fmtDur(seconds);
+  }
+
+  /** Fetch and decode a registered-but-unloaded row. */
+  private async ensureLoaded(id: number): Promise<boolean> {
+    if (this.tracks.has(id)) return true;
+    const row = this.rows.find((r) => r.id === id);
+    if (!row?.sourceUrl) return false;
+    try {
+      const ctx = await this.ensureContext();
+      const res = await fetch(row.sourceUrl);
+      if (!res.ok) throw new Error(String(res.status));
+      const buffer = await ctx.decodeAudioData(await res.arrayBuffer());
+      this.tracks.set(id, { buffer, title: row.title });
+      this.setDuration(id, buffer.duration);
+      return true;
+    } catch {
+      this.onError?.(`Cannot load ${row.title}`);
+      return false;
     }
   }
 
@@ -259,6 +299,28 @@ export class WebPlayer {
 
   // ---------------------------------------------------------------- transport
 
+  /**
+   * Start playback without a user gesture, where the browser allows it.
+   *
+   * Returns false when the `AudioContext` is still suspended — the autoplay
+   * policy has blocked sound until the user interacts with the page. The track
+   * stays loaded and decoded in that case, so the caller only has to arm a
+   * gesture handler and start for real on the first click.
+   *
+   * Never reports success while the context is suspended: a UI that says
+   * "Playing" over silence is worse than one that says "press play".
+   */
+  async tryAutoplay(): Promise<boolean> {
+    try {
+      await this.play();
+    } catch {
+      return false;
+    }
+    if (this.ctx?.state === "running") return true;
+    this.pause();
+    return false;
+  }
+
   async play(): Promise<void> {
     const node = await this.ensureEngine();
     let id = this.activeId;
@@ -267,6 +329,7 @@ export class WebPlayer {
       if (!first) throw new Error("no track loaded");
       id = first.id;
       this.activeId = id;
+      if (!(await this.ensureLoaded(id))) throw new Error("track unavailable");
     }
     const track = this.tracks.get(id)!;
     node.port.postMessage({
@@ -336,6 +399,9 @@ export class WebPlayer {
     if (!row) return;
     this.activeId = row.id;
     this.position = 0;
+    // A lazily-registered row has no audio yet; fetch it now that the listener
+    // has actually asked for it.
+    if (!(await this.ensureLoaded(row.id))) return;
     await this.play();
   }
 
