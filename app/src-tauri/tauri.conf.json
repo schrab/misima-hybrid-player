@@ -13,7 +13,7 @@
     "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "Misima Hybrid Player",
+        "title": "MI$IM∆ hybrid player",
         "width": 562,
         "height": 772,
         "resizable": false,
@@ -48,6 +48,9 @@
     ],
     "macOS": {
       "minimumSystemVersion": "11.0"
+    },
+    "resources": {
+      "macos/en.lproj/InfoPlist.strings": "en.lproj/InfoPlist.strings"
     }
   }
 }
