@@ -361,6 +361,14 @@ async function action(name: string) {
       pushParams();
       break;
     }
+    case "minimize":
+      // Deliberately NOT gated on isMinimizable(): tao reports false for a
+      // decoration-less macOS window (its style mask never gets the
+      // Miniaturizable bit) even though miniaturize still works, and Linux
+      // hardcodes true whether or not the compositor honours the request.
+      // Audio keeps playing while hidden — only the window goes away.
+      await getCurrentWindow().minimize();
+      break;
     case "power":
       await getCurrentWindow().close();
       break;

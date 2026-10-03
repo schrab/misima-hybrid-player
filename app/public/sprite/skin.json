@@ -502,6 +502,21 @@
       }
     },
     {
+      "id": "minimize",
+      "action": "minimize",
+      "origin": {
+        "x": 1458,
+        "y": 797
+      },
+      "size": {
+        "w": 39,
+        "h": 144
+      },
+      "frames": {
+        "pressed": "ui/button_minimize.png"
+      }
+    },
+    {
       "id": "fx_enable",
       "action": "fx_enable",
       "origin": {
