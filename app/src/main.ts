@@ -48,7 +48,7 @@ const transport: Transport = isTauri ? new TauriTransport() : new WebTransport()
 // skin. `styles.css` keys off this class.
 if (!isTauri) document.documentElement.classList.add("web");
 
-/** Zoom state. On the web this drives a CSS transform instead of a window resize. */
+/** Zoom state. On the web this is a CSS size; on the desktop Rust owns it. */
 let currentScale = 0.5;
 
 function paintCanvasSize(info: { w: number; h: number }) {
@@ -56,15 +56,62 @@ function paintCanvasSize(info: { w: number; h: number }) {
   canvas.style.height = `${info.h}px`;
 }
 
-function zoomStatusPct(): number {
-  return Math.round((currentScale / 0.5) * 100);
+/**
+ * The largest scale at which the whole 1500x2060 artboard fits the viewport.
+ *
+ * The desktop build gets this for free — the native window resizes to fit, and
+ * `get_ui_scale` reports the result. A browser tab has no such window, so
+ * without this the canvas is laid out at a fixed 750x1030 CSS pixels. On a
+ * 2x display that is ~2060 device pixels tall: far taller than any browser
+ * viewport, so the player renders cropped with its top and bottom cut off.
+ */
+function fitScale(): number {
+  const margin = 32;
+  const availW = Math.max(240, window.innerWidth - margin);
+  const availH = Math.max(240, window.innerHeight - margin);
+  const fit = Math.min(availW / ART_W, availH / ART_H);
+  // Never upscale past 1:1 artboard pixels — beyond that it is just blur.
+  return Math.min(1, Math.max(0.15, fit));
 }
 
-/** Pure-CSS zoom for the web build. The desktop path delegates to Rust. */
+function zoomStatusPct(): number {
+  return Math.round((currentScale / fitScale()) * 100);
+}
+
+/**
+ * Web zoom. Sizing the canvas in CSS pixels is the whole mechanism — the
+ * backing store stays at the skin's 1500x2060, so the browser scales it and it
+ * stays sharp. There is deliberately no CSS `transform` here: combining one
+ * with a size change applies the zoom twice.
+ */
 function applyCssZoom(scale: number) {
-  canvas.style.transformOrigin = "top left";
-  canvas.style.transform = `scale(${scale / 0.5})`;
   paintCanvasSize({ w: Math.round(ART_W * scale), h: Math.round(ART_H * scale) });
+}
+
+/**
+ * Keep the player fitted to the viewport until the user zooms deliberately.
+ *
+ * Only CSS sizing is touched — no reload, so DSP and UI state survive
+ * (AGENTS.md 3.2.3).
+ */
+let autoFit = true;
+
+function refit() {
+  currentScale = fitScale();
+  applyCssZoom(currentScale);
+}
+
+/** User-driven zoom: stop auto-fitting until they ask to reset. */
+function setZoom(scale: number, showStatus = true) {
+  autoFit = false;
+  applyScale(scale, showStatus);
+}
+
+/** Back to "exactly fills the window". */
+function resetZoom(showStatus = true) {
+  autoFit = true;
+  refit();
+  if (showStatus) status = `ZOOM ${zoomStatusPct()}%`;
 }
 
 export function applyScale(scale: number, showStatus = true) {
@@ -99,9 +146,11 @@ function cycleScale(direction: 1 | -1) {
   if (now - lastCycleAt < 100) return;
   lastCycleAt = now;
   if (transport.isWeb) {
-    // CSS zoom steps in 10% increments around the 0.5 default.
-    const next = Math.min(1, Math.max(0.25, currentScale + direction * 0.1));
-    applyScale(next);
+    // Step in 10% increments of the fitted scale, so "100%" always means
+    // "exactly fills the window" rather than an arbitrary fixed size.
+    const base = fitScale();
+    const next = Math.min(1, Math.max(0.15, currentScale + direction * base * 0.1));
+    setZoom(next);
     return;
   }
   void transport
@@ -153,10 +202,25 @@ window.addEventListener(
     } else if (ev.key === "0" || ev.code === "Digit0" || ev.code === "Numpad0") {
       ev.preventDefault();
       ev.stopPropagation();
-      applyScale(0.5);
+      // "Reset" means "fill the window" on the web, not a fixed 0.5 that only
+      // happens to be right on one particular monitor.
+      if (transport.isWeb) {
+        resetZoom();
+      } else {
+        applyScale(0.5);
+      }
     } else if (ev.key.toLowerCase() === "d") {
       ev.preventDefault();
       ev.stopPropagation();
+      if (transport.isWeb) {
+        // Toggle between fitting and filling the window vertically.
+        if (autoFit) {
+          setZoom(fitScale());
+        } else {
+          resetZoom();
+        }
+        return;
+      }
       void transport.getUiScale().then((info) => {
         applyScale(info.scale >= 0.9 ? 0.5 : Math.min(1.0, info.max_scale));
       });
@@ -750,7 +814,11 @@ async function init() {
       paintCanvasSize({ w: Math.round(ART_W * 0.5), h: Math.round(ART_H * 0.5) });
     }
   } else {
-    paintCanvasSize({ w: Math.round(ART_W * 0.5), h: Math.round(ART_H * 0.5) });
+    // No native window to fit, so size the canvas to the viewport instead.
+    refit();
+    window.addEventListener("resize", () => {
+      if (autoFit) refit();
+    });
   }
   skin = await loadJson(BASE + "skin.json");
   const resolve = (p: string) => BASE + p.replace(/^\/?/, "");

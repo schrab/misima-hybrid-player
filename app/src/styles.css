@@ -18,13 +18,20 @@ html.web body {
   background: #000;
 }
 
-/* The player is a tall, narrow panel (750x1030 at the default zoom). Centre it
-   rather than pinning it to the corner, so it reads as a device sitting on the
-   page instead of a sprite sheet jammed into the top-left. */
+/* The player is a tall, narrow panel. Centre it rather than pinning it to the
+   corner, so it reads as a device sitting on the page instead of a sprite
+   sheet jammed into the top-left.
+
+   `safe center` matters: when the panel is taller than the viewport, a plain
+   `center` pushes the overflow past the scroll origin, so the top of the player
+   becomes unreachable by scrolling. `safe` biases the overflow the other way.
+   Browsers without `safe` fall back to plain centring, which is no worse than
+   before. */
 html.web body {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: safe center;
+  justify-content: safe center;
+  overflow: auto;
 }
 
 /* Exact logical size from applyScale — do not CSS-clamp, that squashes art
