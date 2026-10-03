@@ -9,6 +9,8 @@ MI$IM∆ built a music player. no boring window frames. no html widgets. hand-dr
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
+MI$IM∆ elsewhere: [Instagram](https://www.instagram.com/misima.gibrid/) · [Telegram](https://t.me/misimahybrid). updates land here first, and skin experiments get posted before they reach the repo.
+
 ---
 
 ## Key Features
