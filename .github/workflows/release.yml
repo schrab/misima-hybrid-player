@@ -35,12 +35,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # System deps for Tauri 2 on Ubuntu 22.04 (webkit2gtk-4.1 line).
+      # System deps for Tauri 2 on Ubuntu 22.04 (webkit2gtk-4.1 line), plus
+      # libasound2-dev — the audio core (CPAL/alsa-sys) links ALSA directly.
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev
 
       - name: Setup Node
         uses: actions/setup-node@v4
