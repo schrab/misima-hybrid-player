@@ -852,64 +852,132 @@ async function init() {
     (skin.visuals.spectrum as unknown as { bands: unknown }).bands = vis.bands;
   }
 
-  bg = await loadImageSafe(resolve(skin.background.image));
+  // Start painting NOW, before any sprite arrives.
+  //
+  // The render loop used to begin after every image had loaded, which meant the
+  // canvas stayed blank for the whole of that — and since the track load runs
+  // after it, it looked like the drawing was waiting on the audio. Starting
+  // here means the page is alive as soon as the skin manifest parses and fills
+  // in progressively: background first, then knobs and chips as they land.
+  //
+  // Safe on partial assets: render() skips the background when `bg` is null,
+  // `drawAnimations` returns early with no anims, and every glyph draw is
+  // `font?.draw`, a no-op until the atlas arrives.
+  canvas.width = skin.canvas.width;
+  canvas.height = skin.canvas.height;
+  requestAnimationFrame(render);
+
+  // Every sprite is requested in ONE batch rather than awaited in turn.
+  //
+  // This was ~135 sequential requests — one per chip, fader and button, in
+  // nested loops. On localhost that is invisible; over the network it is the
+  // difference between a player in half a second and one that takes half a
+  // minute to appear, because every image waited on the one before it.
+  // Collect the whole set first, then let them all race.
+  const animDefs = skin.animations ?? [];
+  const overlayDefs = skin.background.overlays ?? [];
+  const segments = skin.visuals.spectrum.bands.flatMap((b) => b.segments);
+  const buttons = skin.buttons;
+
+  // Progress hairline. Counted per file rather than by byte weight — the
+  // background plate is 2.2 MB of the 3.6 MB total, so the bar sits low for a
+  // while and then jumps; honest about "something is happening" without
+  // pretending to a precision it does not have.
+  let done = 0;
+  const total =
+    1 + animDefs.length + overlayDefs.length + segments.length + skin.faders.length +
+    buttons.length + buttons.filter((b) => b.frames.normal).length + 2;
+  const loadBar = document.getElementById("load-bar");
+  const loadFill = loadBar?.firstElementChild as HTMLElement | null;
+  const settle = <T,>(p: Promise<T>): Promise<T> =>
+    p.finally(() => {
+      done++;
+      if (loadFill) loadFill.style.width = `${Math.min(100, (done / total) * 100)}%`;
+    });
+  const img = (path: string) => settle(loadImageSafe(resolve(path)));
+
+  const [
+    bgImgs,
+    animImgs,
+    overlayImgs,
+    segmentImgs,
+    faderImgs,
+    pressedImgs,
+    normalImgs,
+    hlImg,
+    loadedFont,
+  ] = await Promise.all([
+    img(skin.background.image),
+    Promise.all(animDefs.map((d) => img(d.image))),
+    Promise.all(overlayDefs.map((o) => img(o.image))),
+    Promise.all(segments.map((s) => img(s.image))),
+    Promise.all(skin.faders.map((f) => img(f.knob))),
+    Promise.all(buttons.map((b) => img(b.frames.pressed))),
+    Promise.all(
+      buttons.map((b) =>
+        b.frames.normal ? img(b.frames.normal) : Promise.resolve(null),
+      ),
+    ),
+    img("ui/active_track.png"),
+    settle(
+      loadFont({ ...skin.text.font, atlas: resolve(skin.text.font.atlas) }, "").catch(
+        () => null,
+      ),
+    ),
+  ]);
+
+  // Done: fill the bar, then let it fade rather than snapping out of existence.
+  if (loadFill) loadFill.style.width = "100%";
+  loadBar?.classList.add("done");
+
+  bg = bgImgs;
 
   // Sprite-sheet animations (uniform grid, solid black BG → screen blend).
-  anims = [];
-  for (const def of skin.animations ?? []) {
-    const img = await loadImageSafe(resolve(def.image));
-    if (!img) continue;
-    anims.push({
+  anims = animDefs.flatMap((def, i) => {
+    const img = animImgs[i];
+    if (!img) return [];
+    return [{
       def,
       img,
       cw: Math.floor(img.width / def.grid.cols),
       ch: Math.floor(img.height / def.grid.rows),
       start: performance.now(),
-    });
-  }
+    }];
+  });
 
   // Still highlight overlays are drawn as-is; the artist erases animated
   // regions from the layer in the PSD, so no engine-side masking.
-  bgOverlays = [];
-  for (const o of skin.background.overlays ?? []) {
-    const img = await loadImageSafe(resolve(o.image));
-    if (img) bgOverlays.push({ img, x: o.origin.x, y: o.origin.y });
-  }
-  // spectrum segments
-  for (const band of skin.visuals.spectrum.bands) {
-    for (const seg of band.segments) {
-      const img = await loadImageSafe(resolve(seg.image));
-      if (img) {
-        images.set(seg.image, img);
-        seg.size = { w: img.width, h: img.height };
-      }
-    }
-  }
+  bgOverlays = overlayDefs.flatMap((o, i) => {
+    const img = overlayImgs[i];
+    return img ? [{ img, x: o.origin.x, y: o.origin.y }] : [];
+  });
 
-  for (const f of skin.faders) {
-    const img = await loadImageSafe(resolve(f.knob));
-    if (img) {
-      images.set(f.knob, img);
-      if (!f.knobSize) f.knobSize = { w: img.width, h: img.height };
-    }
-  }
-  for (const b of skin.buttons) {
-    const p = await loadImageSafe(resolve(b.frames.pressed));
+  segments.forEach((seg, i) => {
+    const img = segmentImgs[i];
+    if (!img) return;
+    images.set(seg.image, img);
+    seg.size = { w: img.width, h: img.height };
+  });
+
+  skin.faders.forEach((f, i) => {
+    const img = faderImgs[i];
+    if (!img) return;
+    images.set(f.knob, img);
+    if (!f.knobSize) f.knobSize = { w: img.width, h: img.height };
+  });
+
+  buttons.forEach((b, i) => {
+    const p = pressedImgs[i];
     if (p) {
       images.set(b.frames.pressed, p);
       b.size = { w: p.width, h: p.height };
     }
-    if (b.frames.normal) {
-      const n = await loadImageSafe(resolve(b.frames.normal));
-      if (n) images.set(b.frames.normal, n);
-    }
-  }
-  const hlImg = await loadImageSafe(resolve("ui/active_track.png"));
-  if (hlImg) images.set("ui/active_track.png", hlImg);
-  font = await loadFont({ ...skin.text.font, atlas: resolve(skin.text.font.atlas) }, "").catch(() => null);
+    const n = normalImgs[i];
+    if (n && b.frames.normal) images.set(b.frames.normal, n);
+  });
 
-  canvas.width = skin.canvas.width;
-  canvas.height = skin.canvas.height;
+  if (hlImg) images.set("ui/active_track.png", hlImg);
+  font = loadedFont;
 
   for (const f of skin.faders) {
     const v = typeof f.value === "number" ? f.value : (f.range[0] + f.range[1]) / 2;
@@ -1000,13 +1068,10 @@ async function init() {
   }
 
   await pushPlaylist();
-  requestAnimationFrame(render);
 
-  // Everything below runs *after* the first frame is scheduled, on purpose.
-  // Fetching and decoding a track must never sit between the canvas becoming
-  // visible and the loop that draws it: an awaited promise that stalls here
-  // (autoplay-blocked `resume()`, a slow decode, a WASM compile) leaves the
-  // page a blank rectangle with no error to point at.
+  // The render loop is already running (started as soon as the skin manifest
+  // parsed, above). Nothing below may sit between the canvas becoming visible
+  // and it being drawn.
   if (transport instanceof WebTransport) {
     const player = transport.webPlayer;
 

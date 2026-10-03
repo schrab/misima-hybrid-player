@@ -68,6 +68,37 @@ html.web .credit a:hover {
   border-bottom-color: #4d7d75;
 }
 
+/* Load progress hairline. Sits above the player so the credit and corner mark
+   never have to move; no text, no numbers — just a sense of "working". */
+.load-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(140, 200, 190, 0.09);
+  z-index: 10;
+  transition: opacity 0.45s ease;
+}
+
+.load-bar > span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #2f7f74, #6fd3bd);
+  transition: width 0.18s ease-out;
+}
+
+.load-bar.done {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Desktop loads from local disk; the bar would only flicker. */
+html:not(.web) .load-bar {
+  display: none;
+}
+
 /* Corner mark. The source icon is near-black (#212329 and darker), which
    disappears against the black page, so it is inverted into a light ghost
    rather than sitting there invisible at any opacity. */

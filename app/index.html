@@ -9,6 +9,10 @@
   </head>
   <body>
     <canvas id="ui"></canvas>
+    <!-- Load progress. A hairline across the top: the background plate alone is
+         2.2 MB, so without this the page reads as broken rather than loading.
+         Fades out once the skin is in. -->
+    <div class="load-bar" id="load-bar"><span></span></div>
     <!-- Corner mark. The icon is drawn on a dark palette, so `styles.css`
          inverts it to read against the black page. Hidden on desktop. -->
     <img class="corner-logo" src="/misima-gibrid-icon.svg" alt="MI$IM∆ hybrid" />
