@@ -40,6 +40,14 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
+      # Cheap and first: wasm-dsp `#[path]`-includes the desktop DSP sources, so
+      # a wrong relative path is a compile error here. Checking before the
+      # multi-minute wasm-pack install turns a late, confusing failure into an
+      # immediate one.
+      - name: Check the shared DSP compiles for wasm
+        working-directory: app/wasm-dsp
+        run: cargo check --target wasm32-unknown-unknown
+
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
 

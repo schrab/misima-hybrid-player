@@ -7,26 +7,49 @@
 //! both are platform-bound (cpal, tauri, parking_lot, Symphonia) and their
 //! browser equivalents are the `AudioContext` and `decodeAudioData`.
 //!
-//! The module tree shape must match `src-tauri`'s, because the shared files
-//! refer to each other through `use crate::audio::…` paths.
+//! ## Why the modules are declared at the crate root
+//!
+//! The shared sources refer to each other as `crate::audio::eq::Biquad`, so the
+//! module tree has to *look* like `src-tauri`'s. That shape used to be built
+//! with an inline `mod audio { … }` block plus
+//! `#[path = "../../../src-tauri/src/audio/…"]`.
+//!
+//! That built fine on Windows and failed on the Linux Pages runner with:
+//!
+//! ```text
+//! couldn't find file `src/audio/../../../src-tauri/src/audio/clouds_reverb.rs`
+//! ```
+//!
+//! An inline module anchors a nested `#[path]` at `src/audio/` rather than at
+//! the directory of this file, so the `..` count is only right under one of the
+//! two plausible readings of where the anchor is — and the other reading points
+//! at a path that does not exist. Declaring each module at the crate root makes
+//! the anchor the directory of this file, unambiguously, and the `pub mod audio`
+//! shim below restores the `crate::audio::…` paths for the shared code.
 
-mod audio {
-    #[path = "../../../src-tauri/src/audio/clouds_reverb.rs"]
-    pub mod clouds_reverb;
-    #[path = "../../../src-tauri/src/audio/dsp_utils.rs"]
-    pub mod dsp_utils;
-    #[path = "../../../src-tauri/src/audio/eq.rs"]
-    pub mod eq;
-    #[path = "../../../src-tauri/src/audio/phase_vocoder.rs"]
-    pub mod phase_vocoder;
-    #[path = "../../../src-tauri/src/audio/spectrum.rs"]
-    pub mod spectrum;
-    #[path = "../../../src-tauri/src/audio/wsola.rs"]
-    pub mod wsola;
-    #[path = "../../../src-tauri/src/audio/reverb_mix.rs"]
-    pub mod reverb_mix;
-    #[path = "../../../src-tauri/src/audio/stretcher.rs"]
-    pub mod stretcher;
+#[path = "../../src-tauri/src/audio/clouds_reverb.rs"]
+pub mod clouds_reverb;
+#[path = "../../src-tauri/src/audio/dsp_utils.rs"]
+pub mod dsp_utils;
+#[path = "../../src-tauri/src/audio/eq.rs"]
+pub mod eq;
+#[path = "../../src-tauri/src/audio/phase_vocoder.rs"]
+pub mod phase_vocoder;
+#[path = "../../src-tauri/src/audio/spectrum.rs"]
+pub mod spectrum;
+#[path = "../../src-tauri/src/audio/wsola.rs"]
+pub mod wsola;
+#[path = "../../src-tauri/src/audio/reverb_mix.rs"]
+pub mod reverb_mix;
+#[path = "../../src-tauri/src/audio/stretcher.rs"]
+pub mod stretcher;
+
+/// The module tree shape `src-tauri` has, so the shared sources' own
+/// `use crate::audio::…` paths resolve unchanged.
+pub mod audio {
+    pub use super::{
+        clouds_reverb, dsp_utils, eq, phase_vocoder, reverb_mix, spectrum, stretcher, wsola,
+    };
 }
 
 mod processor;
