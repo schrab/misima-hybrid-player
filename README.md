@@ -1,6 +1,6 @@
 # MI$IM∆ hybrid player
 
-![MI$IM∆ hybrid player](docs/misima-hybrid-player-ui.png)
+![MI$IM∆ hybrid player — annotated skin legend](docs/misima-hybrid-player-ui-legend.png)
 
 MI$IM∆ built a music player. no boring window frames. no html widgets. hand-drawn plates, glowing wireframes, and rust doing real-time dsp underneath the skin. it plays mp3, flac, wav, ogg. it has visualizers. MI$IM∆ lives inside the art.
 
