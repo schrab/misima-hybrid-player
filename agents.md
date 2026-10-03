@@ -144,7 +144,7 @@ The player is designed for cross-platform deployment. Agents must verify platfor
 Before committing or completing any task, agents must run and pass the following checks:
 
 ```bash
-# 1. Rust Audio Core & DSP Unit Tests (Must pass 39/39, 1 ignored smoke test)
+# 1. Rust Audio Core & DSP Unit Tests (Must pass 42/42, 1 ignored smoke test)
 cd app/src-tauri
 export PATH="$HOME/.cargo/bin:$PATH"
 cargo test -- --nocapture
@@ -152,10 +152,19 @@ cargo test -- --nocapture
 # 2. Rust Lints & Compilation Check (Zero warnings)
 cargo check
 
-# 3. TypeScript Typecheck & Frontend Build
+# 3. Frontend Tests, Typecheck & Production Build
+#    `npm run build` = `tsc` (typecheck, noEmit) → `npm test` → `vite build`.
+#    A failing frontend test fails the build, so this step is not optional.
 cd ../app
+npm test
 npm run build
 ```
+
+Frontend tests are plain `.ts` files under `src/` run by `tsx` (no test-runner
+framework). They are typechecked by `tsc` and executed by `npm test`, but are
+never bundled into `dist/` — Vite only follows imports reachable from
+`index.html`. Add new tests as `src/**/*.test.ts` and register them in the
+`test` script in `app/package.json`.
 
 ---
 
