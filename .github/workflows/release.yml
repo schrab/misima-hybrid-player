@@ -6,7 +6,7 @@ name: Release
 # Cut a release by pushing a tag that matches the app version
 # (tauri.conf.json / package.json / Cargo.toml — all three places):
 #
-#   git tag v0.3.2 && git push origin v0.3.2
+#   git tag v0.4.0 && git push origin v0.4.0
 #
 # The macOS build is a universal binary (one .dmg for Intel + Apple
 # Silicon). The repo is public, so runner minutes are free and unlimited
