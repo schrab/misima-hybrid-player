@@ -34,9 +34,9 @@ html.web body {
   overflow: auto;
 }
 
-/* Attribution for the bundled track. Kept deliberately quiet — it is a credit,
-   not chrome. Desktop-only markup stays hidden because the desktop build plays
-   the listener's own files. */
+/* Credit line. Kept deliberately quiet — it is a credit, not chrome.
+   Nudged off-centre so it clears the player's lower panel, which reaches
+   further down the page than a centred caption assumes. */
 .credit {
   display: none;
 }
@@ -48,6 +48,9 @@ html.web .credit {
   right: 0;
   bottom: 10px;
   margin: 0;
+  /* Shifted left of centre: the player is tall and its bottom panel sits
+     right of the viewport midpoint, so a centred caption lands on top of it. */
+  transform: translateX(-100px);
   text-align: center;
   font: 11px/1.4 ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.04em;
@@ -63,6 +66,26 @@ html.web .credit a {
 html.web .credit a:hover {
   color: #8fd8c8;
   border-bottom-color: #4d7d75;
+}
+
+/* Corner mark. The source icon is near-black (#212329 and darker), which
+   disappears against the black page, so it is inverted into a light ghost
+   rather than sitting there invisible at any opacity. */
+.corner-logo {
+  display: none;
+}
+
+html.web .corner-logo {
+  display: block;
+  position: fixed;
+  left: 26px;
+  bottom: 26px;
+  width: 92px;
+  height: 92px;
+  opacity: 0.26;
+  filter: invert(1);
+  pointer-events: none;
+  user-select: none;
 }
 
 /* Exact logical size from applyScale — do not CSS-clamp, that squashes art
