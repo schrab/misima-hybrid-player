@@ -1,4 +1,6 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
+import { rm } from "node:fs/promises";
+import { resolve } from "node:path";
 
 /**
  * GitHub Pages project sites serve from a subpath
@@ -11,10 +13,29 @@ import { defineConfig } from "vite";
  * `npm run build` and `npm run tauri build` do not, so the desktop default is
  * unchanged.
  */
-const base = process.env.GH_PAGES === "1" ? "/misima-hybrid-player/" : "/";
+const isPages = process.env.GH_PAGES === "1";
+const base = isPages ? "/misima-hybrid-player/" : "/";
+
+/**
+ * `public/` is copied verbatim into `dist/`, so the WASM build output rides
+ * along on desktop builds too — about 370 KB the desktop app never loads, plus
+ * the `.d.ts` files wasm-pack emits. Drop the whole directory unless this is
+ * the Pages build, which is the only target that has a worklet.
+ */
+function stripWasmForDesktop(): Plugin {
+  return {
+    name: "misima-strip-wasm-for-desktop",
+    apply: "build",
+    async closeBundle() {
+      if (isPages) return;
+      await rm(resolve(__dirname, "dist/wasm"), { recursive: true, force: true });
+    },
+  };
+}
 
 export default defineConfig({
   base,
+  plugins: [stripWasmForDesktop()],
   clearScreen: false,
   server: {
     port: 1420,
