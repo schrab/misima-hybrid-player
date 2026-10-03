@@ -2,12 +2,7 @@
  * Misima Hybrid — sprite UI entry.
  * Coordinates are Photoshop 2x artboard pixels (see README "Coordinate system").
  */
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open } from "@tauri-apps/plugin-dialog";
 import type {
-  AudioParams,
   FaderDef,
   PlaylistRow,
   SkinAnimDef,
@@ -25,8 +20,15 @@ import {
 import { loadFont, type BitmapFont } from "./sprite/font";
 import { drawSpectrumSegments } from "./sprite/visuals";
 import { layoutSpectrumFromPool, type SpectrumAutoLayout } from "./sprite/spectrumLayout";
+import type { AudioParamsInput, Transport } from "./transport";
+import { TauriTransport } from "./transportTauri";
+import { WebTransport } from "./transportWeb";
+import { installDropTarget } from "./web/files";
+import { assetUrl } from "./web/base";
 
-const BASE = "/sprite/";
+// Base path from Vite. On GitHub Pages the app is served from a subpath, so a
+// hardcoded "/sprite/" would 404 in production while working fine in dev.
+const BASE = assetUrl("sprite/");
 
 const canvas = document.getElementById("ui") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
@@ -34,9 +36,19 @@ const ctx = canvas.getContext("2d")!;
 const ART_W = 1500;
 const ART_H = 2060;
 
-type UiScaleInfo = { scale: number; w: number; h: number; max_scale: number };
+/**
+ * Platform is chosen once, here. Everything below talks to `transport` and
+ * never learns whether it is running inside Tauri or a browser tab.
+ */
+const isTauri = "__TAURI_INTERNALS__" in window;
+const transport: Transport = isTauri ? new TauriTransport() : new WebTransport();
 
-/** Native scale (Rust owns zoom + window size so WebView2 cannot steal Ctrl+/-). */
+// The desktop shell is a transparent window over the wallpaper; a browser tab
+// has nothing behind it, so transparent would render as white behind a dark
+// skin. `styles.css` keys off this class.
+if (!isTauri) document.documentElement.classList.add("web");
+
+/** Zoom state. On the web this drives a CSS transform instead of a window resize. */
 let currentScale = 0.5;
 
 function paintCanvasSize(info: { w: number; h: number }) {
@@ -48,8 +60,22 @@ function zoomStatusPct(): number {
   return Math.round((currentScale / 0.5) * 100);
 }
 
+/** Pure-CSS zoom for the web build. The desktop path delegates to Rust. */
+function applyCssZoom(scale: number) {
+  canvas.style.transformOrigin = "top left";
+  canvas.style.transform = `scale(${scale / 0.5})`;
+  paintCanvasSize({ w: Math.round(ART_W * scale), h: Math.round(ART_H * scale) });
+}
+
 export function applyScale(scale: number, showStatus = true) {
-  void invoke<UiScaleInfo>("set_ui_scale", { scale })
+  if (transport.isWeb) {
+    currentScale = scale;
+    applyCssZoom(scale);
+    if (showStatus) status = `ZOOM ${zoomStatusPct()}%`;
+    return;
+  }
+  void transport
+    .setUiScale(scale)
     .then((info) => {
       currentScale = info.scale;
       paintCanvasSize(info);
@@ -72,7 +98,14 @@ function cycleScale(direction: 1 | -1) {
   const now = Date.now();
   if (now - lastCycleAt < 100) return;
   lastCycleAt = now;
-  void invoke<UiScaleInfo>("cycle_ui_scale", { direction })
+  if (transport.isWeb) {
+    // CSS zoom steps in 10% increments around the 0.5 default.
+    const next = Math.min(1, Math.max(0.25, currentScale + direction * 0.1));
+    applyScale(next);
+    return;
+  }
+  void transport
+    .cycleUiScale(direction)
     .then((info) => {
       currentScale = info.scale;
       paintCanvasSize(info);
@@ -124,7 +157,7 @@ window.addEventListener(
     } else if (ev.key.toLowerCase() === "d") {
       ev.preventDefault();
       ev.stopPropagation();
-      void invoke<UiScaleInfo>("get_ui_scale").then((info) => {
+      void transport.getUiScale().then((info) => {
         applyScale(info.scale >= 0.9 ? 0.5 : Math.min(1.0, info.max_scale));
       });
     }
@@ -148,7 +181,8 @@ window.addEventListener("keydown", (ev) => {
   if (/^[0-9]$/.test(ev.key)) {
     ev.preventDefault();
     const pct = Number(ev.key) * 10;
-    void invoke<number>("cue_percent", { fraction: pct / 100 })
+    void transport
+      .cuePercent(pct / 100)
       .then((target) => {
         status = target < 0 ? "No track" : `CUE ${pct}% ${fmtTime(target)}`;
       })
@@ -159,7 +193,8 @@ window.addEventListener("keydown", (ev) => {
   switch (ev.key) {
     case " ":
       ev.preventDefault();
-      void invoke<boolean>("toggle_play")
+      void transport
+        .togglePlay()
         .then((playing) => {
           status = playing ? "Playing" : "Paused";
         })
@@ -169,10 +204,11 @@ window.addEventListener("keydown", (ev) => {
     case "ArrowRight": {
       ev.preventDefault();
       const delta = ev.key === "ArrowRight" ? 10 : -10;
-      void invoke<number>("get_position")
+      void transport
+        .getPosition()
         .then((pos) => {
           const target = Math.max(0, pos + delta);
-          return invoke<void>("seek", { seconds: target }).then(() => target);
+          return transport.seek(target).then(() => target);
         })
         .then((target) => {
           status = `SEEK ${delta > 0 ? "+" : "-"}${Math.abs(delta)} ${fmtTime(target)}`;
@@ -183,7 +219,8 @@ window.addEventListener("keydown", (ev) => {
     case "z":
     case "Z":
       ev.preventDefault();
-      void invoke("prev")
+      void transport
+        .prev()
         .then(() => {
           status = "Prev";
         })
@@ -192,7 +229,8 @@ window.addEventListener("keydown", (ev) => {
     case "x":
     case "X":
       ev.preventDefault();
-      void invoke("next")
+      void transport
+        .next()
         .then(() => {
           status = "Next";
         })
@@ -211,7 +249,7 @@ let bg: HTMLImageElement | null = null;
 let bgOverlays: { img: HTMLImageElement; x: number; y: number }[] = [];
 let anims: { def: SkinAnimDef; img: HTMLImageElement; cw: number; ch: number; start: number }[] = [];
 
-const params: AudioParams = {
+const params: AudioParamsInput = {
   volume: 1.0,
   pitch: 0,
   reverb: 0,
@@ -258,13 +296,15 @@ function setParam(key: string, value: number) {
 function pushParams() {
   const eq = fxOn ? params.eq : new Array(10).fill(0);
   const reverb = fxOn ? params.reverb : 0;
-  void invoke("set_params", {
-    volume: params.volume,
-    pitch: fxOn ? params.pitch : 0,
-    reverb,
-    eq,
-    speed: params.speed,
-  }).catch(() => {});
+  void transport
+    .setParams({
+      volume: params.volume,
+      pitch: fxOn ? params.pitch : 0,
+      reverb,
+      eq,
+      speed: params.speed,
+    })
+    .catch(() => {});
 }
 
 function valueOf(param: string): number {
@@ -277,33 +317,36 @@ function valueOf(param: string): number {
 }
 
 async function pushPlaylist() {
-  const rows = await invoke<{ id: number; title: string; duration?: string }[]>("get_playlist");
+  const rows = await transport.getPlaylist();
   playlist = rows.map((r) => ({ id: r.id, title: r.title, duration: r.duration ?? "--:--" }));
 }
 
 async function action(name: string) {
   switch (name) {
     case "open": {
-      const selected = await open({
-        multiple: true,
-        filters: [{ name: "Audio", extensions: ["mp3", "flac", "wav", "ogg"] }],
-      });
-      if (!selected) return;
-      const paths = Array.isArray(selected) ? selected : [selected];
+      // Desktop gets filesystem paths from the native dialog; the web gets
+      // `File` objects it decodes in place. Both end at the same playlist.
+      const picked = await transport.openFilePicker();
+      if (picked.length === 0) return;
       status = "Adding…";
-      await invoke("open_files", { paths });
-      await pushPlaylist();
-      status = `${paths.length} added`;
+      if (transport.isWeb) {
+        // The web picker already decoded the files as a side effect.
+        await pushPlaylist();
+      } else {
+        await transport.openFiles(picked);
+        await pushPlaylist();
+      }
+      status = `${picked.length} added`;
       break;
     }
     case "play": {
       if (playing) {
-        await invoke("pause");
+        await transport.pause();
         playing = false;
         status = "Paused";
       } else {
         try {
-          await invoke("play");
+          await transport.play();
           playing = true;
           status = "Playing";
         } catch (err) {
@@ -315,28 +358,28 @@ async function action(name: string) {
       break;
     }
     case "pause":
-      await invoke("pause");
+      await transport.pause();
       playing = false;
       status = "Paused";
       break;
     case "stop":
-      await invoke("stop");
+      await transport.stop();
       playing = false;
       status = "Stopped";
       break;
     case "prev":
     case "next": {
-      await invoke(name === "next" ? "next" : "prev");
+      await (name === "next" ? transport.next() : transport.prev());
       playing = true;
       await pushPlaylist();
-      const rows = await invoke<{ id: number; title: string }[]>("get_playlist");
+      const rows = await transport.getPlaylist();
       const cur = rows.find((r) => r.id === activeId);
       status = name === "next" ? "Next" : "Prev";
       if (cur) status += ` ${cur.title}`;
       break;
     }
     case "clear":
-      await invoke("clear_playlist");
+      await transport.clearPlaylist();
       activeId = null;
       playing = false;
       await pushPlaylist();
@@ -367,10 +410,11 @@ async function action(name: string) {
       // Miniaturizable bit) even though miniaturize still works, and Linux
       // hardcodes true whether or not the compositor honours the request.
       // Audio keeps playing while hidden — only the window goes away.
-      await getCurrentWindow().minimize();
+      // On the web this is a no-op; a tab has no window to minimize.
+      await transport.minimize();
       break;
     case "power":
-      await getCurrentWindow().close();
+      await transport.close();
       break;
     default:
       break;
@@ -573,7 +617,7 @@ canvas.addEventListener("pointerdown", (ev) => {
   ) {
     return;
   }
-  void getCurrentWindow().startDragging();
+  void transport.startDragging();
 });
 
 canvas.addEventListener("pointermove", (ev) => {
@@ -675,7 +719,7 @@ async function playRowAt(p: { x: number; y: number }) {
       if (idx < 0) break;
       activeId = row.id;
       playing = true;
-      await invoke("play_index", { index: idx });
+      await transport.playIndex(idx);
       await pushPlaylist();
       status = `PLAY ${row.title}`;
       break;
@@ -692,15 +736,20 @@ function loadImageSafe(url: string): Promise<HTMLImageElement | null> {
 
 async function init() {
   // Native side already fitted the window; sync canvas CSS to that scale.
-  await listen<UiScaleInfo>("ui_scale", (e) => {
-    currentScale = e.payload.scale;
-    paintCanvasSize(e.payload);
-  });
-  try {
-    const info = await invoke<UiScaleInfo>("get_ui_scale");
-    currentScale = info.scale;
-    paintCanvasSize(info);
-  } catch {
+  // On the web there is no window to fit, so zoom is CSS from the start.
+  if (!transport.isWeb) {
+    await transport.on<"ui_scale">("ui_scale", (e) => {
+      currentScale = e.scale;
+      paintCanvasSize(e);
+    });
+    try {
+      const info = await transport.getUiScale();
+      currentScale = info.scale;
+      paintCanvasSize(info);
+    } catch {
+      paintCanvasSize({ w: Math.round(ART_W * 0.5), h: Math.round(ART_H * 0.5) });
+    }
+  } else {
     paintCanvasSize({ w: Math.round(ART_W * 0.5), h: Math.round(ART_H * 0.5) });
   }
   skin = await loadJson(BASE + "skin.json");
@@ -781,8 +830,8 @@ async function init() {
     setParam(f.param, v);
   }
 
-  await listen<Float32Array>("spectrum", (e) => {
-    const raw = Float32Array.from(e.payload);
+  await transport.on<"spectrum">("spectrum", (payload) => {
+    const raw = Float32Array.from(payload);
     const out = new Float32Array(10);
     const n = raw.length;
     const edges = [0, 0.04, 0.1, 0.18, 0.3, 0.45, 0.6, 0.75, 0.85, 0.93, 1.0];
@@ -801,30 +850,30 @@ async function init() {
     }
     bins = out;
   });
-  await listen<Float32Array>("waveform", (e) => {
-    const raw = Float32Array.from(e.payload);
+  await transport.on<"waveform">("waveform", (payload) => {
+    const raw = Float32Array.from(payload);
     const row = waveHistory[waveIdx % (SCOPE_ECHO + 1)];
     for (let i = 0; i < SCOPE_N && i < raw.length; i++) {
       row[i] = raw[i] * scopeWindow[i];
     }
     waveIdx = (waveIdx + 1) % (SCOPE_ECHO + 1);
   });
-  await listen("play_started", () => {
+  await transport.on<"play_started">("play_started", () => {
     playing = true;
     status = "Playing";
   });
-  await listen<string>("error", (e) => {
+  await transport.on<"error">("error", (msg) => {
     playing = false;
-    status = e.payload;
+    status = msg;
   });
-  await listen<number>("track_changed", (e) => {
-    activeId = e.payload;
+  await transport.on<"track_changed">("track_changed", (id) => {
+    activeId = id;
     playing = true;
     void pushPlaylist();
   });
-  await listen("track_ended", async () => {
+  await transport.on<"track_ended">("track_ended", async () => {
     try {
-      await invoke("next");
+      await transport.next();
       await pushPlaylist();
       playing = true;
     } catch {
@@ -832,6 +881,29 @@ async function init() {
       playing = false;
     }
   });
+
+  // Whole-window drag-and-drop is a web-only affordance; on desktop files
+  // arrive through the native dialog, which gives real paths.
+  if (transport instanceof WebTransport) {
+    const player = transport.webPlayer;
+    installDropTarget(async (files) => {
+      status = `Adding ${files.length}…`;
+      await player.openFiles(files);
+      await pushPlaylist();
+      status = `${files.length} added`;
+    });
+    // Hosted-MP3 loading (spec Phase 5). Exposed on `window.misima` so a track
+    // can be added by URL from the console or a future UI affordance. It goes
+    // through the same playlist refresh as the other entry points, otherwise
+    // the rows exist in the engine but never reach the screen.
+    (window as unknown as { misima: unknown }).misima = {
+      loadUrl: async (url: string, title?: string) => {
+        await player.addUrl(url, title);
+        await pushPlaylist();
+      },
+      player,
+    };
+  }
 
   await pushPlaylist();
   requestAnimationFrame(render);

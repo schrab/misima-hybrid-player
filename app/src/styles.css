@@ -8,6 +8,25 @@ body {
   user-select: none;
 }
 
+/* The desktop build runs in a transparent Tauri window floating over the
+   wallpaper, so the page must stay see-through there. In a browser tab there
+   is no wallpaper to show through to — transparent renders as white, which
+   looks badly wrong behind a dark sci-fi skin. `main.ts` sets this class when
+   it detects the web platform. */
+html.web,
+html.web body {
+  background: #000;
+}
+
+/* The player is a tall, narrow panel (750x1030 at the default zoom). Centre it
+   rather than pinning it to the corner, so it reads as a device sitting on the
+   page instead of a sprite sheet jammed into the top-left. */
+html.web body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Exact logical size from applyScale — do not CSS-clamp, that squashes art
    independently of the Tauri window and hides zoom changes. */
 #ui {

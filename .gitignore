@@ -6,3 +6,11 @@ dist/
 *.log
 
 app/dist/
+
+# local dev tooling + generated caption PNGs (see tools/make_caption.py)
+tools/
+captions/
+
+# Test fixtures copied in from ../../music for local browser testing only.
+# Never part of a deploy.
+app/public/music/

@@ -13,7 +13,10 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    // Vite injects `import.meta.env.BASE_URL`; the web build reads it to build
+    // asset URLs that survive the GitHub Pages subpath.
+    "types": ["vite/client"]
   },
   "include": ["src"]
 }
