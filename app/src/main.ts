@@ -694,6 +694,10 @@ function findFaderAt(x: number, y: number) {
 }
 
 canvas.addEventListener("pointerdown", (ev) => {
+  // Primary button only. `pointerdown` fires for right and middle too, so
+  // without this a right-click was grabbing faders and — on empty plate —
+  // calling `startDragging()`, which yanks the window around.
+  if (ev.button !== 0) return;
   const p = canvasPoint(ev);
   for (const b of skin.buttons) {
     if (hitRect(p.x, p.y, b.origin, b.size)) {
@@ -779,6 +783,24 @@ canvas.addEventListener("pointerup", async (ev) => {
     if (b && hitRect(p.x, p.y, b.origin, b.size)) await action(b.action);
   }
   dragFader = null;
+});
+
+/**
+ * The browser context menu is suppressed. The canvas is a picture of a player,
+ * so "Save image as / Copy image / Inspect" is never what anyone wants here,
+ * and `user-select: none` already rules out the text half of the menu.
+ *
+ * Scoped rather than blanket: real content keeps its menu, so the credit links
+ * can still be copied or opened in a new tab. Handling the event also covers
+ * the keyboard route (Menu key, Shift+F10), which an attribute-level
+ * `oncontextmenu="return false"` would miss.
+ *
+ * Devtools are deliberately left alone — gating them is user-hostile, easily
+ * defeated, and breaks the people who need them most.
+ */
+document.addEventListener("contextmenu", (ev) => {
+  if ((ev.target as Element | null)?.closest("a")) return;
+  ev.preventDefault();
 });
 
 canvas.addEventListener("dblclick", (ev: MouseEvent) => {
