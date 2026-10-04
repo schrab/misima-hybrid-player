@@ -154,13 +154,24 @@ assert(flow.count > 25 && flow.count < 80, `sane particle count (${flow.count})`
   );
 }
 
-// Bead sizes land in the requested 4..6 artboard px.
+// The ambient defaults: slow enough to read as drifting light rather than
+// traffic, and varied enough that rails are not synchronised.
+{
+  const speeds = flow.rails.map((st) => st.speed);
+  assert(
+    speeds.every((v) => v >= 22 && v <= 48),
+    `default speed stays in the slow 22..48 px/s band (got ${Math.min(...speeds).toFixed(0)}..${Math.max(...speeds).toFixed(0)})`,
+  );
+  assert(new Set(speeds.map((v) => v.toFixed(1))).size > 10, "rail speeds are varied");
+}
+
+// Bead sizes land in the requested 2.8..4.2 artboard px.
 {
   const sizes = flow.particles().map((p) => p.size);
   assert(sizes.length > 0, "some beads are visible at t=0");
   assert(
-    sizes.every((s) => s >= 4 && s <= 6),
-    "bead diameter stays within 4..6 artboard px",
+    sizes.every((s) => s >= 2.8 && s <= 4.2),
+    "bead diameter stays within 2.8..4.2 artboard px",
   );
 }
 

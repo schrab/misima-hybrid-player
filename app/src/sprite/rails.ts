@@ -19,8 +19,22 @@
 /** viewBox of the traced source vector; the rails below are in these units. */
 export const RAIL_VIEWBOX = { w: 818.182, h: 1123.636 };
 
-/** Sprite drawn per particle, as a multiple of its bead diameter. */
-const SPOT_SCALE = 3.6;
+/**
+ * Sprite drawn per particle, as a multiple of its bead diameter.
+ *
+ * Large because the profile is a wide Gaussian: the bright core is only a
+ * small fraction of the sprite, and what reads as the bead is the soft halo
+ * around it. Widening the blur therefore means growing the sprite *and*
+ * widening sigma together — a Gaussian clipped to its own sprite leaves a
+ * visible circular edge, which is the hard disc this effect must not have.
+ */
+const SPOT_SCALE = 7;
+
+/** Gaussian sigma as a fraction of the sprite radius (see SPOT_SCALE). */
+const SPOT_SIGMA = 0.386;
+
+/** Warm off-white. A pure white bead reads as a speck of dust, not a light. */
+const SPOT_RGB: [number, number, number] = [255, 222, 150];
 
 /** Rail path data, verbatim from `gfx/bg_wires.svg` (viewBox units). */
 export const RAIL_PATHS: readonly string[] = [
@@ -73,7 +87,7 @@ export type FlowOptions = {
   corePx?: [number, number];
   /** Pulsation rate in Hz. */
   pulseHz?: [number, number];
-  /** Peak alpha of a fully faded-in particle. */
+  /** Peak alpha of a fully faded-in particle. Lower = softer, less contrasty. */
   gain?: number;
   seed?: number;
 };
@@ -291,11 +305,11 @@ export class WireFlow {
     const artW = opts.artW ?? 1500;
     const scale = artW / RAIL_VIEWBOX.w;
     const perParticle = opts.pxPerParticle ?? 175;
-    const [sLo, sHi] = opts.speed ?? [45, 95];
+    const [sLo, sHi] = opts.speed ?? [22, 48];
     const fadePx = opts.fadePx ?? 45;
-    const [cLo, cHi] = opts.corePx ?? [4, 6];
+    const [cLo, cHi] = opts.corePx ?? [2.8, 4.2];
     const [pLo, pHi] = opts.pulseHz ?? [0.12, 0.4];
-    this.gain = opts.gain ?? 0.85;
+    this.gain = opts.gain ?? 0.6;
     const rng = mulberry32(opts.seed ?? 0x5eed);
 
     this.rails = RAIL_PATHS.map((d, idx) => {
@@ -373,8 +387,8 @@ export class WireFlow {
     const list = this.particles();
     if (list.length === 0) return;
     ctx.save();
-    // The rails are mid-grey (~95/255); `screen` lifts them to ~230 at full
-    // alpha instead of clipping to a hard white disc.
+    // The rails are mid-grey (~95/255); `screen` at `gain` 0.6 lifts them to
+    // roughly 190 — bright enough to read as light, never clipping to a disc.
     ctx.globalCompositeOperation = "screen";
     for (const p of list) {
       const d = p.size * SPOT_SCALE;
@@ -386,27 +400,30 @@ export class WireFlow {
 }
 
 /**
- * The bead sprite: a white core inside a soft falloff, rendered once.
+ * The bead sprite: a Gaussian glow in a warm off-white, rendered once.
  *
  * Per particle this is a single `drawImage` with `globalAlpha`, which is what
- * keeps ~48 additive sprites free. Drawn at `SPOT_SCALE ×` the bead diameter,
- * so the solid centre is the requested size while the halo spills a few px past
- * the ~10 px wire.
+ * keeps ~50 additive sprites free.
+ *
+ * The profile is sampled from a true Gaussian rather than hand-picked stops,
+ * because the falloff has to stay smooth all the way out — a stop list with a
+ * visible kink, or one that still has alpha where the sprite ends, shows up as
+ * a hard disc. `SPOT_SIGMA` is chosen so the last stop lands at ~0.001.
  */
-export function makeSpotCanvas(px = 64): HTMLCanvasElement {
+export function makeSpotCanvas(px = 64, rgb: [number, number, number] = SPOT_RGB): HTMLCanvasElement {
   const c = document.createElement("canvas");
   c.width = px;
   c.height = px;
   const g = c.getContext("2d")!;
   const r = px / 2;
   const grad = g.createRadialGradient(r, r, 0, r, r, r);
-  grad.addColorStop(0.0, "rgba(255,255,255,1)");
-  grad.addColorStop(0.14, "rgba(255,255,255,0.95)");
-  grad.addColorStop(0.26, "rgba(255,255,255,0.62)");
-  grad.addColorStop(0.42, "rgba(255,255,255,0.28)");
-  grad.addColorStop(0.62, "rgba(255,255,255,0.09)");
-  grad.addColorStop(0.82, "rgba(255,255,255,0.02)");
-  grad.addColorStop(1.0, "rgba(255,255,255,0)");
+  const [cr, cg, cb] = rgb;
+  const STOPS = 24;
+  for (let i = 0; i <= STOPS; i++) {
+    const t = i / STOPS;
+    const a = Math.exp(-((t / SPOT_SIGMA) ** 2));
+    grad.addColorStop(t, `rgba(${cr},${cg},${cb},${a.toFixed(4)})`);
+  }
   g.fillStyle = grad;
   g.fillRect(0, 0, px, px);
   return c;
