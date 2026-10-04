@@ -13,6 +13,41 @@ the desktop installers; pushing `main` on its own deploys the web app.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-05
+
+Below 1.0x the tempo fader stops pretending and stretches properly: Paulstretch.
+
+### Added
+- **Paulstretch engine** (`paulstretch.rs`, the tenth shared DSP module) —
+  tempo below 1.0 now time-stretches with pitch kept, up to 10x at the fader's
+  floor, desktop and web from the same Rust. The algorithm is Paul Nasca's: an
+  8192-point FFT whose phase is thrown away and re-dealt per bin from a
+  deterministic LCG — independently per channel, which is where the stereo wash
+  comes from — DC and Nyquist zeroed every frame, the `(1-x²)^1.25` window on
+  the way in and again on the way out, 50% overlap-add. The signature sound
+  needs the spread filter too, so magnitudes are smoothed on a log-frequency
+  axis (20 Hz..Nyquist, two forward+backward one-pole passes, reference
+  bandwidth) before the new phases go on. Clean-room from the author's own
+  Public-Domain Python reference; the C++ implementations are GPL-2 and were
+  read for numbers only. Expansion is `pitch_ratio / speed` with the pitch
+  resampler untouched downstream, so the pitch fader keeps its exact semantics
+  inside the wash. No added startup latency: the whole decoded track is random
+  access on both platforms, so the engine starts at the requested position and
+  the first chunk simply fades in through the window. Cost is ~21 FFT pairs of
+  8192 points per second per channel, flat across the whole stretch range.
+  Fifteen new tests: identity-phase OLA reconstruction, level, spectral
+  preservation, finite/bounded output to 10x, output length, reset, spread
+  differential, determinism, position bookkeeping, engine crossover at the 1.0
+  boundary, an end-to-end 10x pipeline, and a mid-stretch seek.
+
+### Changed
+- **The tempo fader sweeps 0.1–2 with a log curve** — 1.0 sits at ~77% of
+  travel and the floor is 0.1x = 10x stretch. Engine selection is by tempo:
+  speed < 1.0 goes to Paulstretch at any pitch; speed ≥ 1.0 is exactly what it
+  was (bit-perfect bypass at neutral, phase vocoder for pitch-up, WSOLA for
+  tempo-up and pitch-down). The texture flips wash↔clean at the 1.0 midpoint —
+  at 0.99 the phases are already fully random; that is the point.
+
 ## [0.4.4] — 2026-10-04
 
 The volume fader is gone; its slot now carries the cutoff.

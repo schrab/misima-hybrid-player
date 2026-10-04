@@ -1,6 +1,6 @@
 [package]
 name = "misima-player"
-version = "0.4.4"
+version = "0.5.0"
 description = "Multiplatform skinnable music player"
 authors = ["schrab x MI$IM∆"]
 edition = "2021"

@@ -11,3 +11,6 @@ app/dist/
 tools/
 captions/
 
+# subagent-driven-development scratch (briefs, reports, logs, ledger)
+.superpowers/
+
