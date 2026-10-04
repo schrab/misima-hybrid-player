@@ -750,6 +750,150 @@ mod tests {
     use crate::audio::decoder::write_test_wav;
     use tempfile::tempdir;
 
+    /// Music-like stereo: a chord, a percussive pulse and a noise bed —
+    /// broadband enough to exercise the phase locker's peak search, with
+    /// transients to expose discontinuities.
+    fn music_like(frames: usize, sr: f32) -> Vec<f32> {
+        let mut seed = 0x9E3779B97F4A7C15u64;
+        let mut out = Vec::with_capacity(frames * 2);
+        for i in 0..frames {
+            let t = i as f32 / sr;
+            let pulse = if (t * 2.0).fract() < 0.03 {
+                (-(t * 2.0).fract() * 330.0).exp()
+            } else {
+                0.0
+            };
+            let chord = 0.25
+                * ((std::f32::consts::TAU * 220.0 * t).sin()
+                    + (std::f32::consts::TAU * 277.0 * t).sin()
+                    + (std::f32::consts::TAU * 330.0 * t).sin());
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let noise = ((seed >> 33) as f32 / (u32::MAX >> 1) as f32 - 1.0) * 0.05;
+            let v = chord + pulse * 0.5 + noise;
+            out.push(v);
+            out.push(v * 0.9);
+        }
+        out
+    }
+
+    /// One callback block's worth of the post-source chain, mirroring
+    /// `build_stream`'s bypass/select/reset logic. Returns (dry peak, wet peak
+    /// before the output clamp).
+    fn block(
+        stretcher: &mut Stretcher,
+        reverb: &mut Reverb,
+        was_bypass: &mut bool,
+        pos: &mut f64,
+        samples: &[f32],
+        total: usize,
+        frames: usize,
+        speed: f32,
+        pr: f32,
+        sr: f32,
+        mix: f32,
+    ) -> (f32, f32) {
+        let (mut bl, mut br) = (vec![0.0f32; frames], vec![0.0f32; frames]);
+        let is_bypass = (speed - 1.0).abs() < 0.002 && (pr - 1.0).abs() < 0.002;
+        if !is_bypass && *was_bypass {
+            stretcher.reset(*pos);
+        }
+        *was_bypass = is_bypass;
+        stretcher.select(speed, pr, *pos);
+        if is_bypass {
+            let start = (*pos as usize).min(total);
+            let to_copy = (total - start).min(frames);
+            for f in 0..to_copy {
+                let idx = (start + f) * 2;
+                bl[f] = samples[idx];
+                br[f] = samples[idx + 1];
+            }
+            *pos += frames as f64;
+        } else {
+            let mut finished = false;
+            stretcher.process(
+                samples, 2, total, frames, speed, pr, sr, &mut bl, &mut br, &mut finished,
+            );
+            *pos = stretcher.get_play_pos(speed, pr);
+        }
+
+        let mut dry_peak = 0.0f32;
+        let mut wet_peak = 0.0f32;
+        reverb.set_mix(mix);
+        let wg = if mix > 0.001 { reverb.wet_gain() } else { 1.0 };
+        for f in 0..frames {
+            let mut fr = [bl[f], br[f]];
+            dry_peak = dry_peak.max(fr[0].abs()).max(fr[1].abs());
+            if mix > 0.001 {
+                reverb.process_with_gain(&mut fr, wg);
+            }
+            wet_peak = wet_peak.max(fr[0].abs()).max(fr[1].abs());
+        }
+        (dry_peak, wet_peak)
+    }
+
+    /// Replaying the two gestures that sound like an explosion must not drive
+    /// the chain past a sane headroom. The reverb tail rings whatever the dry
+    /// path emits, so a stretcher burst becomes seconds of noise.
+    #[test]
+    fn pitch_gestures_with_reverb_stay_bounded() {
+        const SR: f32 = 44_100.0;
+        const FRAMES: usize = 512;
+        let total = (SR * 8.0) as usize;
+        let samples = music_like(total, SR);
+
+        for mix in [0.5f32, 0.0] {
+            let mut stretcher = Stretcher::new();
+            let mut reverb = Reverb::new(SR);
+            let mut was_bypass = false;
+            let mut pos = 0.0f64;
+            let (mut worst_dry, mut worst_wet) = (0.0f32, 0.0f32);
+            let mut worst_at = (0usize, 0usize);
+
+            // Gesture A: hold pitch down, then drag the fader up across its
+            // midpoint (0 st -> positive), the way a hand sweeps it.
+            for b in 0..120 {
+                let pr = if b < 40 {
+                    0.84
+                } else if b < 56 {
+                    // ~16 updates across the crossing, one per block.
+                    0.84 + (b - 40) as f32 * (1.19 - 0.84) / 16.0
+                } else {
+                    1.19
+                };
+                let (d, w) = block(
+                    &mut stretcher, &mut reverb, &mut was_bypass, &mut pos, &samples, total,
+                    FRAMES, 1.0, pr, SR, mix,
+                );
+                if d > worst_dry { worst_dry = d; worst_at.0 = b; }
+                if w > worst_wet { worst_wet = w; worst_at.1 = b; }
+            }
+
+            // Gesture B: a cue press (seek to mid-track) while pitch is
+            // positive, so the vocoder is live across the flush.
+            pos = total as f64 * 0.5;
+            stretcher.reset(pos);
+            reverb.clear();
+            for b in 0..80 {
+                let (d, w) = block(
+                    &mut stretcher, &mut reverb, &mut was_bypass, &mut pos, &samples, total,
+                    FRAMES, 1.0, 1.19, SR, mix,
+                );
+                if d > worst_dry { worst_dry = d; worst_at.0 = 200 + b; }
+                if w > worst_wet { worst_wet = w; worst_at.1 = 200 + b; }
+            }
+
+            println!(
+                "GESTURE mix={mix} worst_dry={worst_dry:.2} (block {}) \
+                 worst_wet={worst_wet:.2} (block {})",
+                worst_at.0, worst_at.1
+            );
+            assert!(worst_dry < 2.0, "dry path spiked to {worst_dry:.1}");
+            assert!(worst_wet < 2.0, "wet path spiked to {worst_wet:.1}");
+        }
+    }
+
     #[test]
     fn resample_halves_rate() {
         // 4 frames mono 22050 → 11025 yields ~2 frames

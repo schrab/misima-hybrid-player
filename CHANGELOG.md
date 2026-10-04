@@ -45,6 +45,23 @@ The volume fader is gone; its slot now carries the cutoff.
   `AudioParamsInput`, `set_params` (IPC and worklet message), `Params`, and
   the dormant `set_volume` command nobody called. Nothing else referenced it.
 
+### Fixed
+- **The explosion when crossing the pitch fader's midpoint, or cueing with
+  pitch up, is gone.** Every `PhaseVocoder::reset()` — a seek, a cue press, or
+  the WSOLA→vocoder engine switch that a drag from negative to positive pitch
+  performs — used to emit a full-scale burst in its first block. `resynthesise`
+  "fixed" the DC bin with `spec[0].re = spec[0].norm()`, which takes the
+  magnitude: a negative analysis DC (ordinary in music) flips by π and adds a
+  constant `2·|X0|` to the whole resynthesised frame. At steady state the
+  overlap-add divides by the full sum of squared windows and swallows it; the
+  first frame after a reset divides by a partial sum instead, multiplying that
+  constant by `1/(N·w[i])` where a Hann window approaches zero — measured 224×
+  the signal, decaying as `1/w`. With the reverb tail attached the burst rang
+  for seconds, which is what made it sound like an explosion. Only the
+  imaginary rounding is cleared now. Two regression tests: a direct
+  mid-track reset, and an end-to-end replay of both gestures through the real
+  stretcher/reverb chain.
+
 ## [0.4.3] — 2026-10-04
 
 Found by installing 0.4.2 on Arch: the player runs, the audio works, but the

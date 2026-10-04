@@ -135,6 +135,8 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
    - At `cutoff ≥ 20 kHz` the `Lowpass4` becomes identity **and clears its registers**, entered exactly once — the fader's top position must stay bit-transparent, and a real 20 kHz lowpass would not be. Never clear per buffer while open.
    - `set_cutoff` is an epsilon no-op when cutoff and rate are unchanged; `set_params` fires on every pointermove of any fader drag. The desktop callback re-applies it per buffer with the live device rate (a device change rebuilds the coefficients); the worklet applies it in `set_params`.
    - A seek or track change flushes the filter alongside the stretcher and the reverb on the `seek_gen` path, or a closed filter rings across the gap.
+11. **Never Force a Binned Coefficient's Sign** (`phase_vocoder.rs`):
+   - The resynthesised DC bin may only have its imaginary rounding cleared. Writing `spec[0].re = spec[0].norm()` takes the magnitude, so a negative analysis DC (ordinary in music) flips by π and injects a constant `2·|X0|` into the whole frame. Steady state buries it; the first frame after a `reset()` divides by a partial sum of squared windows instead of 1.5, multiplying that constant by `1/(N·w[i])` where a Hann window approaches zero — a full-scale burst on every vocoder reset, which the reverb tail then rings for seconds. Sines never showed it (their windowed DC is ~0), so the regression tests must use broadband material.
 
 ### 3.2 Frontend & UI Compositor Rules
 

@@ -287,6 +287,8 @@ useful ones to understand before touching DSP:
 | `two_octaves_above_cutoff_lands_near_48db` | the 24 dB/oct slope |
 | `resonance_bump_at_the_cutoff` | the resonant Q pair peaks at the cutoff |
 | `sweep_stays_finite_and_bounded` | no divergence while the coefficients move |
+| `reset_into_the_middle_of_a_track_does_not_explode` | a reset at a non-zero source position primes the overlap-add correctly |
+| `pitch_gestures_with_reverb_stay_bounded` | crossing the pitch fader's midpoint and cueing while pitched up stay within headroom |
 
 Measurement conventions that have bitten us:
 

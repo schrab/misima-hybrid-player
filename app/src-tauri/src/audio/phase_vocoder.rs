@@ -184,7 +184,13 @@ fn resynthesise(
     for k in 1..half {
         spec[n - k] = spec[k].conj();
     }
-    spec[0].re = spec[0].norm();
+    // DC and Nyquist are real bins: clear the imaginary rounding error only.
+    // Assigning `norm()` to `re` would also force the sign positive, and a
+    // negative analysis DC (ordinary in music) would flip by pi — a constant
+    // 2*|X0| added to the whole frame. Steady-state overlap-add buries that,
+    // but the first frame after a reset divides by a partial sum of squared
+    // windows, which amplifies a constant by 1/(N*w[i]) where a Hann window
+    // approaches zero. That is the burst every vocoder reset used to produce.
     spec[0].im = 0.0;
 }
 
@@ -541,6 +547,17 @@ impl PhaseVocoder {
             } else {
                 0.0
             };
+            if std::env::var("VOCODER_PROBE").is_ok() && self.fifo_l.len() < emit * 2 {
+                eprintln!(
+                    "PROBE frame={} i={i} w={:.4e} norm={:.4e} ola={:.6e} g={:.4e} out={:.4}",
+                    self.fifo_l.len() / emit,
+                    self.window[i],
+                    self.norm[i],
+                    self.ola[0][i],
+                    g,
+                    self.ola[0][i] * g
+                );
+            }
             self.fifo_l.push(self.ola[0][i] * g);
             self.fifo_r.push(self.ola[1][i] * g);
         }
@@ -759,5 +776,28 @@ mod tests {
             (0.99..1.01).contains(&ratio),
             "pure STFT did not reconstruct: {ratio:.3}"
         );
+    }
+
+    #[test]
+    fn reset_into_the_middle_of_a_track_does_not_explode() {
+        // A seek or an engine switch calls reset() at a non-zero source
+        // position. The prime frame then carries real audio, so the
+        // overlap-add divides a real numerator by a partial sum of squared
+        // windows — and a periodic Hann starts at zero, so the first emitted
+        // block came out amplified by 1/w[i], thousands of times over. With
+        // the reverb tail attached that burst rings for seconds.
+        let total = (SR * 4.0) as usize;
+        let samples = sine(total, 300.0);
+        let mut v = PhaseVocoder::new();
+        v.reset(total as f64 * 0.5);
+        let (mut l, mut r) = (vec![0f32; 512], vec![0f32; 512]);
+        let mut fin = false;
+        v.process(&samples, 2, total, 512, 1.0, 1.334, &mut l, &mut r, &mut fin);
+        let peak = l
+            .iter()
+            .chain(r.iter())
+            .fold(0.0f32, |m, v| m.max(v.abs()));
+        assert!(peak.is_finite(), "reset produced a non-finite sample: {peak}");
+        assert!(peak < 2.0, "reset at mid-track spiked to {peak:.1}");
     }
 }
