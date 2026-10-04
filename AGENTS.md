@@ -32,7 +32,8 @@ Misima Hybrid Player is a high-performance, skinnable, multiplatform (Windows, m
 │  - Resampler: Interleaved SRC to device rate + anti-alias lowpass      │
 │  - DSP Pipeline:                                                       │
 │      1) Bit-perfect bypass (1.0x speed, 0 st pitch)                     │
-│      2) Time/pitch engine, split by stretch = speed/pitch:              │
+│      2) Time/pitch engine: speed < 1.0 → Paulstretch (up to 10x,        │
+│         pitch kept); at speed >= 1.0 the split by stretch = speed/pitch:│
 │         stretch <= 1 → stereo phase vocoder (pitch-up; smooth)          │
 │         stretch  > 1 → WSOLA time-stretch (expansion; WSOLA's good side)│
 │         then Cubic Hermite resample by the pitch ratio                  │
@@ -58,7 +59,7 @@ the *same* DSP modules:
 │        │  decodeAudioData — browser-native; resamples to the context    │
 │        ▼                                                               │
 │  AudioWorkletNode "dsp-processor"                                      │
-│        │  ← app/wasm-dsp, the nine platform-free modules compiled to  │
+│        │  ← app/wasm-dsp, the ten platform-free modules compiled to  │
 │        │    WASM (+simd128). Same bypass / stretcher / EQ / taps /     │
 │        │    reverb / clip chain, same order, same tap points.          │
 │        ▼                                                               │
@@ -211,7 +212,7 @@ The player is designed for cross-platform deployment. Agents must verify platfor
 Before committing or completing any task, agents must run and pass the following checks:
 
 ```bash
-# 1. Rust Audio Core & DSP Unit Tests (Must pass 51/51, 1 ignored smoke test)
+# 1. Rust Audio Core & DSP Unit Tests (Must pass 65/65, 1 ignored smoke test)
 cd app/src-tauri
 export PATH="$HOME/.cargo/bin:$PATH"
 cargo test -- --nocapture
@@ -220,7 +221,7 @@ cargo test -- --nocapture
 cargo check
 
 # 3. Web DSP Crate — same shared modules, wasm32 target
-#    The unit tests of the nine shared DSP modules run here too, so a
+#    The unit tests of the ten shared DSP modules run here too, so a
 #    regression that only shows up in the WASM build is caught without a
 #    browser. This is mandatory for any change under `src/audio/`.
 cd ../wasm-dsp
@@ -295,7 +296,7 @@ misima-hybrid-player/
 │   ├── wasm-dsp/               # The DSP chain compiled to WASM for the browser
 │   │   ├── Cargo.toml          # wasm-bindgen, js-sys, rustfft — no cpal/tauri/symphonia
 │   │   └── src/
-│   │       ├── lib.rs          # #[path]-includes the nine shared audio modules
+│   │       ├── lib.rs          # #[path]-includes the ten shared audio modules
 │   │       ├── processor.rs    # DspProcessor: the whole worklet-side engine
 │   │       └── bindings.rs     # wasm_bindgen surface (wasm32 only)
 │   └── src-tauri/              # Rust backend core (desktop)
@@ -313,6 +314,7 @@ misima-hybrid-player/
 │               ├── eq.rs       # 10-band peaking biquad EQ & anti-aliasing lowpass
 │               ├── lpf.rs      # 4-pole resonant master lowpass (cutoff fader)
 │               ├── phase_vocoder.rs # Stereo phase vocoder (pitch-up engine)
+│               ├── paulstretch.rs  # Paulstretch tempo-down engine (phase-discarding, shared)
 │               ├── reverb_mix.rs # Reverb dry/wet balance + envelope gain policy
 │               ├── spectrum.rs # FFT spectrum analyzer (rustfft)
 │               ├── stretcher.rs # Engine selector between vocoder and WSOLA
@@ -322,17 +324,17 @@ misima-hybrid-player/
 
 ### Shared DSP modules
 
-Eight modules under `src-tauri/src/audio/` are `#[path]`-included by
+Ten modules under `src-tauri/src/audio/` are `#[path]`-included by
 `wasm-dsp`, so the browser and desktop run **the same Rust**:
 
-`clouds_reverb`, `dsp_utils`, `eq`, `phase_vocoder`, `spectrum`, `wsola`,
-`reverb_mix`, `stretcher`.
+`clouds_reverb`, `dsp_utils`, `eq`, `lpf`, `paulstretch`, `phase_vocoder`,
+`spectrum`, `wsola`, `reverb_mix`, `stretcher`.
 
 Their unit tests run in **both** crates. `player.rs` (cpal, tauri, parking_lot)
 and `decoder.rs` (Symphonia) stay desktop-only — the browser equivalents are
 the `AudioContext` and `decodeAudioData`.
 
-When editing one of the nine, the shared module's `use crate::audio::…` paths
+When editing one of the ten, the shared module's `use crate::audio::…` paths
 must keep resolving in both crates. Declare new modules at the crate root of
 `wasm-dsp/src/lib.rs`, not inside an inline `mod audio { … }`: an inline
 module anchors a nested `#[path]` at `src/audio/`, and the resulting `..` count
@@ -342,9 +344,9 @@ Linux CI runner.
 ## 7. DSP Documentation
 
 `docs/DSP.md` is the deep-dive for anyone reviewing or modifying the audio
-engines: the full signal chain, both time-stretch engines (WSOLA and the phase
-vocoder) with their measured trade-offs, the reverb topology and loudness
-policy, and the test methodology (including the identity-bypass trick for
-separating overlap-add faults from phase-logic faults). Read it before touching
-anything under `src/audio/`.
+engines: the full signal chain, all three time-stretch engines (Paulstretch,
+WSOLA and the phase vocoder) with their measured trade-offs, the reverb
+topology and loudness policy, and the test methodology (including the
+identity-bypass trick for separating overlap-add faults from phase-logic
+faults). Read it before touching anything under `src/audio/`.
 

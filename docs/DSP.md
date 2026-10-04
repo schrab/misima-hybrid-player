@@ -6,11 +6,11 @@ invariants that keep the real-time thread safe, and how the test suite verifies
 behaviour. Read this before modifying any DSP code; the module headers repeat
 the critical parts, but this document explains the reasoning.
 
-**Eight of these modules are shared with the browser build.** `app/wasm-dsp/`
+**Ten of these modules are shared with the browser build.** `app/wasm-dsp/`
 `#[path]`-includes them and compiles them to WebAssembly, so the WSOLA, the
-vocoder, the EQ, the spectrum analyzer and the reverb are the same Rust on both
-platforms. See §8, *Shared vs desktop-only*, for the list and the rules that
-follow from it.
+vocoder, the Paulstretch, the EQ, the spectrum analyzer and the reverb are the
+same Rust on both platforms. See §8, *Shared vs desktop-only*, for the list and
+the rules that follow from it.
 
 ---
 
@@ -21,10 +21,11 @@ decoded source buffer (device rate, f32 interleaved)
         │  ← anti-alias Butterworth lowpass when downsampling (resample_interleaved)
         ▼
 bit-perfect bypass ──or──► Stretcher (stretcher.rs)
+        │                    ├─ speed < 1.0               → Paulstretch (time-only)
         │                    ├─ stretch = speed/pitch ≤ 1 → PhaseVocoder
-        │                    └─ stretch > 1              → WsolaProcessor
+        │                    └─ stretch > 1               → WsolaProcessor
         │                    then Cubic Hermite resample by pitch ratio
-        │                    (cubic_hermite lives in dsp_utils.rs, shared by both engines)
+        │                    (cubic_hermite lives in dsp_utils.rs, shared by all three engines)
         ▼
 10-band peaking EQ (eq.rs, RBJ biquads, in-place coefficient updates)
         ├─► spectrum tap (48 log-spaced bins, rustfft)  ← post-EQ
@@ -45,9 +46,10 @@ at the start of each callback and written back once at the end; `wet_gain()` is
 likewise computed once per buffer and passed to each per-sample reverb call via
 `process_with_gain`.
 
-**Engine selection** (`stretcher.rs::Stretcher`): the vocoder handles
-`stretch ≤ 1`, the WSOLA everything else. The split is not arbitrary — see
-§3.3. Both engines are constructed up front; switching re-seeds the newly
+**Engine selection** (`stretcher.rs::Stretcher`): `speed < 1.0` hands the
+whole stretch to Paulstretch (§3.3); at `speed ≥ 1.0` the original split
+stands — the vocoder handles `stretch ≤ 1`, the WSOLA everything else (§3.4).
+All three engines are constructed up front; switching re-seeds the newly
 active engine at the live position so a fader crossing never resumes from
 stale state.
 
@@ -58,8 +60,8 @@ stale state.
 | Parameter | Range | Where clamped |
 |---|---|---|
 | Cutoff | 30 – 20000 Hz (≥ 20000 = bypass) | `player::set_params` |
-| Speed (tempo) | 0.5 – 2.0 | `player::set_params` |
-| Pitch | ±12 st (±1 octave) | `player::set_params`, both engines |
+| Speed (tempo) | 0.1 – 2.0 | `player::set_params` |
+| Pitch | ±12 st (±1 octave) | `player::set_params`, all engines |
 | Reverb mix | 0 – 1 | `player::set_params` |
 | EQ | ±12 dB per band | `eq.rs` |
 
@@ -68,6 +70,10 @@ Pitch is clamped to ±1 octave in the Rust layer to match the fader range in
 grain overlap — audibly granular — so the clamp is a design boundary, not a
 safety net. Do not widen it without changing §3.
 
+The speed fader is `[0.1, 2]` with a log curve, so the floor is a 10x stretch
+(Paulstretch's domain) and 1.0 sits at ~77% of the travel — inherent to a log
+range over `[0.1, 2]`, not a calibration bug.
+
 The pitch fader's range lives in `skin.json`, which is user-owned art config:
 **never regenerate `skin.json`**, only hand-edit it.
 
@@ -75,13 +81,13 @@ The pitch fader's range lives in `skin.json`, which is user-owned art config:
 
 ## 3. The time/pitch engines
 
-Both engines have the same outward contract (see `Stretcher::process`): consume
+All three engines have the same outward contract (see `Stretcher::process`): consume
 a source slice, produce `out_frames` stereo frames, report `finished`, and
 answer `get_play_pos(speed, pitch)` — the source frame currently being *heard*,
 which must compensate for the engine's internal latency and buffering. A new
 engine must implement all four or the playlist progress bar and seeking break.
 
-The tempo/pitch algebra both engines share: the engine produces a stream with
+The tempo/pitch algebra all three engines share: the engine produces a stream with
 tempo `stretch = speed / pitch` (pitch unchanged), and a Cubic Hermite
 resampler reads that stream with `step = pitch`, which multiplies tempo by
 `step` and pitch by `step`. Net: tempo `speed`, pitch `pitch`. This is
@@ -181,10 +187,72 @@ hop shrinks → more frames per second). At stretch 0.25 the analysis hop is 128
 samples, i.e. 16× overlap and 4× the unity-ratio frame rate. Not yet
 benchmarked in release; the WSOLA numbers above are the reference point.
 
-### 3.3 Why the split at `stretch ≤ 1`
+### 3.3 Paulstretch (`paulstretch.rs`) — tempo-down, any pitch
 
-`stretch = speed/pitch`, so `stretch ≤ 1` is exactly "pitch-up faster than
-tempo-up" — the region where the WSOLA compresses time and sounds granular.
+The third engine, engaged whenever `speed < 1.0` regardless of the pitch
+fader; `speed ≥ 1.0` never reaches it, so the bypass / vocoder / WSOLA
+behaviour above the midpoint is untouched. It is time-only: pitch is applied
+downstream by the same Cubic Hermite resampler as the other engines
+(`step = pitch_ratio`), so `speed 0.5, pitch −12 st` is pure pitch-down
+through expansion S = 1.
+
+The algorithm is a clean-room implementation — spec taken from Paul Nasca's
+Public-Domain `paulstretch_python` plus published formulas; nothing was
+transcribed from the GPL-2 C++ implementations or the unlicensed
+`realstretch`. Per frame, per channel:
+
+1. Read `N = 8192` source samples, apply the Paul window `(1−x²)^1.25`.
+2. Forward FFT, keep **magnitudes only — phase is deliberately discarded**.
+   This is the entire idea: instead of tracking phase coherence like the
+   vocoder or waveform similarity like the WSOLA, every frame becomes a fresh
+   noise realisation of the same magnitude spectrum, and 50% overlap-add
+   smears the realisations into a continuous wash that never goes granular,
+   no matter how large the expansion.
+3. Smooth the magnitudes along a log-frequency axis (20 Hz .. Nyquist,
+   bidirectional one-pole ×2, bandwidth 0.3, fixed — **no UI control**). This
+   "spread" filter replaces the bin magnitudes before resynthesis and is the
+   signature spectral softening; spread 0 is exact identity, which the tests
+   pin so the filter can never quietly become part of the analysis path.
+4. Zero DC and Nyquist, give every remaining bin a fresh random phase from a
+   deterministic u32 LCG, mirror the conjugate half, inverse FFT, apply the
+   window **again**, overlap-add at 50% and emit `H = 4096` output samples.
+
+The read cursor advances `H / S` per frame, where the expansion
+`S = pitch_ratio / speed` is clamped 0.1..20 internally (the UI reaches
+S = 10 at the tempo floor of 0.1).
+
+**Stereo**: two fully independent channel processors — independent RNG seeds,
+independent spread state, one shared read cursor. The per-channel
+decorrelation is part of the sound. A mono source therefore runs ONE
+processor duplicated to both outputs; independent random phases on identical
+material would invent a fake stereo image.
+
+**Position and latency**: there is no added startup latency. The whole
+decoded track is random-access on both platforms, so the engine starts
+instantly at the requested position and the first output chunk fades in
+through the synthesis window. `play_pos` bookkeeping mirrors the other
+engines (nominal position minus buffered lag); a seek flushes through the
+existing `seek_gen` reset path (seeds re-initialised), and track end drains
+the tail before `finished` fires.
+
+**Cost**: ~21 FFT pairs of 8192 points per second per channel, independent
+of the stretch factor — negligible on both platforms. Everything is
+preallocated in the constructor; `process` allocates nothing, and all FIFO
+arithmetic uses the same saturating/clamped discipline as the WSOLA
+(overreads past the FIFO near track end are legal and zero-padded). The only
+rebuild is the spread axis on a device-rate change — a param-update path,
+not a hot-path one.
+
+Determinism is a tested property: fixed seeds produce byte-identical output
+across runs, which is what makes the reconstruction and level tests possible
+at all.
+
+### 3.4 Why the split at `stretch ≤ 1` (speed ≥ 1.0)
+
+This split now only governs `speed ≥ 1.0`; `speed < 1.0` belongs to
+Paulstretch (§3.3). `stretch = speed/pitch`, so `stretch ≤ 1` is exactly
+"pitch-up faster than tempo-up" — the region where the WSOLA compresses time
+and sounds granular.
 For `stretch > 1` the WSOLA expands, which is its good direction, and the
 vocoder would gain nothing (its advantage is independence from compression
 ratio, which only matters when compressing). If the vocoder is later extended
@@ -269,7 +337,7 @@ else while the reverb's envelope follower still sees the full-band signal.
 
 ## 6. Test methodology
 
-`cargo test` from `app/src-tauri` (51 passing, 1 ignored smoke test, zero
+`cargo test` from `app/src-tauri` (65 passing, 1 ignored smoke test, zero
 warnings is the bar — AGENTS.md §5). The tests are the specification; the
 useful ones to understand before touching DSP:
 
@@ -289,6 +357,13 @@ useful ones to understand before touching DSP:
 | `sweep_stays_finite_and_bounded` | no divergence while the coefficients move |
 | `reset_into_the_middle_of_a_track_does_not_explode` | a reset at a non-zero source position primes the overlap-add correctly |
 | `pitch_gestures_with_reverb_stay_bounded` | crossing the pitch fader's midpoint and cueing while pitched up stay within headroom |
+| `identity_reconstructs_the_input_at_s1` | Paulstretch: deterministic phases at S = 1 reconstruct the input — the OLA plumbing check |
+| `output_level_tracks_input_across_expansions` | Paulstretch level lands where the window + OLA ratio (0.65) predicts |
+| `frequency_is_preserved_at_expansion` | Paulstretch keeps the spectral peak across expansions |
+| `spread_filter_identity_and_flattening` | spread 0 = identity; spread on = spectrum flattened toward the log-axis envelope |
+| `play_pos_advances_monotonically_and_finishes` | Paulstretch position bookkeeping and track-end drain |
+| `select_routes_tempo_down_to_paulstretch` / `paulstretch_crossover_at_speed_one_is_glitch_free` | the engine crossover at the speed-1.0 boundary is clean |
+| `paulstretch_end_to_end_at_speed_point_one` / `seek_during_paulstretch_is_clean` | full 10x pipeline; seek mid-paulstretch flushes without stale audio |
 
 Measurement conventions that have bitten us:
 
@@ -311,10 +386,14 @@ Measurement conventions that have bitten us:
 - Vocoder CPU is unbenchmarked in release. It scales as `1/stretch` (more
   frames per second at deep pitch-up); if it matters on weak hardware, the
   lever is FFT size or capping the analysis overlap.
-- `Stretch ≤ 1` routing means extreme settings (speed 0.5 + pitch +12 st) run
-  the vocoder at its deepest compression; re-verify level linearity if the
-  routing range is ever widened.
-- WSOLA remains the only tempo engine; Elastique-class quality would need
+- `stretch ≤ 1` routing (speed ≥ 1.0) means extreme settings (speed 1.0 +
+  pitch +12 st) run the vocoder at its deepest compression; re-verify level
+  linearity if the routing range is ever widened.
+- Paulstretch owns tempo-down outright, so transient-heavy material slowed
+  below 1.0x loses its attacks by design (phase is discarded) — that is the
+  sound, not a bug.
+- WSOLA remains the only tempo-**up** engine; Elastique-class quality would
+  need
   multi-resolution vocoder + transient detection (Rubber Band is GPL-2.0+ —
   do not adopt without a licence decision).
 
@@ -327,6 +406,7 @@ Measurement conventions that have bitten us:
 | `eq.rs` | 10-band RBJ biquad EQ; `process_frame` for single stereo frames, `process_interleaved` for bulk |
 | `lpf.rs` | 4-pole resonant master lowpass (cutoff fader); identity + cleared state at the top |
 | `phase_vocoder.rs` | Stereo STFT pitch shifter with Laroche & Dolson phase locking |
+| `paulstretch.rs` | Paulstretch tempo-down engine: phase-discarding, spread-filtered, wash by design |
 | `wsola.rs` | WSOLA time-stretcher + Cubic Hermite resampler |
 | `clouds_reverb.rs` | Dattorro/Griesinger FDN reverb (Clouds port) |
 | `spectrum.rs` | 1024-point FFT → 48 log-spaced bins for the visualizer |
@@ -344,7 +424,8 @@ parking_lot, or crossbeam stays in `player.rs` and is reimplemented in the
 worklet instead.
 
 **Platform-free (shared):** `clouds_reverb`, `dsp_utils`, `eq`, `lpf`,
-`phase_vocoder`, `spectrum`, `wsola`, `reverb_mix`, `stretcher`.
+`paulstretch`, `phase_vocoder`, `spectrum`, `wsola`, `reverb_mix`,
+`stretcher`.
 
 **Desktop-only:** `player.rs` (cpal stream + `SharedPlay`), `decoder.rs`
 (Symphonia — the browser uses `decodeAudioData`).
