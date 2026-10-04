@@ -34,6 +34,40 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # Full history and tags: the release body lists every commit since the
+          # previous tag, which a shallow clone cannot see.
+          fetch-depth: 0
+
+      # Release notes: the commit subjects between the previous release and this
+      # tag. `git describe HEAD^` finds the tag this one succeeds, so it works
+      # whatever the version number is. Each matrix job computes the same list —
+      # it has to, since every one of them writes the same release body.
+      - name: Collect commits since the previous release
+        id: commits
+        shell: bash
+        run: |
+          prev=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+          if [ -n "$prev" ]; then
+            range="$prev..HEAD"
+          else
+            range=""
+          fi
+          count=$(git rev-list --count $range)
+          if [ -n "$prev" ]; then
+            label="$count commit(s) since \`$prev\`"
+          else
+            label="$count commit(s), the whole history"
+          fi
+          {
+            echo "label=$label"
+            echo "body<<COMMITS_EOF"
+            git log --no-merges --pretty='- %s (`%h`)' $range | head -60
+            if [ "$count" -gt 60 ]; then
+              echo "- …and $((count - 60)) more"
+            fi
+            echo "COMMITS_EOF"
+          } >> "$GITHUB_OUTPUT"
 
       # System deps for Tauri 2 on Ubuntu 22.04 (webkit2gtk-4.1 line), plus
       # libasound2-dev — the audio core (CPAL/alsa-sys) links ALSA directly.
@@ -84,6 +118,12 @@ jobs:
             The binaries are unsigned:
             - macOS: right-click the app and choose "Open" the first time, or allow it under System Settings > Privacy & Security.
             - Windows: if SmartScreen warns, click "More info" > "Run anyway".
+
+            ## What's in this build
+
+            ${{ steps.commits.outputs.label }}:
+
+            ${{ steps.commits.outputs.body }}
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
