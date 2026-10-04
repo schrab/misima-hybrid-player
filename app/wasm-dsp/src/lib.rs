@@ -35,6 +35,8 @@ pub mod dsp_utils;
 pub mod eq;
 #[path = "../../src-tauri/src/audio/lpf.rs"]
 pub mod lpf;
+#[path = "../../src-tauri/src/audio/paulstretch.rs"]
+pub mod paulstretch;
 #[path = "../../src-tauri/src/audio/phase_vocoder.rs"]
 pub mod phase_vocoder;
 #[path = "../../src-tauri/src/audio/spectrum.rs"]
@@ -50,7 +52,8 @@ pub mod stretcher;
 /// `use crate::audio::…` paths resolve unchanged.
 pub mod audio {
     pub use super::{
-        clouds_reverb, dsp_utils, eq, lpf, phase_vocoder, reverb_mix, spectrum, stretcher, wsola,
+        clouds_reverb, dsp_utils, eq, lpf, paulstretch, phase_vocoder, reverb_mix, spectrum,
+        stretcher, wsola,
     };
 }
 

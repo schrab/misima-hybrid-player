@@ -2,6 +2,7 @@ pub mod clouds_reverb;
 pub mod decoder;
 pub mod eq;
 pub mod lpf;
+pub mod paulstretch;
 pub mod phase_vocoder;
 pub mod player;
 pub mod spectrum;
