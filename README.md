@@ -4,7 +4,15 @@
 
 MI$IM∆ built a music player. no boring window frames. no html widgets. hand-drawn plates, glowing wireframes, and rust doing real-time dsp underneath the skin. it plays mp3, flac, wav, ogg. it has visualizers. MI$IM∆ lives inside the art.
 
-**it also runs in a browser.** → **[schrab.github.io/misima-hybrid-player](https://schrab.github.io/misima-hybrid-player/)** — same skin, same DSP, no install. the difference is that the rust gets compiled to wasm and runs in an `AudioWorklet` instead of on a cpal thread. (the music that ships with it is [Wit Chu](https://witchu.bandcamp.com/album/once)'s, used with his permission.)
+### ▶ play it in a browser
+
+**[schrab.github.io/misima-hybrid-player](https://schrab.github.io/misima-hybrid-player/)** — same skin, same DSP, no install. the difference is that the rust gets compiled to wasm and runs in an `AudioWorklet` instead of on a cpal thread.
+
+### credits
+
+- the four tracks bundled with the web build are from **[Wit Chu](https://witchu.bandcamp.com)**'s album [*Once*](https://witchu.bandcamp.com/album/once), used with his permission. thank you, wit chu.
+- skin, icons, and everything else on screen: MI$IM∆.
+- the reverb is a port of [Mutable Instruments Clouds](https://github.com/pichenettes/eurorack) by Emilie Gillet (MIT, © 2014).
 
 [![Rust 2021](https://img.shields.io/badge/Rust-2021-orange.svg)](https://www.rust-lang.org/)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2.0-blue.svg)](https://tauri.app/)
@@ -170,6 +178,7 @@ platform-specific troubleshooting and development guidelines: [`AGENTS.md`](AGEN
   - **Auto-Fit**: checks available display height on launch; screens under 1050px (e.g. 1080p scaled laptops) open in compact 75% mode so the player does not fall off the screen. (MI$IM∆ has fallen off screens. it is not dignified.)
 - **Playlist Navigation**: single-click or double-click any track row to play immediately.
 - **Playlist Scrolling**: mouse wheel over the playlist for libraries with more than 10 tracks.
+- **Right-Click**: suppressed — the canvas is artwork, so the browser's "Save image as / Inspect" menu is never what you want, and right-click is not bound to anything (it neither moves a fader nor drags the window). Credit links keep their own menu, so they can still be copied or opened in a new tab. Devtools are left alone.
 - **Keyboard Cue & Transport** (player window focused, bare keys):
   - `1`…`9`: jump to 10 %…90 % of the current track and start playing from there.
   - `0`: jump back to the start.
@@ -279,7 +288,7 @@ MI$IM∆ keeps the paperwork too.
 
 ## Credits
 
-- The demo music bundled with the web build is by **[Wit Chu](https://witchu.bandcamp.com/album/once)**, used with his permission. four tracks from *Once*, shipped in `app/public/music/`.
+- The demo music bundled with the web build is by **[Wit Chu](https://witchu.bandcamp.com)** — four tracks from his album [*Once*](https://witchu.bandcamp.com/album/once), used with his permission, shipped in `app/public/music/`.
 - The reverb is a port of [Mutable Instruments Clouds](https://github.com/pichenettes/eurorack) by Emilie Gillet (MIT, © 2014).
 - Skin, icons and everything else on screen: MI$IM∆.
 
