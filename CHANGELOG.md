@@ -13,23 +13,28 @@ the desktop installers; pushing `main` on its own deploys the web app.
 
 ## [Unreleased]
 
+## [0.4.3] — 2026-10-04
+
+Found by installing 0.4.2 on Arch: the player runs, the audio works, but the
+selected playlist row renders wrong there and only there.
+
 ### Fixed
 - **The selected playlist row renders correctly on Linux** — it was dimming its
   glyphs with `ctx.filter = "brightness(0.12)"`, and canvas filters are not
   Baseline: Safari gates them behind a preference WebKitGTK does not enable, so
   on Linux the assignment was a silent no-op and the row drew undimmed while
-  looking correct on Windows and macOS. `sprite/font.ts` now pre-builds a
-  darkened atlas with `source-atop`, which preserves glyph alpha the way
-  `brightness()` does, so the row is inverted identically on every platform at
-  no per-frame cost. Measured equivalent to the filter on Chromium (max channel
-  difference 1/255), and the glyphs now measure exactly 31/255 — the intended
-  `0.12 × 255`.
+  looking correct on Windows, macOS and the web. `sprite/font.ts` now
+  pre-builds a darkened atlas with `source-atop`, which preserves glyph alpha
+  the way `brightness()` does, so the row is inverted identically on every
+  platform at no per-frame cost. Measured equivalent to the filter on Chromium
+  (max channel difference 1/255), and the glyphs now measure exactly 31/255 —
+  the intended `0.12 × 255`.
 - **The selection bar sits 2 px lower**, so it reads as centred on the glyph row
   rather than riding above it.
 - **Arch packaging now actually runs** — replaces `debtap` with
   `scripts/deb2arch.py`, which writes `.PKGINFO` and `.MTREE` directly.
   `debtap` calls `pkgfile` inside the conversion path, refuses to start without
-  `/var/cache/pkgfile` and the `/var/cache/debtap/*` databases, and calls
+  `/var/cache/pkgfile` and a set of `/var/cache/debtap/*` databases, and calls
   `namcap` — all Arch-only, so it could never have worked on the ubuntu-22.04
   runner. It had never been run: 0.4.2 was its first tag. The new script also
   derives one dependency the `.deb` omits: the binary links `libasound.so.2`
@@ -38,6 +43,9 @@ the desktop installers; pushing `main` on its own deploys the web app.
   digests, modes and mtree coverage, and both Arch steps are now
   `continue-on-error` so a packaging fault can never withhold the other six
   installers.
+- **No `(none)` in the Arch package description** — debhelper writes `(none)` as
+  the description body when there is no extended description, and it survived the
+  synopsis extraction into `pacman -Qi` output.
 
 ## [0.4.2] — 2026-10-04
 
