@@ -118,7 +118,7 @@ the horse said one time-stretcher was enough. the barn overruled. (the barn IS t
 | Platform | Status | Audio Backend | Window / Compositing Notes |
 |---|---|---|---|
 | **Windows 11** | **Tested & Verified** | WASAPI | Frameless, transparent window, DPI scaling supported |
-| **Linux** | **In Progress** | ALSA / PipeWire / PulseAudio | Requires compositing window manager for transparency. Wayland uses `xdg_toplevel.move()` for dragging. |
+| **Linux** | **Verified** | ALSA / PipeWire / PulseAudio | Requires compositing window manager for transparency. Wayland uses `xdg_toplevel.move()` for dragging. |
 | **macOS** | **Verified (dev)** | CoreAudio | Frameless transparent window (requires `macOSPrivateApi`), Cmd+scroll zoom, 44.1/48 kHz playback |
 | **Browser** | **Shipped** | Web Audio + AudioWorklet | Static site on GitHub Pages. No window: zoom is CSS, and the page scales itself to fit the viewport. |
 

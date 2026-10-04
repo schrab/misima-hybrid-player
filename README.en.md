@@ -77,7 +77,7 @@ Every key the player listens for, on one board. The transport and cue keys
 | Platform | Status |
 |---|---|
 | **Windows 11** | **Tested & Verified** |
-| **Linux** (X11 & Wayland) | In Progress |
+| **Linux** (X11 & Wayland) | Verified |
 | **macOS** | Verified |
 | **Browser** | **Shipped** |
 
