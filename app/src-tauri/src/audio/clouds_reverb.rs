@@ -15,7 +15,7 @@
 //!   quantisation is grit, not signal, and only ever cost us headroom.
 //! - The delay-line layout is recomputed per sample rate. The original is
 //!   fixed at 32 kHz; here both the lengths and their offsets scale by
-//!   `sample_rate / 32000.0` (see agents.md 3.1.4). Scaling only the lengths
+//!   `sample_rate / 32000.0` (see AGENTS.md 3.1.4). Scaling only the lengths
 //!   and leaving the offsets behind makes `del1` grow into `del2`.
 //! - The tail's decay is a fixed constant instead of being tied to the reverb
 //!   amount. On the hardware those are the same knob, but ours is a dry/wet

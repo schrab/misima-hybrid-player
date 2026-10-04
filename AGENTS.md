@@ -239,7 +239,7 @@ misima-hybrid-player/
 ├── .agents/                    # Agent specifications and team settings
 │   ├── settings.json           # Model selection and subagent configuration
 │   └── agents/                 # Role definitions (coder, reviewer, tester, etc.)
-├── agents.md                   # This instruction manual
+├── AGENTS.md                   # This instruction manual
 ├── README.md                   # User-facing and developer documentation
 ├── .nojekyll                   # GitHub Pages: serve dist/ verbatim, no Jekyll
 ├── docs/                       # Specifications and architectural history

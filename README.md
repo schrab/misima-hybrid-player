@@ -153,7 +153,7 @@ the horse said one time-stretcher was enough. the barn overruled. (the barn IS t
 | **macOS** | **Verified (dev)** | CoreAudio | Frameless transparent window (requires `macOSPrivateApi`), Cmd+scroll zoom, 44.1/48 kHz playback |
 | **Browser** | **Shipped** | Web Audio + AudioWorklet | Static site on GitHub Pages. No window: zoom is CSS, and the page scales itself to fit the viewport. |
 
-platform-specific troubleshooting and development guidelines: [`agents.md`](agents.md).
+platform-specific troubleshooting and development guidelines: [`AGENTS.md`](AGENTS.md).
 
 ---
 
@@ -269,7 +269,7 @@ Alternative (Terminal): `xattr -d com.apple.quarantine "/Applications/Misima Hyb
 
 MI$IM∆ keeps the paperwork too.
 
-- [`agents.md`](agents.md) — architectural guidelines, subagent definitions (`coder`, `reviewer`, `tester`, `debugger`, `research`, `documenter`), development invariants.
+- [`AGENTS.md`](AGENTS.md) — architectural guidelines, subagent definitions (`coder`, `reviewer`, `tester`, `debugger`, `research`, `documenter`), development invariants.
 - [`docs/DSP.md`](docs/DSP.md) — deep-dive on the audio engines: signal chain, WSOLA vs phase vocoder, reverb topology and loudness policy, invariants, test methodology, and which modules are shared with the web build. **read before touching `src/audio/`.** MI$IM∆ means it.
 - [`docs/WEB-PORT.md`](docs/WEB-PORT.md) — the browser port, phase by phase: what was built, what the spec got wrong, and the three JS↔WASM bugs that passed every automated check.
 - [`CHANGELOG.md`](CHANGELOG.md) — milestone history with commit references. (scars, documented.)

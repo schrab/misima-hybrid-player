@@ -35,7 +35,7 @@ stereo reverb (clouds_reverb.rs) + dry/wet balance + envelope gain (reverb_mix.r
 master volume, soft clip, cpal output
 ```
 
-Every stage runs on the cpal audio callback thread (see agents.md §3.1 for the
+Every stage runs on the cpal audio callback thread (see AGENTS.md §3.1 for the
 real-time rules: no allocation, no per-sample locks, no delay-line resets).
 `SharedPlay` is the only state shared with the UI thread; parameters are
 hoisted once per callback buffer, never per sample.  `play_pos` is locked once
@@ -104,7 +104,7 @@ reason the vocoder exists.
 
 Known past panic: `fifo_read_pos` underflow near track end (audio-thread death
 → silent output). All `usize` arithmetic there is saturating/clamped; keep it
-that way (agents.md §3.1.7).
+that way (AGENTS.md §3.1.7).
 
 ### 3.2 Phase vocoder (`phase_vocoder.rs`) — pitch-up
 
@@ -217,7 +217,7 @@ Deviations from the original, all deliberate:
 
 `reverb_mix.rs::Reverb` owns the policy the DSP must not: the dry/wet crossfade and
 the envelope-normalised wet gain. The raw tail level varies ~20 dB between
-tonal and broadband material, so no fixed wet gain stays balanced (agents.md
+tonal and broadband material, so no fixed wet gain stays balanced (AGENTS.md
 §3.1.8). `TARGET = 1.8` sits above unity because the soft clip `w/√(1+w²)`
 costs ~3 dB at `w = 1`; measured wet level lands at +0.1 dB (half mix) and
 +1.3 dB (full mix) against dry on broadband material. Never calibrate reverb
@@ -240,7 +240,7 @@ both `env_wet` and `env_dry` to zero.
 ## 5. Test methodology
 
 `cargo test` from `app/src-tauri` (39 passing, 1 ignored smoke test, zero
-warnings is the bar — agents.md §5). The tests are the specification; the
+warnings is the bar — AGENTS.md §5). The tests are the specification; the
 useful ones to understand before touching DSP:
 
 | Test | Pins |

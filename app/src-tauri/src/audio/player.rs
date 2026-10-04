@@ -384,7 +384,7 @@ pub fn take_ended() -> bool {
 
 /// Commands for the stream-owner thread — the only thread that ever creates,
 /// holds, or drops the `cpal::Stream` (`cpal::Stream` is `!Send + !Sync`, so
-/// it cannot live in shared state; see agents.md 3.1).
+/// it cannot live in shared state; see AGENTS.md 3.1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum StreamCmd {
     /// Build + play the output stream if none is live (idempotent).
@@ -507,7 +507,7 @@ pub fn shutdown() {
 static SHUTDOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Upper bound on frames per output buffer, taken from the device's supported
-/// range so the real-time callback can never hit the allocator (agents.md 3.1).
+/// range so the real-time callback can never hit the allocator (AGENTS.md 3.1).
 /// We deliberately take `max`, not `min`: the stream is opened with
 /// `BufferSize::Default`, so the backend may pick anywhere in the range.
 fn block_frames(config: &cpal::SupportedStreamConfig) -> usize {

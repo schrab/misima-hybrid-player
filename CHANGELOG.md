@@ -83,7 +83,7 @@ together.
 - **`Reverb::clear()` resets `env_dry`** — prevents stale envelope state from
   leaking across seeks.
 - `docs/DSP.md` updated: signal chain diagram, reverb envelope docs, module map.
-- `agents.md` architecture diagram updated for post-EQ taps and anti-alias SRC.
+- `AGENTS.md` architecture diagram updated for post-EQ taps and anti-alias SRC.
 
 ## [0.2.0] — 2026-10-03
 
@@ -106,7 +106,7 @@ together.
 - Pitch clamped to **±1 octave** (±12 st) in the Rust layer, matching the
   fader range in `skin.json`; the old ±24 st clamp was unreachable and hid
   where the WSOLA degrades.
-- Test suite 33 → 39 tests; `agents.md` verification protocol updated.
+- Test suite 33 → 39 tests; `AGENTS.md` verification protocol updated.
 
 ### Fixed
 - A seek now flushes the reverb tail instead of carrying the previous
