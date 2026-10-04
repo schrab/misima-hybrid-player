@@ -271,6 +271,7 @@ misima-hybrid-player/
 │   │   └── sprite/             # Sprite compositor, font engine, layout math
 │   │       ├── font.ts         # Bitmap glyph font renderer
 │   │       ├── layout.ts       # Fader hit-testing and travel calculation
+│   │       ├── rails.ts        # Wire-rail light particles: path parser + flow
 │   │       ├── spectrumLayout.ts # Organic spectrum segment stacker
 │   │       ├── types.ts        # Skin and layout TypeScript interfaces
 │   │       └── visuals.ts      # Spectrum segments and waterfall drawing

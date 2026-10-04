@@ -36,6 +36,7 @@ MI$IM∆ elsewhere: [Instagram](https://www.instagram.com/misima.gibrid/) · [Te
 - **Dynamic Visualizers**:
   - **Organic Raster Spectrum**: 10 bands that light up irregular hand-drawn segment chips, not boring rectangles. +3 dB/octave display tilt (low bins carry far more raw energy), idle noise gating, and per-band `xShift` so whole columns move with one number.
   - **Sprite-Sheet Animations**: looping artboard animations sliced from uniform-grid sheets, composited in screen blend mode over the background.
+  - **Wire-Rail Particles**: small warm beads of light drifting along the pipes and wires drawn between the blocks. each rail runs one fixed direction at its own speed, density scales with rail length, and a bead fades in while already moving and dissolves before the rail end. ambient — playback does not change it.
   - **Waveform Echo Scope**: 226-point real-time polyline oscilloscope with an 8-frame fading trail and hann envelope windowing.
 - **Multi-Format Playback**: native decoding of MP3, FLAC, WAV and OGG via Symphonia, resampled to the hardware output rate.
 - **Asynchronous, Glitch-Free Track Switching**: generation-indexed decode queue (`load_gen`) and DSP buffer flush (`seek_gen`). rapid track skips never overlap, never stutter. (MI$IM∆ learned this one the hard way. see the changelog.)
@@ -108,6 +109,7 @@ MI$IM∆ elsewhere: [Instagram](https://www.instagram.com/misima.gibrid/) · [Te
 - **`background.overlays[]`**: still png layers composited above the background plate, below all controls (e.g. `bg/UI_highlights.png`). animated regions are erased from the layer art by the artist; the engine draws overlays unmasked. (no engine-side masking. the artist owns the mask.)
 - **`animations[]`**: sprite-sheet loops. uniform grid (`grid.cols/rows`), real `frames` count (trailing empty cells allowed), `origin` = top-left of frame 0 on the 2× artboard, optional `size` to scale cells in code (omit = native), `fps`, `blend: "screen"` (default — drops solid black sheet backgrounds), `playback: "always" | "on-playing"`.
 - **`visuals.spectrum.bands[].xShift`**: whole-column X nudge (artboard px) applied to every segment of that band at draw time.
+- **`visuals.rails`**: `true` (default) runs the wire-rail particles; `false` switches them off for a skin whose artwork has no wires. the rail geometry itself is **not** a skin asset — the 21 paths traced from the artwork are embedded in `app/src/sprite/rails.ts`, so there is nothing to add to the skin folder and no manifest asset list to extend.
 - **Spectrum chip set variations**: bands don't share one chip pool — each band's 10 segments can reference any freeform-size chip png (`spectrum/chip_*.png`). the current layout cycles three tuned variants across the columns (`chip_1_*` / `chip_2_*` / default `chip_*`). to retune: adjust one band's segment origins, then clone to the others **anchor-relative** (keep each column's own left edge and `xShift`, copy the variant's Y-stack and X jitter). display energy tilt lives in `BAND_GAIN` (`main.ts`), not in rust. MI$IM∆ checked twice.
 
 ---

@@ -1,15 +1,35 @@
 # Changelog
 
 All notable changes to the Misima Hybrid Player. Versions follow semver
-loosely; the version lives in `app/package.json`, `app/src-tauri/tauri.conf.json`,
-`app/src-tauri/Cargo.toml` and `app/wasm-dsp/Cargo.toml` and must be bumped
-together.
+loosely; the version lives in `app/package.json`, `app/package-lock.json`,
+`app/src-tauri/tauri.conf.json`, `app/src-tauri/Cargo.toml`,
+`app/src-tauri/Cargo.lock`, `app/wasm-dsp/Cargo.toml` and
+`app/wasm-dsp/Cargo.lock` and must be bumped together. Only a `v*` tag builds
+the desktop installers; pushing `main` on its own deploys the web app.
 
 > **Gap:** 0.3.0–0.3.2 shipped and are tagged in git but were never recorded
 > here. Reconstruct them from `git log v0.2.1..v0.3.2` if the detail is ever
 > needed; nothing below depends on them.
 
 ## [Unreleased]
+
+## [0.4.2] — 2026-10-04
+
+### Added
+- **Light particles run along the wire rails** — the pipes and wires drawn
+  between the blocks were static. Small warm beads now travel along them, fading
+  in while already moving and fully dissolving before the rail end rather than
+  arriving, stopping and fading. Each rail takes a fixed direction, speed and
+  bead count at startup and never reverses; density scales with rail length, so
+  the long bottom bundle carries 5–7 beads and the short top ones carry 1–2.
+  Ambient by design — playback does not affect speed, brightness or count.
+  The 21 rail paths traced from `gfx/bg_wires.svg` are embedded in
+  `app/src/sprite/rails.ts` rather than shipped as skin assets. Two properties
+  keep this cheap: the traced paths use only `M/c/l/v/h`, so a small parser
+  flattens them with no SVG DOM and no `getPointAtLength`; and all 21 lie
+  entirely inside the player silhouette, so the flow skips the `destination-in`
+  plate mask the sprite sheets need and cannot leak past the edge. Affects both
+  runtimes. Opt out per skin with `"rails": false` under `visuals`.
 
 ### Fixed
 - **Arch Linux gets a working package** — the AppImage aborts on startup there.
@@ -22,6 +42,9 @@ together.
   Tauri's bundler has no pacman target and no option to exclude individual
   libraries from the AppImage, so converting is cleaner than patching the
   AppImage.
+
+### Documentation
+- **Keyboard layout diagram** added to Controls in the README.
 
 ## [0.4.1] — 2026-10-04
 
