@@ -49,6 +49,21 @@ Below 1.0x the tempo fader stops pretending and stretches properly: Paulstretch.
   tempo-up and pitch-down). The texture flips wash↔clean at the 1.0 midpoint —
   at 0.99 the phases are already fully random; that is the point.
 
+### Fixed
+- **The device block upper bound is clamped to 16384 frames.** WASAPI answers
+  an unconstrained range with `u32::MAX`, and the three real-time scratch
+  vectors are sized from that reported max — ~51 GB of pagefile-backed commit
+  before a single sample plays, silently absorbed on fat machines and fatal on
+  commit-limited ones. Real callbacks deliver the default period (a few
+  hundred frames); the ceiling only bounds the reserve.
+- **The workspace is clippy-clean.** The nine long-standing wasm-dsp baseline
+  warnings are gone, along with seven more that desktop-only `cargo clippy`
+  was quietly carrying: mechanical iterator and `copy_from_slice` rewrites in
+  the shared DSP loops (the bit-exact determinism and reconstruction tests
+  confirm the transforms changed nothing), collapsed conditions, and two
+  targeted allows where the indexed form or the callback's argument surface
+  is the point.
+
 ## [0.4.4] — 2026-10-04
 
 The volume fader is gone; its slot now carries the cutoff.
