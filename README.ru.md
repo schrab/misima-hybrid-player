@@ -4,9 +4,9 @@
 
 MI$IM∆ собрал музыкальный плеер. никаких скучных окон. никаких html-виджетов. рисованные модули, светящиеся линии, внутри — rust, занимающийся dsp в реальном времени. играет mp3, flac, wav, ogg. визуализация звука. MI$IM∆ живёт внутри арта.
 
-**[послушать в браузере](https://schrab.github.io/misima-hybrid-player/)** — тот же скин, тот же DSP, ничего ставить не надо.
+**[открыть в браузере](https://schrab.github.io/misima-hybrid-player/)** — тот же скин, тот же DSP, ничего ставить не надо.
 
-предпочитаете нативное? **[скачайте последний релиз](https://github.com/schrab/misima-hybrid-player/releases/latest)** — `.msi` / `.exe` для windows, один универсальный `.dmg` для macos и `.deb` / `.rpm` / `.AppImage` для linux. (сборка macos не подписана — для первого запуска нужен правый клик → открыть; два шага описаны в [DEVELOPMENT.md](DEVELOPMENT.md).)
+**[скачайте последний релиз](https://github.com/schrab/misima-hybrid-player/releases/latest)** — `.msi` / `.exe` для windows, один универсальный `.dmg` для macos и `.deb` / `.rpm` / `.AppImage` для linux. (сборка macos не подписана — для первого запуска нужен правый клик → открыть; два шага описаны в [DEVELOPMENT.md](DEVELOPMENT.md).)
 
 ![MI$IM∆ hybrid player — скин с подписями](docs/misima-hybrid-player-ui-legend.png)
 

@@ -1,6 +1,6 @@
 # MI$IM∆ hybrid player
 
-readme in russian: [README.ru.md](README.ru.md)
+[русский](README.ru.md) · english
 
 MI$IM∆ built a music player. no boring window frames. no html widgets. hand-drawn plates, glowing wireframes, and rust doing real-time dsp underneath the skin. it plays mp3, flac, wav, ogg. it has visualizers. MI$IM∆ lives inside the art.
 
