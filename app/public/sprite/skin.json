@@ -159,7 +159,7 @@
         "x": 571,
         "y": 845
       },
-      "travel": 228,
+      "travel": 200,
       "knob": "ui/knob_pitch.png",
       "knobSize": {
         "w": 51,
