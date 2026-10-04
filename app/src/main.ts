@@ -18,6 +18,7 @@ import {
   loadImage,
 } from "./sprite/layout";
 import { loadFont, type BitmapFont } from "./sprite/font";
+import { makeSpotCanvas, WireFlow } from "./sprite/rails";
 import { drawSpectrumSegments } from "./sprite/visuals";
 import { layoutSpectrumFromPool, type SpectrumAutoLayout } from "./sprite/spectrumLayout";
 import type { AudioParamsInput, Transport } from "./transport";
@@ -333,6 +334,11 @@ let bgOverlays: { img: HTMLImageElement; x: number; y: number }[] = [];
 let anims: { def: SkinAnimDef; img: HTMLImageElement; cw: number; ch: number; start: number }[] = [];
 /** Offscreen cell buffer for the plate mask, grown on demand and reused. */
 let animMask: HTMLCanvasElement | null = null;
+/** Beads running along the wire rails, plus the one sprite they all share. */
+let flow: WireFlow | null = null;
+let spot: HTMLCanvasElement | null = null;
+/** Previous rAF timestamp, for the frame delta. */
+let lastFrame = 0;
 
 const params: AudioParamsInput = {
   volume: 1.0,
@@ -602,11 +608,24 @@ function drawAnimations() {
   }
 }
 
-function render(_time: number) {
+function render(time: number) {
   const { width, height } = skin.canvas;
   ctx.clearRect(0, 0, width, height);
 
   if (plate) ctx.drawImage(plate, 0, 0);
+
+  // Beads on the wire rails. Below the sprite-sheet animations so those keep
+  // their contrast, and gated on the plate so nothing floats over a canvas
+  // that has not drawn yet.
+  if (plate && flow && spot) {
+    // Clamped: a backgrounded tab stalls rAF for seconds, and an unclamped step
+    // would jump every bead along its rail at once.
+    const dt = lastFrame ? Math.min(0.05, (time - lastFrame) / 1000) : 0;
+    lastFrame = time;
+    flow.update(dt);
+    flow.draw(ctx, spot);
+  }
+
   drawAnimations();
 
   if (playing) {
@@ -909,6 +928,14 @@ async function init() {
   // `font?.draw`, a no-op until the atlas arrives.
   canvas.width = skin.canvas.width;
   canvas.height = skin.canvas.height;
+
+  // Built here rather than after the sprite batch: parsing 21 short paths and
+  // painting one 64px gradient is a fraction of a millisecond, and it has to
+  // exist before the first frame asks for it (AGENTS 3.2.6).
+  if (skin.visuals.rails !== false) {
+    spot = makeSpotCanvas(64);
+    flow = new WireFlow({ artW: skin.canvas.width });
+  }
   requestAnimationFrame(render);
 
   // Every sprite is requested in ONE batch rather than awaited in turn.

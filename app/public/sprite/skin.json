@@ -578,6 +578,7 @@
     }
   ],
   "visuals": {
+    "rails": true,
     "spectrum": {
       "mode": "segments",
       "auto": {

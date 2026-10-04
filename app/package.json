@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "tsx src/sprite/spectrumLayout.test.ts && tsx src/transport.test.ts",
+    "test": "tsx src/sprite/spectrumLayout.test.ts && tsx src/sprite/rails.test.ts && tsx src/transport.test.ts",
     "build": "tsc && npm run test && vite build",
     "build:wasm": "node scripts/build-wasm.mjs && node scripts/build-worklet.mjs",
     "build:pages": "npm run build:wasm && node scripts/build-pages.mjs",

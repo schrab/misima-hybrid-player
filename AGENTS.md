@@ -164,6 +164,13 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
    - Keep it that way if it ever needs a `filter` back: `blur()` is a filter, so on `body` it would blur the player canvas too, and it forces the pseudo-element plus the `inset` inflation — a blur samples past its own edge and fades the border out. CSS also paints the **first** background layer on *top*, the opposite of canvas, so a scrim listed after an opaque image is buried by it.
    - Web-only assets go in the desktop strip in `vite.config.ts` alongside `wasm/` and `music/`. Referencing a stripped file from CSS is safe only while the rule stays gated behind `html.web`, which the desktop never sets.
 
+11. **Wire-rail particles are code, not skin assets** (`app/src/sprite/rails.ts`):
+   - The 21 rail paths traced from `gfx/bg_wires.svg` are embedded in TypeScript, not shipped in `public/sprite/`. They belong to one piece of artwork and need no zip entry or manifest asset list. `skin.json` carries only a `visuals.rails` boolean so a skin without wires can switch the flow off.
+   - **They deliberately skip the plate-alpha mask of rule 8.** Every rail was checked against the plate alpha over 3,793 sample points and all 21 lie *entirely* inside the player silhouette, so a plain `screen` draw over the plate cannot leak past the edge. If a future skin's rails ever cross the silhouette, that mask has to be added — a bead over a transparent gap is exactly the hard bright square rule 8 exists to prevent.
+   - Rails are flattened to polylines and addressed by **arc length**, never by raw curve parameter `t`. `t` is not proportional to distance, so sampling it makes a bead surge through every tight corner. `railAt` binary-searches the cumulative-length table for this reason.
+   - The fade envelope derives alpha from **position**, not from a spawn timer. That is what makes a bead fade in while already moving and reach zero opacity strictly before the rail end, instead of arriving, stopping, and dissolving. Both sides of the wrap are transparent, so the seam is invisible.
+   - Beads share one pre-rendered radial-gradient sprite and differ only by `globalAlpha` and size; never build a gradient per particle per frame.
+
 ---
 
 ## 4. Multiplatform Guidelines (Windows / Linux / macOS)

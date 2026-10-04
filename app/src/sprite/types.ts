@@ -110,6 +110,11 @@ export type SkinManifestV2 = {
   faders: FaderDef[];
   buttons: ButtonDef[];
   visuals: {
+    /**
+     * Light particles running along the wire rails (see sprite/rails.ts).
+     * Absent or true = on. Set false for a skin whose artwork has no wires.
+     */
+    rails?: boolean;
     spectrum: {
       mode: "segments";
       /** Explicit pieces (may be empty if `auto` is used). */
