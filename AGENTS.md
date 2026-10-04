@@ -160,10 +160,8 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
 9. **No debug placeholder may render before its sprite arrives**:
    - The render loop starts on the manifest, long before the art. Anything drawn from `skin.json` alone — fader knobs above all — paints a placeholder into that window. `drawFader()` used to fall back to a magenta block, which flashed a pink slab over the dark page for half a second and read as a glitch. Draw nothing until the image lands; absence reads as "not ready", a coloured block does not.
 10. **Web-only page furniture**:
-   - The backdrop is `html.web::before` — a pseudo-element, not a `background-image` on `body`, because `filter: blur()` on `body` would blur the player canvas along with the page.
-   - **CSS paints the first background layer on *top***, the opposite of canvas. A scrim listed after an opaque image is buried by it. Order: scrim first, artwork second.
-   - Order it with explicit `z-index` (pseudo-element `0`, `body` `1`). A negative z-index drops *behind* the body's own background box and the page renders as if the rule were absent.
-   - A `filter: blur()` samples past the element's own edge, so the box is inflated well past the viewport (`inset: -80px` against a 26 px radius). Without that the whole border fades out.
+   - The backdrop is a plain `background-image` on `html.web` at cover fit, shipped as the artist's PNG untouched — no scrim, no blur, no re-encode. The artwork is already dark (mean luminance ~44/255); anything laid over it only crushes it.
+   - Keep it that way if it ever needs a `filter` back: `blur()` is a filter, so on `body` it would blur the player canvas too, and it forces the pseudo-element plus the `inset` inflation — a blur samples past its own edge and fades the border out. CSS also paints the **first** background layer on *top*, the opposite of canvas, so a scrim listed after an opaque image is buried by it.
    - Web-only assets go in the desktop strip in `vite.config.ts` alongside `wasm/` and `music/`. Referencing a stripped file from CSS is safe only while the rule stays gated behind `html.web`, which the desktop never sets.
 
 ---

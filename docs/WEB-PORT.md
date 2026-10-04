@@ -312,36 +312,33 @@ Chu's Bandcamp. Hidden on the desktop build, which ships no bundled music.
 
 ### 5. The page backdrop
 
-The tab used to be flat black. It now sits on the Misima artwork at cover fit,
-knocked back to 50% and blurred 26 px, so the player reads as a device in a room
-rather than a sprite pasted on a void.
+The tab used to be flat black. It now sits on the Misima artwork at cover fit.
 
-The source is a 3.2 MB RGBA PNG whose alpha only ranges 210–255 — no usable
-transparency — so it was re-encoded to an opaque WebP at **174 KB**, about 18×
-smaller. It is going to be blurred and halved, so the loss is invisible. The
-original stays in `gfx/`; only the derivative is tracked.
+The first version of this shipped a different, much brighter wallpaper and
+treated it hard: a 50% black scrim and a 26 px blur, on a `html::before`
+pseudo-element, with the box inflated to `inset: -80px` because a blur samples
+past its own edge and would otherwise fade the whole border out. Getting there
+cost three silent failures worth remembering, none of which produced an error —
+the page just looked quietly wrong:
 
-Four CSS details cost real time and are worth writing down, because each one
-fails *silently* — the page just looks wrong:
+- **Layer order is top-first in CSS**, the opposite of canvas. The scrim was
+  listed after the image, and since the image was opaque it buried the scrim
+  completely: the page rendered at full brightness.
+- **`z-index: -1` is not "behind everything."** It drops behind the *body's own
+  background box*, so the fixed pseudo-element carrying the backdrop rendered
+  nothing at all. Ordering has to be explicit.
+- **`filter: blur()` cannot go on `body`** — it would blur the player canvas
+  along with the page, which is what forced the pseudo-element in the first
+  place.
 
-- **Layer order is top-first in CSS**, the opposite of canvas. The 50% scrim
-  was listed after the image, and since the image is opaque it buried the
-  scrim completely: the page rendered at full brightness with no error
-  anywhere. The scrim has to come first.
-- **`z-index: -1` is not "behind everything".** It drops behind the *body's own
-  background box*, so a fixed pseudo-element carrying the backdrop rendered
-  nothing at all. Ordering is now explicit — `z-index: 0` on the pseudo-element,
-  `1` on `body`.
-- **A `filter: blur()` samples past the element's own edge.** Without inflating
-  the box well past the viewport, the blur fades the whole border out to
-  nothing. `inset: -80px` against a 26 px radius.
-- **It has to be a pseudo-element, not a `background-image` on `body`.** Blur is
-  a `filter`, so putting it on `body` would blur the player canvas too.
-
-Verified by measurement, not by eye: sampled backdrop pixels against a
-simulated cover-and-blur of the source at exactly half brightness, mean ratio
-**0.985**. Confirmed separately that Vite rewrites the CSS URL to
-`/misima-hybrid-player/misima-background.webp` under the Pages base.
+The artwork was then swapped for the dark concrete plate, which needs none of
+that. It is already dark on its own — mean luminance ~44/255, with a p5-p95
+spread of only 41-48 — so a scrim would only crush it and the texture is the
+whole point of showing it. Blur went with it. What is left is a plain
+`background-image` on `html.web`, and the artist's PNG shipped untouched:
+no re-encode, no quality ladder, nothing between the file in `gfx/` and the
+page. The three CSS traps above are kept in AGENTS.md 3.2 in case a filter ever
+comes back.
 
 Stripped from the desktop build in `vite.config.ts` alongside `wasm/` and
 `music/`. The dangling CSS reference is harmless because the rule is gated

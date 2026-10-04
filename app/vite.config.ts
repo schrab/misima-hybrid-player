@@ -35,7 +35,7 @@ function stripWebOnlyAssets(): Plugin {
       for (const path of [
         "dist/wasm",
         "dist/music",
-        "dist/misima-background.webp",
+        "dist/misima-background.png",
       ]) {
         await rm(resolve(__dirname, path), { recursive: true, force: true });
       }
