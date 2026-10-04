@@ -33,8 +33,9 @@ Below 1.0x the tempo fader stops pretending and stretches properly: Paulstretch.
   resampler untouched downstream, so the pitch fader keeps its exact semantics
   inside the wash. No added startup latency: the whole decoded track is random
   access on both platforms, so the engine starts at the requested position and
-  the first chunk simply fades in through the window. Cost is ~21 FFT pairs of
-  8192 points per second per channel, flat across the whole stretch range.
+  the first chunk simply fades in through the window. Cost is ~11 forward+inverse
+  FFT pairs of 8192 points per second per channel, flat across the whole stretch
+  range.
   Fifteen new tests: identity-phase OLA reconstruction, level, spectral
   preservation, finite/bounded output to 10x, output length, reset, spread
   differential, determinism, position bookkeeping, engine crossover at the 1.0

@@ -235,8 +235,9 @@ engines (nominal position minus buffered lag); a seek flushes through the
 existing `seek_gen` reset path (seeds re-initialised), and track end drains
 the tail before `finished` fires.
 
-**Cost**: ~21 FFT pairs of 8192 points per second per channel, independent
-of the stretch factor — negligible on both platforms. Everything is
+**Cost**: ~11 forward+inverse FFT pairs of 8192 points per second per channel
+(≈22 transforms at 44.1 kHz), independent of the stretch factor — negligible
+on both platforms. Everything is
 preallocated in the constructor; `process` allocates nothing, and all FIFO
 arithmetic uses the same saturating/clamped discipline as the WSOLA
 (overreads past the FIFO near track end are legal and zero-padded). The only
@@ -411,7 +412,7 @@ Measurement conventions that have bitten us:
 | `clouds_reverb.rs` | Dattorro/Griesinger FDN reverb (Clouds port) |
 | `spectrum.rs` | 1024-point FFT → 48 log-spaced bins for the visualizer |
 | `reverb_mix.rs` | Reverb dry/wet balance + envelope-normalized wet gain policy. **Platform-free.** |
-| `stretcher.rs` | Engine selector between the phase vocoder and the WSOLA. **Platform-free.** |
+| `stretcher.rs` | Engine selector: paulstretch for tempo-down, then the phase vocoder and the WSOLA. **Platform-free.** |
 | `player.rs` | Playback engine: cpal output, `SharedPlay`, stream ownership. **Desktop-only.** |
 | `mod.rs` | Module declarations and re-exports |
 
