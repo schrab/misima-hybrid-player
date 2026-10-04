@@ -4,10 +4,52 @@ import { loadImage } from "./layout";
 export type BitmapFont = {
   spec: FontSpec;
   atlas: HTMLImageElement;
-  draw(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth?: number): void;
+  draw(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    maxWidth?: number,
+    /** Draw as dark inverted glyphs, for the selected playlist row. */
+    dim?: boolean,
+  ): void;
   measure(text: string): number;
   lineHeight: number;
 };
+
+/**
+ * Brightness of the selected playlist row's glyphs. Matches the
+ * `ctx.filter = "brightness(0.12)"` this replaced, so the look is unchanged on
+ * the platforms where that filter actually worked.
+ */
+const DIM_BRIGHTNESS = 0.12;
+
+/**
+ * A copy of the atlas with every glyph knocked down to `brightness`, used for
+ * the selected playlist row so it reads as inverted against the green bar.
+ *
+ * Built with `source-atop` rather than a plain `fillRect`, which is the whole
+ * point: `source-atop` confines the fill to pixels that already exist and
+ * preserves their alpha, so this reproduces `brightness()` — colour scaled,
+ * shape untouched — instead of also making the glyphs translucent. Doing it
+ * once here costs nothing per frame, unlike filtering at draw time.
+ *
+ * The original `ctx.filter` approach was Chromium-only: WebKit gates canvas
+ * filters behind a preference that WebKitGTK does not enable, so on Linux the
+ * assignment was silently ignored and the selected row rendered undimmed.
+ */
+function darkenedAtlas(atlas: HTMLImageElement, brightness: number): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = atlas.naturalWidth || atlas.width;
+  c.height = atlas.naturalHeight || atlas.height;
+  const g = c.getContext("2d")!;
+  g.drawImage(atlas, 0, 0);
+  g.globalCompositeOperation = "source-atop";
+  const v = Math.round(brightness * 255);
+  g.fillStyle = `rgb(${v},${v},${v})`;
+  g.fillRect(0, 0, c.width, c.height);
+  return c;
+}
 
 function resolveGlyph(def: GlyphDef) {
   if (Array.isArray(def)) {
@@ -51,6 +93,8 @@ export function createFont(spec: FontSpec, atlas: HTMLImageElement): BitmapFont 
     };
   }
 
+  const dimAtlas = darkenedAtlas(atlas, DIM_BRIGHTNESS);
+
   const font: BitmapFont = {
     spec,
     atlas,
@@ -63,7 +107,8 @@ export function createFont(spec: FontSpec, atlas: HTMLImageElement): BitmapFont 
       }
       return w;
     },
-    draw(ctx, text, x, y, maxWidth) {
+    draw(ctx, text, x, y, maxWidth, dim) {
+      const src = dim ? dimAtlas : font.atlas;
       let cx = x;
       for (const ch of text) {
         const b = boxFor(ch);
@@ -73,7 +118,7 @@ export function createFont(spec: FontSpec, atlas: HTMLImageElement): BitmapFont 
         }
         if (maxWidth != null && cx + b.sw > x + maxWidth) break;
         const dy = y + (lineH - b.sh);
-        ctx.drawImage(font.atlas, b.sx, b.sy, b.sw, b.sh, Math.round(cx), Math.round(dy), b.sw, b.sh);
+        ctx.drawImage(src, b.sx, b.sy, b.sw, b.sh, Math.round(cx), Math.round(dy), b.sw, b.sh);
         cx += b.sw;
       }
     },

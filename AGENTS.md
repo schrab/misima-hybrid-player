@@ -171,6 +171,11 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
    - The fade envelope derives alpha from **position**, not from a spawn timer. That is what makes a bead fade in while already moving and reach zero opacity strictly before the rail end, instead of arriving, stopping, and dissolving. Both sides of the wrap are transparent, so the seam is invisible.
    - Beads share one pre-rendered radial-gradient sprite and differ only by `globalAlpha` and size; never build a gradient per particle per frame. The profile is a true **Gaussian**, sampled into stops — a hand-picked stop list kinks, and one that still carries alpha where the sprite ends shows as a hard disc. Widening the blur therefore means growing `SPOT_SCALE` *and* `SPOT_SIGMA` together, never one alone. The tint is warm off-white (255,222,150): a pure white bead reads as a speck of dust rather than a light, and `gain` stays low (0.6) for the same reason. Note that `screen` compounds where neighbouring beads' halos overlap, so bundle corridors do reach pure white even though a single isolated bead peaks near 190.
 
+12. **Never use `ctx.filter` — canvas filters are not Baseline.**
+   - MDN's compatibility data has `ctx.filter` in Chrome 52 and Firefox 49, but in Safari only behind the "Canvas Filters" preference, which WebKitGTK does not enable. Assigning it there is a **silent no-op**, not a throw — so a build that depends on it looks correct on Windows and macOS and silently does nothing on Linux. This bit the selected playlist row, which dimmed its glyphs with `brightness(0.12)`.
+   - `sprite/font.ts` pre-builds a darkened atlas with `source-atop` instead. That is the operation to reach for, not a plain `fillRect`: `source-atop` confines the fill to pixels that already exist and **preserves their alpha**, which is exactly what `brightness()` does (scale colour, leave shape). A plain fill would also make the glyphs translucent, and `multiply` cannot express this without also darkening the backdrop. Cost is one canvas at load time and an extra `drawImage` source, not per-frame work.
+   - Verified equivalent on Chromium: max channel difference 1/255, mean 0.29, against the filter it replaced.
+
 ---
 
 ## 4. Multiplatform Guidelines (Windows / Linux / macOS)

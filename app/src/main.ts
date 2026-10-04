@@ -55,6 +55,9 @@ const ctx = canvas.getContext("2d")!;
 const ART_W = 1500;
 const ART_H = 2060;
 
+/** Artboard px the selected playlist row's highlight bar is nudged down. */
+const HIGHLIGHT_DY = 2;
+
 /**
  * Platform is chosen once, here. Everything below talks to `transport` and
  * never learns whether it is running inside Tauri or a browser tab.
@@ -667,16 +670,17 @@ function render(time: number) {
     const y = pl.origin.y + r * pl.rowHeight;
     const active = row.id === activeId;
     if (active) {
+      // The bar art sits slightly high against the glyph row; nudge it down so
+      // it reads as centred on the text rather than riding above it.
       const hl = images.get("ui/active_track.png");
       // natural strip 373×24 — do not stretch across full box
       if (hl) {
-        ctx.drawImage(hl, pl.origin.x, y, hl.width, hl.height);
+        ctx.drawImage(hl, pl.origin.x, y + HIGHLIGHT_DY, hl.width, hl.height);
       } else {
         ctx.fillStyle = "#7dff4a";
-        ctx.fillRect(pl.origin.x, y, 373, 24);
+        ctx.fillRect(pl.origin.x, y + HIGHLIGHT_DY, 373, 24);
       }
     }
-    if (active) ctx.filter = "brightness(0.12)";
     // № (2 digits) + 6 letters + duration
     // Files usually carry their own index ("01 - Song.mp3"); the row already
     // shows it, so strip that prefix or it eats the 6-letter budget.
@@ -686,10 +690,12 @@ function render(time: number) {
     const num = String(r + 1).padStart(2, "0");
     // Duration column shows minutes only ("03" of "03:45") — seconds don't fit.
     const dur = (row.duration ?? "--:--").split(":")[0];
-    font?.draw(ctx, num, pl.origin.x + 4, y, 48);
-    font?.draw(ctx, name6, pl.origin.x + 56, y, 220);
-    font?.draw(ctx, dur, pl.origin.x + 280, y, 48);
-    if (active) ctx.filter = "none";
+    // The selected row draws from the pre-darkened atlas, so its glyphs read as
+    // inverted against the highlight bar. This used to be
+    // `ctx.filter = "brightness(0.12)"`, which WebKitGTK silently ignores.
+    font?.draw(ctx, num, pl.origin.x + 4, y, 48, active);
+    font?.draw(ctx, name6, pl.origin.x + 56, y, 220, active);
+    font?.draw(ctx, dur, pl.origin.x + 280, y, 48, active);
   }
   ctx.restore();
   // Status — art: (1153, 1825), width 220, trim overflow

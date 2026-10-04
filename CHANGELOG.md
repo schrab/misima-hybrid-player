@@ -14,6 +14,18 @@ the desktop installers; pushing `main` on its own deploys the web app.
 ## [Unreleased]
 
 ### Fixed
+- **The selected playlist row renders correctly on Linux** — it was dimming its
+  glyphs with `ctx.filter = "brightness(0.12)"`, and canvas filters are not
+  Baseline: Safari gates them behind a preference WebKitGTK does not enable, so
+  on Linux the assignment was a silent no-op and the row drew undimmed while
+  looking correct on Windows and macOS. `sprite/font.ts` now pre-builds a
+  darkened atlas with `source-atop`, which preserves glyph alpha the way
+  `brightness()` does, so the row is inverted identically on every platform at
+  no per-frame cost. Measured equivalent to the filter on Chromium (max channel
+  difference 1/255), and the glyphs now measure exactly 31/255 — the intended
+  `0.12 × 255`.
+- **The selection bar sits 2 px lower**, so it reads as centred on the glyph row
+  rather than riding above it.
 - **Arch packaging now actually runs** — replaces `debtap` with
   `scripts/deb2arch.py`, which writes `.PKGINFO` and `.MTREE` directly.
   `debtap` calls `pkgfile` inside the conversion path, refuses to start without
