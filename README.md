@@ -254,7 +254,7 @@ npm test
 ### Building for Release
 
 ```bash
-# Desktop installers (MSI/NSIS, DEB/AppImage, DMG)
+# Desktop installers (MSI/NSIS, DEB/RPM/AppImage, DMG)
 cd app
 npm run tauri build
 
@@ -268,6 +268,13 @@ Installable bundles land under `app/src-tauri/target/release/bundle/`.
 The Pages build is deployed automatically on every push to `main` by
 `.github/workflows/pages.yml`. The desktop installers are untouched by that
 workflow; they are cut by tagging `v*` (see `release.yml`).
+
+> **Arch Linux:** take the `.pkg.tar.zst`, not the AppImage. The AppImage
+> aborts on startup there — it carries support libraries built on Ubuntu 22.04
+> that shadow the host's on a rolling distro, and the web process dies on a
+> JavaScriptCore assertion before a window appears. The Arch package is
+> converted from the `.deb`, which bundles nothing and declares webkit2gtk as a
+> dependency, so everything resolves to the host's own libraries.
 
 ### Installing on macOS (unsigned build)
 

@@ -79,7 +79,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "Misima Hybrid Player v__VERSION__"
           releaseBody: |
-            Installers for Windows (.msi / .exe), macOS (.dmg, Intel + Apple Silicon in one) and Linux (.deb / .rpm / .AppImage).
+            Installers for Windows (.msi / .exe), macOS (.dmg, Intel + Apple Silicon in one) and Linux (.deb / .rpm / .AppImage / .pkg.tar.zst for Arch).
 
             The binaries are unsigned:
             - macOS: right-click the app and choose "Open" the first time, or allow it under System Settings > Privacy & Security.
@@ -87,3 +87,46 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      # Arch has no native target in `tauri.conf.json` — the bundler emits deb,
+      # rpm and AppImage, and none of them install with pacman. Worse, the
+      # AppImage is actively broken there: it carries support libraries built on
+      # ubuntu-22.04 that shadow the host's on a rolling distro, and the web
+      # process aborts on startup (JavaScriptCore assertion) before a window
+      # appears. The .deb does not have that problem — it bundles nothing and
+      # declares webkit2gtk as a dependency, so the whole stack resolves to the
+      # host's — so the Arch package is converted from the .deb rather than
+      # patched out of the AppImage.
+      - name: Convert the deb into an Arch package
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          set -euo pipefail
+
+          deb=$(find app/src-tauri/target/release/bundle/deb -name '*.deb' -print -quit)
+          if [ -z "$deb" ]; then
+            echo "::error::no .deb found — did the tauri build run?"
+            exit 1
+          fi
+          echo "converting $deb"
+
+          # debtap is a bash script, not a packaged binary; clone and run it.
+          git clone --depth 1 https://github.com/helixarch/debtap.git /tmp/debtap
+          chmod +x /tmp/debtap/debtap
+          sudo /tmp/debtap/debtap -u
+
+          mkdir -p dist-arch
+          sudo /tmp/debtap/debtap -Q -w -o "$PWD/dist-arch" "$deb"
+
+          pkg=$(find dist-arch -name '*.pkg.tar.*' -print -quit)
+          echo "built $pkg"
+          sudo chown "$(id -u):$(id -g)" "$pkg"
+
+      - name: Attach the Arch package to the release
+        if: matrix.platform == 'ubuntu-22.04'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          pkg=$(find dist-arch -name '*.pkg.tar.*' -print -quit)
+          gh release upload "${{ github.ref_name }}" "$pkg" --clobber
+

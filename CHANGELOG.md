@@ -9,6 +9,20 @@ together.
 > here. Reconstruct them from `git log v0.2.1..v0.3.2` if the detail is ever
 > needed; nothing below depends on them.
 
+## [Unreleased]
+
+### Fixed
+- **Arch Linux gets a working package** — the AppImage aborts on startup there.
+  It carries support libraries built on Ubuntu 22.04 which shadow the host's on
+  a rolling distro, and the WebKit web process dies on a JavaScriptCore
+  assertion before a window ever appears. `release.yml` now converts the `.deb`
+  into a native `.pkg.tar.zst` with `debtap` and attaches it to the release.
+  The `.deb` is the right source: it bundles nothing and declares webkit2gtk as
+  a dependency, so the whole stack resolves to the host's own libraries.
+  Tauri's bundler has no pacman target and no option to exclude individual
+  libraries from the AppImage, so converting is cleaner than patching the
+  AppImage.
+
 ## [0.4.1] — 2026-10-04
 
 First tagged build of the desktop app: `release.yml` builds Windows, macOS
