@@ -1,6 +1,6 @@
 # MI$IM∆ hybrid player — development & technical notes
 
-the user-facing readme is [README.md](README.md) ([русская версия](README.ru.md)); it keeps the download links, the hotkeys and the pictures. everything with diagrams, numbers and build steps lives here. MI$IM∆ keeps the paperwork too.
+the user-facing readme is [README.md](README.md) ([english version](README.en.md)); it keeps the download links, the hotkeys and the pictures. everything with diagrams, numbers and build steps lives here. MI$IM∆ keeps the paperwork too.
 
 ---
 
