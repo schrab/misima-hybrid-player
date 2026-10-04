@@ -41,7 +41,7 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev zstd
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -95,10 +95,29 @@ jobs:
       # process aborts on startup (JavaScriptCore assertion) before a window
       # appears. The .deb does not have that problem — it bundles nothing and
       # declares webkit2gtk as a dependency, so the whole stack resolves to the
-      # host's — so the Arch package is converted from the .deb rather than
-      # patched out of the AppImage.
+      # host's — so the Arch package is converted from the .deb.
+      #
+      # This was `debtap` until v0.4.2, the first tag it ever ran on, and it
+      # failed immediately. debtap is written to run *on Arch*: it calls `pkgfile`
+      # inside the conversion path (not just in `debtap -u`), refuses to start
+      # without /var/cache/pkgfile and a set of /var/cache/debtap/* databases,
+      # and calls `namcap`. None of that exists on ubuntu-22.04, so installing
+      # anything would not have made it work.
+      #
+      # `scripts/deb2arch.py` writes .PKGINFO and .MTREE directly instead. The
+      # deb→Arch name mapping is DEP_MAP at the top of that file; it fails loudly
+      # on a dependency it does not know rather than guessing, because a wrong
+      # name silently produces an uninstallable package. It then re-opens the
+      # finished archive and checks it, since emitting a file is not the same as
+      # emitting a valid one.
+      #
+      # continue-on-error on purpose: the Windows and macOS installers are
+      # uploaded by the earlier tauri-action step, so a packaging fault here must
+      # never mark the release red or withhold them. A missing Arch asset is
+      # obvious on the Releases page; a red run that ships nothing is not.
       - name: Convert the deb into an Arch package
         if: matrix.platform == 'ubuntu-22.04'
+        continue-on-error: true
         run: |
           set -euo pipefail
 
@@ -109,24 +128,27 @@ jobs:
           fi
           echo "converting $deb"
 
-          # debtap is a bash script, not a packaged binary; clone and run it.
-          git clone --depth 1 https://github.com/helixarch/debtap.git /tmp/debtap
-          chmod +x /tmp/debtap/debtap
-          sudo /tmp/debtap/debtap -u
-
           mkdir -p dist-arch
-          sudo /tmp/debtap/debtap -Q -w -o "$PWD/dist-arch" "$deb"
+          python scripts/deb2arch.py "$deb" dist-arch
 
-          pkg=$(find dist-arch -name '*.pkg.tar.*' -print -quit)
-          echo "built $pkg"
-          sudo chown "$(id -u):$(id -g)" "$pkg"
+          pkg=$(find dist-arch -name '*.pkg.tar.zst' -print -quit)
+          if [ -z "$pkg" ]; then
+            echo "::error::deb2arch.py produced no package"
+            exit 1
+          fi
+          python scripts/deb2arch.py --verify "$pkg"
 
       - name: Attach the Arch package to the release
         if: matrix.platform == 'ubuntu-22.04'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          pkg=$(find dist-arch -name '*.pkg.tar.*' -print -quit)
+          pkg=$(find dist-arch -name '*.pkg.tar.zst' -print -quit)
+          if [ -z "$pkg" ]; then
+            echo "::warning::no Arch package was built; nothing to attach"
+            exit 0
+          fi
           gh release upload "${{ github.ref_name }}" "$pkg" --clobber
 
