@@ -3,8 +3,16 @@
 Port Misima Hybrid Player to a static browser application with an **identical DSP
 chain**. Deploy to GitHub Pages with no backend.
 
-- **Status:** ready for implementation
+- **Status:** **implemented and shipped** at https://schrab.github.io/misima-hybrid-player/ (v0.4.0)
 - **Repo:** `misima-hybrid-player`
+- **What actually happened:** [`../../WEB-PORT.md`](../../WEB-PORT.md) — the phase-by-phase
+  log, including where this plan was wrong (§6 Phase 3 predicted an output ring
+  buffer that turned out to be unnecessary) and four bugs that reached
+  production because they lived in the gap between JavaScript and WebAssembly,
+  where no test could see them.
+
+Kept as the design record. Where the implementation diverged, the divergence and
+its reason are noted in the log above rather than edited back in here.
 
 ---
 

@@ -47,6 +47,38 @@ Misima Hybrid Player is a high-performance, skinnable, multiplatform (Windows, m
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
+The diagram above is the **desktop** runtime. There is a second one, running
+the *same* DSP modules:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    Web Runtime (static, GitHub Pages)                   │
+│                                                                        │
+│  <File> or bundled MP3                                                 │
+│        │  decodeAudioData — browser-native; resamples to the context    │
+│        ▼                                                               │
+│  AudioWorkletNode "dsp-processor"                                      │
+│        │  ← app/wasm-dsp, the eight platform-free modules compiled to │
+│        │    WASM (+simd128). Same bypass / stretcher / EQ / taps /     │
+│        │    reverb / clip chain, same order, same tap points.          │
+│        ▼                                                               │
+│  ctx.destination                                                       │
+│        ▲  port.postMessage: params in │ spectrum, waveform, pos out    │
+│        │                                                               │
+│  transport.ts ←─ WebTransport (browser) │ TauriTransport (desktop)      │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+`main.ts` talks to `transport` and never learns which one it got. The worklet
+has **no input node**: it reads from a decoded track buffer sent over the
+message port, exactly as the desktop reads from `SharedPlay::samples`, so
+source position is tracked inside the DSP and never derived from
+`AudioContext.currentTime` (which is wall time, and lies at any speed ≠ 1.0).
+
+The real-time lock discipline of §3.1 mostly dissolves in the worklet — it is
+single-threaded, so there are no locks to hoist. The allocation rules and the
+saturating-arithmetic rules around the WSOLA FIFO apply **verbatim**.
+
 ---
 
 ## 2. Specialized Subagent Roster
@@ -114,6 +146,12 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
    - Spectrum segments light up organically based on energy thresholds (`reveal: 0.0..1.0`). If energy is near zero (`<= 0.01`), do not render idle visualizer noise.
 5. **Per-Band Spectrum Chip Sets**:
    - Each band may use its own chip set (`spectrum/chip_*.png`, freeform sizes); never normalize bands onto one shared pool. Clone a tuned band's layout anchor-relative: keep every column's own left edge / `xShift`, copy only the variant's Y-stack and per-chip X jitter.
+6. **Web build: nothing may block the first paint**:
+   - `AudioContext`, `fetch`, `decodeAudioData` and WASM compilation must never run between `requestAnimationFrame(render)` and the canvas being drawn. `init()` starts the render loop as soon as the skin manifest parses and does its audio work afterwards.
+   - Chrome's `AudioContext.resume()` **never settles** when the autoplay policy blocks it — not rejected, just pending forever. Always race it against a timeout, and only call it after a real user gesture (tracked by a capture-phase listener in `main.ts`).
+   - Load sprites in one `Promise.all`. Awaiting them in turn was ~135 serialised requests; invisible on localhost, half a minute over the network.
+7. **wasm-bindgen out-parameters do not write back**:
+   - A `&mut [f32]` argument is compiled as a **return pointer**: the generated JS hands the array to WASM and never copies the result back, so the caller's array is untouched. Return `Vec<f32>` instead. Getting this wrong plays a stale buffer (audible as metallic, bit-reduced audio) and silently kills the visualizer taps.
 
 ---
 
@@ -144,7 +182,7 @@ The player is designed for cross-platform deployment. Agents must verify platfor
 Before committing or completing any task, agents must run and pass the following checks:
 
 ```bash
-# 1. Rust Audio Core & DSP Unit Tests (Must pass 42/42, 1 ignored smoke test)
+# 1. Rust Audio Core & DSP Unit Tests (Must pass 43/43, 1 ignored smoke test)
 cd app/src-tauri
 export PATH="$HOME/.cargo/bin:$PATH"
 cargo test -- --nocapture
@@ -152,12 +190,25 @@ cargo test -- --nocapture
 # 2. Rust Lints & Compilation Check (Zero warnings)
 cargo check
 
-# 3. Frontend Tests, Typecheck & Production Build
+# 3. Web DSP Crate — same shared modules, wasm32 target
+#    The unit tests of the eight shared DSP modules run here too, so a
+#    regression that only shows up in the WASM build is caught without a
+#    browser. This is mandatory for any change under `src/audio/`.
+cd ../wasm-dsp
+cargo test
+cargo clippy --target wasm32-unknown-unknown
+
+# 4. Frontend Tests, Typecheck & Production Build
 #    `npm run build` = `tsc` (typecheck, noEmit) → `npm test` → `vite build`.
 #    A failing frontend test fails the build, so this step is not optional.
 cd ../app
 npm test
 npm run build
+
+# 5. Pages Build (only when touching the web build)
+#    Builds WASM with simd128, bundles the worklet, then runs the same gate as
+#    step 4. Requires `wasm-pack` on PATH (`cargo install wasm-pack --locked`).
+npm run build:pages
 ```
 
 Frontend tests are plain `.ts` files under `src/` run by `tsx` (no test-runner
@@ -177,22 +228,46 @@ misima-hybrid-player/
 │   └── agents/                 # Role definitions (coder, reviewer, tester, etc.)
 ├── agents.md                   # This instruction manual
 ├── README.md                   # User-facing and developer documentation
+├── .nojekyll                   # GitHub Pages: serve dist/ verbatim, no Jekyll
 ├── docs/                       # Specifications and architectural history
-│   └── compose/spec/           # Feature specifications (MVP, sprite UI)
+│   ├── DSP.md                  # Audio engine deep-dive (read before src/audio/)
+│   ├── WEB-PORT.md             # Web port implementation log, phase by phase
+│   └── compose/spec/           # Feature specifications (MVP, sprite UI, web app)
 ├── app/
 │   ├── index.html              # HTML shell containing the main canvas element
-│   ├── package.json            # Node.js dependencies (Tauri 2, Vite, TypeScript)
+│   ├── package.json            # Node.js dependencies (Tauri 2, Vite, TypeScript, esbuild)
+│   ├── vite.config.ts          # Base path, dev server, and the web-only asset strip
+│   ├── scripts/                # Build helpers (wasm-pack, worklet bundler, dev servers)
 │   ├── src/                    # Frontend source code
-│   │   ├── main.ts             # Main event loop, input handling, IPC bindings
+│   │   ├── main.ts             # Main event loop, input handling, transport calls
+│   │   ├── transport.ts        # Transport interface shared by both platforms
+│   │   ├── transportTauri.ts   # Desktop implementation (wraps invoke/listen)
+│   │   ├── transportWeb.ts     # Browser implementation (wraps WebPlayer)
+│   │   ├── web/                # Browser-only engine
+│   │   │   ├── player.ts       # AudioContext lifecycle, decoded-track playlist, worklet wiring
+│   │   │   ├── files.ts        # <input type=file> + whole-window drag-and-drop
+│   │   │   └── base.ts         # import.meta.env.BASE_URL with a non-Vite fallback
+│   │   ├── worklet/            # AudioWorklet source (bundled, not shipped raw)
+│   │   │   ├── dspWorklet.js   # The "dsp-processor" node and its message protocol
+│   │   │   └── polyfill.js     # TextDecoder/TextEncoder for AudioWorkletGlobalScope
 │   │   └── sprite/             # Sprite compositor, font engine, layout math
 │   │       ├── font.ts         # Bitmap glyph font renderer
 │   │       ├── layout.ts       # Fader hit-testing and travel calculation
 │   │       ├── spectrumLayout.ts # Organic spectrum segment stacker
 │   │       ├── types.ts        # Skin and layout TypeScript interfaces
 │   │       └── visuals.ts      # Spectrum segments and waterfall drawing
-│   ├── public/sprite/          # THE skin folder (single source of truth):
-│   │                           #   skin.json + bg/ ui/ font/ spectrum/ anim/
-│   └── src-tauri/              # Rust backend core
+│   ├── public/
+│   │   ├── sprite/             # THE skin folder (single source of truth):
+│   │   │                       #   skin.json + bg/ ui/ font/ spectrum/ anim/
+│   │   ├── music/              # Bundled demo tracks (web build only, stripped from desktop)
+│   │   └── wasm/               # GENERATED: wasm-pack output + bundled worklet
+│   ├── wasm-dsp/               # The DSP chain compiled to WASM for the browser
+│   │   ├── Cargo.toml          # wasm-bindgen, js-sys, rustfft — no cpal/tauri/symphonia
+│   │   └── src/
+│   │       ├── lib.rs          # #[path]-includes the eight shared audio modules
+│   │       ├── processor.rs    # DspProcessor: the whole worklet-side engine
+│   │       └── bindings.rs     # wasm_bindgen surface (wasm32 only)
+│   └── src-tauri/              # Rust backend core (desktop)
 │       ├── Cargo.toml          # Rust dependencies (cpal, symphonia, rustfft, tauri)
 │       ├── tauri.conf.json     # Window, bundle, and capability configuration
 │       └── src/
@@ -203,12 +278,34 @@ misima-hybrid-player/
 │           └── audio/          # Real-time audio engine
 │               ├── clouds_reverb.rs # Stereo FDN reverb (Clouds port, MIT © Emilie Gillet)
 │               ├── decoder.rs  # Symphonia multi-format audio decoder
+│               ├── dsp_utils.rs # Shared interpolation and buffer readers
 │               ├── eq.rs       # 10-band peaking biquad EQ & anti-aliasing lowpass
 │               ├── phase_vocoder.rs # Stereo phase vocoder (pitch-up engine)
-│               ├── player.rs   # Playback state, cpal audio callback, Stretcher, Reverb mix policy
+│               ├── reverb_mix.rs # Reverb dry/wet balance + envelope gain policy
 │               ├── spectrum.rs # FFT spectrum analyzer (rustfft)
+│               ├── stretcher.rs # Engine selector between vocoder and WSOLA
+│               ├── player.rs   # Playback state, cpal callback, SharedPlay (desktop-only)
 │               └── wsola.rs    # Real-time WSOLA time-stretcher (tempo + pitch-down)
 ```
+
+### Shared DSP modules
+
+Eight modules under `src-tauri/src/audio/` are `#[path]`-included by
+`wasm-dsp`, so the browser and desktop run **the same Rust**:
+
+`clouds_reverb`, `dsp_utils`, `eq`, `phase_vocoder`, `spectrum`, `wsola`,
+`reverb_mix`, `stretcher`.
+
+Their unit tests run in **both** crates. `player.rs` (cpal, tauri, parking_lot)
+and `decoder.rs` (Symphonia) stay desktop-only — the browser equivalents are
+the `AudioContext` and `decodeAudioData`.
+
+When editing one of the eight, the shared module's `use crate::audio::…` paths
+must keep resolving in both crates. Declare new modules at the crate root of
+`wasm-dsp/src/lib.rs`, not inside an inline `mod audio { … }`: an inline
+module anchors a nested `#[path]` at `src/audio/`, and the resulting `..` count
+only resolves under one reading — which works on Windows and fails on the
+Linux CI runner.
 
 ## 7. DSP Documentation
 

@@ -1,8 +1,56 @@
 # Changelog
 
 All notable changes to the Misima Hybrid Player. Versions follow semver
-loosely; the version lives in `app/package.json`, `app/src-tauri/tauri.conf.json`
-and `app/src-tauri/Cargo.toml` and must be bumped together.
+loosely; the version lives in `app/package.json`, `app/src-tauri/tauri.conf.json`,
+`app/src-tauri/Cargo.toml` and `app/wasm-dsp/Cargo.toml` and must be bumped
+together.
+
+> **Gap:** 0.3.0–0.3.2 shipped and are tagged in git but were never recorded
+> here. Reconstruct them from `git log v0.2.1..v0.3.2` if the detail is ever
+> needed; nothing below depends on them.
+
+## [0.4.0] — 2026-10-04
+
+### Added
+- **Web build** — the whole player as a static site, deployed at
+  <https://schrab.github.io/misima-hybrid-player/>. Same skin, same DSP, no
+  install. Deployed by a new `.github/workflows/pages.yml` on every push to
+  `main`; `release.yml` and the desktop installers are untouched by it.
+- **`app/wasm-dsp/`** — the DSP chain compiled to WebAssembly. It contains no
+  DSP of its own: eight platform-free modules are `#[path]`-included from
+  `src-tauri/src/audio/`, so the browser and desktop run the same Rust. No
+  cpal, tauri, symphonia or parking_lot in its dependency graph. Compiled with
+  `+simd128`, without which rustfft falls back 3–4x slower than the 128-sample
+  render quantum allows.
+- **`src/worklet/dspWorklet.js`** — the `dsp-processor` AudioWorklet, bundled by
+  esbuild into a single import-free file with the wasm-bindgen glue inlined.
+- **`src/transport.ts`** — a `Transport` interface with `TauriTransport` and
+  `WebTransport` implementations, so `main.ts` keeps one code path and no longer
+  imports `@tauri-apps/api` directly.
+- **Bundled demo music** — four tracks by Wit Chu, used with his permission, in
+  `app/public/music/`. Only the first is fetched on page load; the rest load
+  when the listener reaches them.
+
+### Changed
+- **DSP modules split** — `Reverb` (with `follow` and `mix_reverb_frame`) moved
+  to `audio/reverb_mix.rs`, and `Stretcher` to `audio/stretcher.rs`, so both
+  crates can share them. Behaviour unchanged; the desktop plays identically.
+- **Verification gate widened** — `cargo test` in `app/wasm-dsp` is now part of
+  the required checks, since the shared modules' tests run there too.
+- **Web build sizing** — the canvas fits the viewport and refits on resize;
+  zoom no longer applies twice (it was setting both a CSS size and a
+  `transform: scale()`).
+
+### Fixed
+- **Web: blank page in Chrome.** `AudioContext.resume()` never settles when the
+  autoplay policy blocks it — pending forever, not rejected. Awaiting it hung
+  initialisation before the first frame. Now raced against a timeout and only
+  attempted after a user gesture.
+- **Web: ~30 s blank page.** Sprites were awaited one at a time, ~135 serial
+  requests. They now load in parallel, and the render loop starts as soon as the
+  skin manifest parses instead of after the last image.
+- **Desktop installers no longer carry web-only assets** — `dist/wasm` and
+  `dist/music` are stripped from non-Pages builds.
 
 ## [0.2.1] — 2026-10-03
 

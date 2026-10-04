@@ -224,10 +224,102 @@ against the local `music/` library.
       of its own protocol.
 - [x] `.nojekyll`
 - [x] `.github/workflows/pages.yml`
-- [ ] Configure Pages → Source → GitHub Actions (repository setting, needs a human)
-- [ ] First deploy + subpath verification
+- [x] Pages → Source → GitHub Actions
+- [x] Deployed and verified: **https://schrab.github.io/misima-hybrid-player/**
 
-**Verified:** `npm run build:pages` produces a `dist/` whose HTML references
-`/misima-hybrid-player/assets/…`, with `dist/wasm/` (353 KB wasm + 13 KB
-bundled worklet) and the skin in place. All four assets return 200 from the
-subpath under `vite preview`.
+**Live at 0.4.0.** `npm run build:pages` emits a `dist/` whose HTML references
+`/misima-hybrid-player/assets/…`, with `dist/wasm/` (353 KB wasm + 12 KB
+bundled worklet), `dist/music/` (28 MB of bundled tracks) and the skin in
+place. Every asset returns 200 from the subpath.
+
+---
+
+## After the phases — production hardening
+
+Everything below happened after the first deploy, driven by using the live
+site. All four are the same lesson wearing different hats: **the failure mode
+was invisible to every automated check**, because the bug lived in the space
+between JavaScript and WebAssembly, or between the UI and the network.
+
+### 1. The Linux CI `#[path]` failure
+
+The first Pages build failed on Ubuntu while passing on Windows:
+
+```text
+couldn't find file `src/audio/../../../src-tauri/src/audio/clouds_reverb.rs`
+```
+
+The shared modules were included through an inline `mod audio { … }` block. An
+inline module anchors a nested `#[path]` at `src/audio/` rather than at the
+directory of `lib.rs`, so the `..` count is only right under one of the two
+plausible readings — and the other points at a path that does not exist.
+Windows happened to take the working one.
+
+Each module now sits at the crate root, where the anchor is unambiguous and the
+path is two segments instead of three, with a `pub mod audio` shim restoring the
+`crate::audio::…` paths. CI now runs `cargo check --target wasm32-unknown-unknown`
+in `wasm-dsp/` *before* installing wasm-pack, so this fails in seconds rather
+than after a multi-minute toolchain install.
+
+### 2. Blank page in Chrome when autoplay is blocked
+
+Chrome showed no player at all, with only this warning:
+
+> The AudioContext was not allowed to start. It must be resumed (or created)
+> after a user gesture on the page.
+
+The warning is a decoy. The real behaviour is that when the autoplay policy
+blocks a resume, **Chrome returns a promise that never settles** — not
+rejected, pending forever. `ensureContext()` awaited it unconditionally, so
+`init()` hung before `requestAnimationFrame(render)` and the canvas was never
+drawn. A browser lenient enough to allow autoplay hid the bug completely.
+
+Two independent fixes:
+
+- `resume()` is raced against a 1 s timer, and outside the autoplay probe it is
+  only attempted after a real user gesture (a capture-phase listener in
+  `main.ts` sets the flag before any click handler can reach `play()`).
+- All startup audio work moved to *after* `requestAnimationFrame(render)`.
+  Nothing that fetches, decodes or touches an `AudioContext` may sit between
+  the canvas becoming visible and the loop that draws it.
+
+### 3. ~30 second blank page
+
+Every sprite was awaited one at a time — 135 references in nested loops, each
+waiting on the last. Invisible on localhost; over the network it was the
+difference between half a second and half a minute. All 64 distinct files now
+race in one `Promise.all`.
+
+Separately, the render loop only started once every image had loaded, so the
+canvas was empty for that entire window — and since the track load ran after
+it, it looked like the drawing was waiting on the audio. It now starts as soon
+as the skin manifest parses and fills in progressively.
+
+A 2 px progress hairline was added, because the background plate alone is
+2.24 MB of the skin's 3.6 MB: the wait is real, and without a signal the page
+reads as broken rather than loading.
+
+### 4. The bundled music
+
+Four Wit Chu tracks (used with his permission) ship in `app/public/music/` and
+are served same-origin. Only the first is fetched on arrival; the rest are
+registered as playlist rows carrying a `sourceUrl` and downloaded by
+`playIndex` when the listener reaches them — decoding all four up front would
+make every page load pay for 28 MB.
+
+Credit line under the player links to the Misima Telegram first, then to Wit
+Chu's Bandcamp. Hidden on the desktop build, which ships no bundled music.
+
+### Known limits
+
+- **`bg/bg.png` is 2.24 MB.** It is the remaining bottleneck for first paint.
+  A WebP would cut it to ~200–300 KB, but that is the artist's asset and it is
+  shared with the desktop build, so it has been left alone deliberately.
+- **Autoplay depends on the browser's policy.** Chrome blocks it on a
+  low-engagement site; the page renders immediately, loads its track, and shows
+  "press play" rather than claiming success over silence.
+- **Radio remains out of scope.** It needs `Access-Control-Allow-Origin` on the
+  stream, and there is no Pages function to add it — see §7 of the spec.
+- **`npx tauri build` does not work** on this machine (`could not determine
+  executable to run`); use `npm run tauri build`. CI is unaffected — it uses
+  `tauri-apps/tauri-action`, not `npx`.

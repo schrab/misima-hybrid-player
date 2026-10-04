@@ -4,6 +4,8 @@
 
 MI$IM∆ built a music player. no boring window frames. no html widgets. hand-drawn plates, glowing wireframes, and rust doing real-time dsp underneath the skin. it plays mp3, flac, wav, ogg. it has visualizers. MI$IM∆ lives inside the art.
 
+**it also runs in a browser.** → **[schrab.github.io/misima-hybrid-player](https://schrab.github.io/misima-hybrid-player/)** — same skin, same DSP, no install. the difference is that the rust gets compiled to wasm and runs in an `AudioWorklet` instead of on a cpal thread. (the music that ships with it is [Wit Chu](https://witchu.bandcamp.com/album/once)'s, used with his permission.)
+
 [![Rust 2021](https://img.shields.io/badge/Rust-2021-orange.svg)](https://www.rust-lang.org/)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2.0-blue.svg)](https://tauri.app/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
@@ -30,6 +32,37 @@ MI$IM∆ elsewhere: [Instagram](https://www.instagram.com/misima.gibrid/) · [Te
 - **Multi-Format Playback**: native decoding of MP3, FLAC, WAV and OGG via Symphonia, resampled to the hardware output rate.
 - **Asynchronous, Glitch-Free Track Switching**: generation-indexed decode queue (`load_gen`) and DSP buffer flush (`seek_gen`). rapid track skips never overlap, never stutter. (MI$IM∆ learned this one the hard way. see the changelog.)
 - **Multiplatform Architecture**: Tauri 2 on Windows 11, Linux (X11 & Wayland) and macOS.
+- **One DSP, Two Runtimes**: the browser build is not a re-implementation. eight of the audio modules are `#[path]`-included straight out of the desktop crate and compiled to WebAssembly, so the WSOLA, the vocoder, the EQ and the reverb are *the same rust* on both platforms. their unit tests run in both crates.
+
+---
+
+## The Web Build
+
+**[schrab.github.io/misima-hybrid-player](https://schrab.github.io/misima-hybrid-player/)** — the whole player, statically hosted, no install.
+
+```
+<File> or bundled MP3
+        │  decodeAudioData (browser-native; resamples to the context rate)
+        ▼
+  AudioWorkletNode "dsp-processor"      ← app/wasm-dsp, compiled to WASM + simd128
+        │    1. bypass (speed=1.0, pitch=0)   bit-perfect passthrough
+        │    2. WSOLA / phase vocoder         stretch = speed / pitch
+        │    3. 10-band peaking EQ
+        │    4. taps → 48-bin FFT + 226-pt scope
+        │    5. FDN reverb                    envelope-normalized wet gain
+        │    6. hard-clip + master volume
+        ▼
+  ctx.destination
+       ▲  port.postMessage: params in | spectrum, waveform, position out
+       │
+  transport.ts ←→ WebTransport | TauriTransport      (one interface, two platforms)
+```
+
+- **Same source, not a fork.** `app/wasm-dsp/` includes the eight platform-free modules from `src-tauri/src/audio/` directly. `player.rs` and `decoder.rs` stay desktop-only; the browser equivalents are `AudioContext` and `decodeAudioData`.
+- **Why not native Web Audio nodes?** The chain was tuned by ear — the reverb's `TARGET` above 1.0, the `REVERB_TIME` ceiling, the vocoder/WSOLA split at `stretch <= 1`. A rewrite in native nodes would be a second implementation that does not sound the same, and the two would drift apart over time.
+- **SIMD is not optional.** `rustfft` falls back to scalar kernels 3–4× slower without it, which is the difference between fitting the 128-sample render quantum and dropping buffers.
+- **Autoplay is gated on a user gesture**, as the browser requires. The page renders immediately, loads its bundled track, and starts on the first click where the platform allows it — Chrome blocks it outright on a low-engagement site, and the player says "press play" rather than pretending.
+- Full implementation log, including three bugs that passed every automated check: [`docs/WEB-PORT.md`](docs/WEB-PORT.md).
 
 ---
 
@@ -43,6 +76,7 @@ MI$IM∆ elsewhere: [Instagram](https://www.instagram.com/misima.gibrid/) · [Te
 | **Audio Decoding** | [Symphonia](https://crates.io/crates/symphonia) | Pure-Rust decoding for MP3, FLAC, WAV, OGG/Vorbis, PCM |
 | **DSP & Analysis** | [rustfft](https://crates.io/crates/rustfft), custom biquads | 1024-point FFT spectrum analysis, 10-band peaking EQ, Clouds-style feedback-delay reverb |
 | **Frontend UI** | TypeScript, Canvas 2D, Vite | 60 FPS sprite compositor, bitmap glyph font, pointer capture fader math |
+| **Web Runtime** | [wasm-bindgen](https://rustwasm.github.io/wasm-bindgen/), AudioWorklet | The same DSP modules compiled to WASM (+`simd128`), running on the audio thread of the browser |
 
 ---
 
@@ -117,6 +151,7 @@ the horse said one time-stretcher was enough. the barn overruled. (the barn IS t
 | **Windows 11** | **Tested & Verified** | WASAPI | Frameless, transparent window, DPI scaling supported |
 | **Linux** | **In Progress** | ALSA / PipeWire / PulseAudio | Requires compositing window manager for transparency. Wayland uses `xdg_toplevel.move()` for dragging. |
 | **macOS** | **Verified (dev)** | CoreAudio | Frameless transparent window (requires `macOSPrivateApi`), Cmd+scroll zoom, 44.1/48 kHz playback |
+| **Browser** | **Shipped** | Web Audio + AudioWorklet | Static site on GitHub Pages. No window: zoom is CSS, and the page scales itself to fit the viewport. |
 
 platform-specific troubleshooting and development guidelines: [`agents.md`](agents.md).
 
@@ -152,6 +187,11 @@ platform-specific troubleshooting and development guidelines: [`agents.md`](agen
 ### Prerequisites
 - Node.js (v20+) and npm
 - Rust toolchain (stable) with Cargo (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
+- **For the web build only:** the `wasm32-unknown-unknown` target and `wasm-pack`
+  ```bash
+  rustup target add wasm32-unknown-unknown
+  cargo install wasm-pack --locked
+  ```
 - OS dependencies:
   - **Linux (Debian/Ubuntu)**: `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev`
   - **Windows**: WebView2 (pre-installed on Windows 10/11), C++ build tools
@@ -168,31 +208,51 @@ npm install
 
 # Launch Tauri development mode (hot-reload for frontend and backend)
 npm run tauri dev
+
+# Or serve the web build alone (no Tauri, no wasm rebuild needed after the
+# first `npm run build:wasm`)
+npm run build:wasm
+GH_PAGES=1 npx vite dev
 ```
 
 ### Running Tests
 
 ```bash
-# Execute Rust backend unit and DSP tests (39/39 tests)
+# Rust desktop backend: unit + DSP tests (43 passed, 1 #[ignore]d smoke test)
 cd app/src-tauri
 cargo test -- --nocapture
 
 # Live CoreAudio smoke test (requires a real output device; #[ignore]d by default)
 cargo test coreaudio_smoke -- --ignored --nocapture
 
-# Typecheck frontend code
+# The web DSP crate — runs the same eight shared modules, no browser needed
+cd ../wasm-dsp
+cargo test
+cargo clippy --target wasm32-unknown-unknown
+
+# Frontend: typecheck + unit tests
 cd ../app
 npx tsc --noEmit
+npm test
 ```
 
 ### Building for Release
 
 ```bash
+# Desktop installers (MSI/NSIS, DEB/AppImage, DMG)
 cd app
 npm run tauri build
+
+# Static site for GitHub Pages: WASM (+simd128) → worklet bundle → typecheck
+# → tests → vite build, all under the /misima-hybrid-player/ base path
+npm run build:pages
 ```
 
-Installable bundles (MSI/NSIS on Windows, DEB/AppImage on Linux, DMG on macOS) land under `app/src-tauri/target/release/bundle/`.
+Installable bundles land under `app/src-tauri/target/release/bundle/`.
+
+The Pages build is deployed automatically on every push to `main` by
+`.github/workflows/pages.yml`. The desktop installers are untouched by that
+workflow; they are cut by tagging `v*` (see `release.yml`).
 
 ### Installing on macOS (unsigned build)
 
@@ -210,9 +270,17 @@ Alternative (Terminal): `xattr -d com.apple.quarantine "/Applications/Misima Hyb
 MI$IM∆ keeps the paperwork too.
 
 - [`agents.md`](agents.md) — architectural guidelines, subagent definitions (`coder`, `reviewer`, `tester`, `debugger`, `research`, `documenter`), development invariants.
-- [`docs/DSP.md`](docs/DSP.md) — deep-dive on the audio engines: signal chain, WSOLA vs phase vocoder, reverb topology and loudness policy, invariants, test methodology. **read before touching `src/audio/`.** MI$IM∆ means it.
-- [`HANDOFF.md`](HANDOFF.md) — quick-reference: the hard "do not" list, layout coordinates, skin layers, font atlas.
+- [`docs/DSP.md`](docs/DSP.md) — deep-dive on the audio engines: signal chain, WSOLA vs phase vocoder, reverb topology and loudness policy, invariants, test methodology, and which modules are shared with the web build. **read before touching `src/audio/`.** MI$IM∆ means it.
+- [`docs/WEB-PORT.md`](docs/WEB-PORT.md) — the browser port, phase by phase: what was built, what the spec got wrong, and the three JS↔WASM bugs that passed every automated check.
 - [`CHANGELOG.md`](CHANGELOG.md) — milestone history with commit references. (scars, documented.)
 - [`docs/compose/spec/`](docs/compose/spec/) — historical feature specifications and design decisions.
+
+---
+
+## Credits
+
+- The demo music bundled with the web build is by **[Wit Chu](https://witchu.bandcamp.com/album/once)**, used with his permission. four tracks from *Once*, shipped in `app/public/music/`.
+- The reverb is a port of [Mutable Instruments Clouds](https://github.com/pichenettes/eurorack) by Emilie Gillet (MIT, © 2014).
+- Skin, icons and everything else on screen: MI$IM∆.
 
 sleep is for the compiled.

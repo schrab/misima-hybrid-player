@@ -6,6 +6,12 @@ invariants that keep the real-time thread safe, and how the test suite verifies
 behaviour. Read this before modifying any DSP code; the module headers repeat
 the critical parts, but this document explains the reasoning.
 
+**Eight of these modules are shared with the browser build.** `app/wasm-dsp/`
+`#[path]`-includes them and compiles them to WebAssembly, so the WSOLA, the
+vocoder, the EQ, the spectrum analyzer and the reverb are the same Rust on both
+platforms. See §8, *Shared vs desktop-only*, for the list and the rules that
+follow from it.
+
 ---
 
 ## 1. Signal chain
