@@ -13,6 +13,20 @@ the desktop installers; pushing `main` on its own deploys the web app.
 
 ## [Unreleased]
 
+### Fixed
+- **Arch packaging now actually runs** — replaces `debtap` with
+  `scripts/deb2arch.py`, which writes `.PKGINFO` and `.MTREE` directly.
+  `debtap` calls `pkgfile` inside the conversion path, refuses to start without
+  `/var/cache/pkgfile` and the `/var/cache/debtap/*` databases, and calls
+  `namcap` — all Arch-only, so it could never have worked on the ubuntu-22.04
+  runner. It had never been run: 0.4.2 was its first tag. The new script also
+  derives one dependency the `.deb` omits: the binary links `libasound.so.2`
+  because the audio core talks to ALSA directly, which on a minimal Arch install
+  is a hard launch failure. `--verify` re-opens the finished package and checks
+  digests, modes and mtree coverage, and both Arch steps are now
+  `continue-on-error` so a packaging fault can never withhold the other six
+  installers.
+
 ## [0.4.2] — 2026-10-04
 
 ### Added
@@ -32,16 +46,19 @@ the desktop installers; pushing `main` on its own deploys the web app.
   runtimes. Opt out per skin with `"rails": false` under `visuals`.
 
 ### Fixed
-- **Arch Linux gets a working package** — the AppImage aborts on startup there.
-  It carries support libraries built on Ubuntu 22.04 which shadow the host's on
-  a rolling distro, and the WebKit web process dies on a JavaScriptCore
-  assertion before a window ever appears. `release.yml` now converts the `.deb`
-  into a native `.pkg.tar.zst` with `debtap` and attaches it to the release.
-  The `.deb` is the right source: it bundles nothing and declares webkit2gtk as
-  a dependency, so the whole stack resolves to the host's own libraries.
-  Tauri's bundler has no pacman target and no option to exclude individual
-  libraries from the AppImage, so converting is cleaner than patching the
-  AppImage.
+- **Arch Linux does not get a working package in this release** — the AppImage
+  aborts on startup there. It carries support libraries built on Ubuntu 22.04
+  which shadow the host's on a rolling distro, and the WebKit web process dies
+  on a JavaScriptCore assertion before a window ever appears. The `.deb` does
+  not have that problem — it bundles nothing and declares webkit2gtk as a
+  dependency, so the whole stack resolves to the host's. Tauri's bundler has no
+  pacman target and no option to exclude individual libraries from the AppImage,
+  so converting the `.deb` is the right approach.
+  **It did not ship in 0.4.2.** The conversion was written with `debtap`, which
+  turned out to be unrunnable on the ubuntu-22.04 runner, so the step failed and
+  the release went red. Windows, macOS and the Linux `.deb`/`.rpm`/`.AppImage`
+  all uploaded normally; only the `.pkg.tar.zst` is missing. See Unreleased for
+  the replacement.
 
 ### Documentation
 - **Keyboard layout diagram** added to Controls in the README.
