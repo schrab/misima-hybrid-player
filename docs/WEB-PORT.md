@@ -310,11 +310,89 @@ make every page load pay for 28 MB.
 Credit line under the player links to the Misima Telegram first, then to Wit
 Chu's Bandcamp. Hidden on the desktop build, which ships no bundled music.
 
+### 5. The page backdrop
+
+The tab used to be flat black. It now sits on the Misima artwork at cover fit,
+knocked back to 50% and blurred 26 px, so the player reads as a device in a room
+rather than a sprite pasted on a void.
+
+The source is a 3.2 MB RGBA PNG whose alpha only ranges 210–255 — no usable
+transparency — so it was re-encoded to an opaque WebP at **174 KB**, about 18×
+smaller. It is going to be blurred and halved, so the loss is invisible. The
+original stays in `gfx/`; only the derivative is tracked.
+
+Four CSS details cost real time and are worth writing down, because each one
+fails *silently* — the page just looks wrong:
+
+- **Layer order is top-first in CSS**, the opposite of canvas. The 50% scrim
+  was listed after the image, and since the image is opaque it buried the
+  scrim completely: the page rendered at full brightness with no error
+  anywhere. The scrim has to come first.
+- **`z-index: -1` is not "behind everything".** It drops behind the *body's own
+  background box*, so a fixed pseudo-element carrying the backdrop rendered
+  nothing at all. Ordering is now explicit — `z-index: 0` on the pseudo-element,
+  `1` on `body`.
+- **A `filter: blur()` samples past the element's own edge.** Without inflating
+  the box well past the viewport, the blur fades the whole border out to
+  nothing. `inset: -80px` against a 26 px radius.
+- **It has to be a pseudo-element, not a `background-image` on `body`.** Blur is
+  a `filter`, so putting it on `body` would blur the player canvas too.
+
+Verified by measurement, not by eye: sampled backdrop pixels against a
+simulated cover-and-blur of the source at exactly half brightness, mean ratio
+**0.985**. Confirmed separately that Vite rewrites the CSS URL to
+`/misima-hybrid-player/misima-background.webp` under the Pages base.
+
+Stripped from the desktop build in `vite.config.ts` alongside `wasm/` and
+`music/`. The dangling CSS reference is harmless because the rule is gated
+behind `html.web`, which the desktop never sets.
+
+### 6. Animated sprites bleeding past the silhouette
+
+Not web-specific — this affected the desktop build equally — but it only became
+visible once the page stopped being black.
+
+The `anim/*_sheet.png` cells have an opaque black backdrop (some have no alpha
+channel at all). `screen` blending erases black, but only where something is
+already painted. Over the plate's transparent gaps there is nothing to lift, so
+the black cell survived compositing as a hard square: four of them, around the
+top panel's notch, the middle panel's left arm, and twice in the gap above the
+bottom panel. Invisible against a dark desktop; glaring against a light one.
+
+The fix is the plate's own alpha. The background and its still overlays are now
+flattened once into a `plate` canvas, which doubles as the render blit and as a
+mask: each cell is cut to the plate's alpha with `destination-in` before the
+blend. Identical wherever the player is solid, absent everywhere it is not.
+Worst-case leaked pixels per frame fell from 4,137 to 49 (`ring`), 1,075 to 8
+(`form`), 636 to 15 (`cones`).
+
+What is left is the plate's own antialiased rim, where the sprite shows at up to
+double the plate's alpha — a few hundred pixels at ≤12% opacity, which reads as
+a soft fade along the edge. That is the floor, not a defect.
+
+Clipping to the artboard rect would *not* have worked, and it is the obvious
+wrong fix: the silhouette is an irregular shape inside the 1500×2060 canvas, so
+a rect clip passes the leak straight through.
+
+### 7. The magenta faders
+
+The render loop starts on the manifest, well before any sprite has loaded, so
+anything drawn from `skin.json` alone paints a placeholder into that window.
+`drawFader()` fell back to a magenta `#ff4fd8` block when its knob was missing:
+every fader flashed a pink slab over the dark page for about half a second and
+then vanished. It read as a glitch, not as progress.
+
+It now draws nothing until the knob arrives. An absent fader reads as "not ready
+yet"; a coloured one never will.
+
 ### Known limits
 
 - **`bg/bg.png` is 2.24 MB.** It is the remaining bottleneck for first paint.
   A WebP would cut it to ~200–300 KB, but that is the artist's asset and it is
   shared with the desktop build, so it has been left alone deliberately.
+  (The page backdrop *was* converted — it is web-only, so it does not have that
+  constraint.) It adds a further 174 KB, which is not counted by the load
+  progress bar and downloads in parallel with the skin.
 - **Autoplay depends on the browser's policy.** Chrome blocks it on a
   low-engagement site; the page renders immediately, loads its track, and shows
   "press play" rather than claiming success over silence.

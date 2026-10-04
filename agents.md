@@ -152,6 +152,19 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
    - Load sprites in one `Promise.all`. Awaiting them in turn was ~135 serialised requests; invisible on localhost, half a minute over the network.
 7. **wasm-bindgen out-parameters do not write back**:
    - A `&mut [f32]` argument is compiled as a **return pointer**: the generated JS hands the array to WASM and never copies the result back, so the caller's array is untouched. Return `Vec<f32>` instead. Getting this wrong plays a stale buffer (audible as metallic, bit-reduced audio) and silently kills the visualizer taps.
+8. **Blend-mode sprites must be masked by the plate's alpha**:
+   - The `anim/*_sheet.png` cells carry an **opaque black backdrop** — some have no alpha channel at all. `screen` erases black, but only where something is already painted: over the plate's transparent gaps the blend has nothing to lift and the cell survives as a hard black square. Invisible against a dark wallpaper, glaring against a light one.
+   - Therefore every cell is cut to the plate's alpha with `destination-in` before it is composited, and the background + still overlays are flattened once into a `plate` canvas that serves as both the render blit and the mask source. The mask is a no-op wherever the player is solid, so this costs one `clearRect` plus two small `drawImage` calls per animation per frame.
+   - Do **not** mask by clipping to the artboard rect. The player's silhouette is an irregular shape *inside* the 1500×2060 canvas, so a rect clip passes the leak straight through.
+   - The residual is the plate's own antialiased rim (alpha 1–32), where the sprite shows at up to double the plate's alpha — a few hundred pixels at ≤12% opacity, which reads as a soft fade. That is the expected floor, not a bug to chase.
+9. **No debug placeholder may render before its sprite arrives**:
+   - The render loop starts on the manifest, long before the art. Anything drawn from `skin.json` alone — fader knobs above all — paints a placeholder into that window. `drawFader()` used to fall back to a magenta block, which flashed a pink slab over the dark page for half a second and read as a glitch. Draw nothing until the image lands; absence reads as "not ready", a coloured block does not.
+10. **Web-only page furniture**:
+   - The backdrop is `html.web::before` — a pseudo-element, not a `background-image` on `body`, because `filter: blur()` on `body` would blur the player canvas along with the page.
+   - **CSS paints the first background layer on *top***, the opposite of canvas. A scrim listed after an opaque image is buried by it. Order: scrim first, artwork second.
+   - Order it with explicit `z-index` (pseudo-element `0`, `body` `1`). A negative z-index drops *behind* the body's own background box and the page renders as if the rule were absent.
+   - A `filter: blur()` samples past the element's own edge, so the box is inflated well past the viewport (`inset: -80px` against a 26 px radius). Without that the whole border fades out.
+   - Web-only assets go in the desktop strip in `vite.config.ts` alongside `wasm/` and `music/`. Referencing a stripped file from CSS is safe only while the rule stays gated behind `html.web`, which the desktop never sets.
 
 ---
 
@@ -260,6 +273,7 @@ misima-hybrid-player/
 │   │   ├── sprite/             # THE skin folder (single source of truth):
 │   │   │                       #   skin.json + bg/ ui/ font/ spectrum/ anim/
 │   │   ├── music/              # Bundled demo tracks (web build only, stripped from desktop)
+│   │   ├── misima-background.webp # Page backdrop (web only, stripped from desktop)
 │   │   └── wasm/               # GENERATED: wasm-pack output + bundled worklet
 │   ├── wasm-dsp/               # The DSP chain compiled to WASM for the browser
 │   │   ├── Cargo.toml          # wasm-bindgen, js-sys, rustfft — no cpal/tauri/symphonia
