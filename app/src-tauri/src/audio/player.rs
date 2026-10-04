@@ -518,14 +518,28 @@ static SHUTDOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::
 /// range so the real-time callback can never hit the allocator (AGENTS.md 3.1).
 /// We deliberately take `max`, not `min`: the stream is opened with
 /// `BufferSize::Default`, so the backend may pick anywhere in the range.
+///
+/// The reported max is clamped hard: WASAPI answers an unconstrained range
+/// with `u32::MAX`, and the three scratch vectors are sized from this value —
+/// an absurd max commits tens of GB of pagefile-backed memory before a single
+/// sample plays. Real callbacks deliver the default period (a few hundred
+/// frames); the ceiling only has to sit above anything a backend might
+/// actually pick.
 fn block_frames(config: &cpal::SupportedStreamConfig) -> usize {
     const FALLBACK: usize = 2048;
     match config.buffer_size() {
-        cpal::SupportedBufferSize::Range { min, max } => {
-            (*max as usize).max(*min as usize).max(512)
-        }
+        cpal::SupportedBufferSize::Range { min, max } => clamped_block_frames(*min, *max),
         cpal::SupportedBufferSize::Unknown => FALLBACK,
     }
+}
+
+/// Pure core of [`block_frames`] so the clamp arithmetic is testable without
+/// an audio device. The result is the reported upper bound clamped to
+/// 512..=16384 frames.
+fn clamped_block_frames(min: u32, max: u32) -> usize {
+    const CEILING: usize = 16384;
+    const FLOOR: usize = 512;
+    (max.max(min) as usize).clamp(FLOOR, CEILING)
 }
 
 
@@ -760,6 +774,18 @@ mod tests {
     use super::*;
     use crate::audio::decoder::write_test_wav;
     use tempfile::tempdir;
+
+    #[test]
+    fn block_bound_clamps_the_reported_max() {
+        // WASAPI's unconstrained range: the bug this clamp exists for.
+        assert_eq!(clamped_block_frames(0, u32::MAX), 16384);
+        // A sane device range passes through untouched.
+        assert_eq!(clamped_block_frames(480, 1024), 1024);
+        // A device reporting nothing usable gets the floor, not zero.
+        assert_eq!(clamped_block_frames(0, 0), 512);
+        // A degenerate range where min exceeds max still clamps.
+        assert_eq!(clamped_block_frames(4096, 512), 4096);
+    }
 
     /// Music-like stereo: a chord, a percussive pulse and a noise bed —
     /// broadband enough to exercise the phase locker's peak search, with
