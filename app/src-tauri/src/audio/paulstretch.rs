@@ -61,11 +61,6 @@
 //! around the read cursor uses `saturating_sub` / clamps (the overread past
 //! the FIFO near track end is legal and zero-padded).
 
-// Dead until the engine selector wires it up (Task 2: speed < 1.0 routes
-// through Paulstretch). The module ships complete and tested in both crates
-// meanwhile, same convention as `WsolaProcessor::is_active`.
-#![allow(dead_code)]
-
 use rustfft::num_complex::Complex;
 use rustfft::{Fft, FftPlanner};
 use std::sync::Arc;
@@ -100,8 +95,11 @@ const SEED_CH0: u32 = 1;
 const SEED_CH1: u32 = 1 + 161103;
 
 /// Per-channel output FIFO capacity reserved at construction: the worst
-/// case steady-state unread length (block 8192 x pr 2.0 + one produce step
-/// of H = 20488) plus slack. ~128 KB per channel of f32.
+/// unread length at the assumed 8192-frame block ceiling and pitch ratio
+/// 2.0 — a full block of resampler demand (`block * pr`), rounded up by one
+/// produce step of H = 4096, plus the ~258 samples of read history the
+/// reclaim path may leave unconsumed: 16384 + 4096 + 258 = 20738. ~128 KB
+/// per channel of f32. `reserve_for_block` tops it up for larger blocks.
 const FIFO_RESERVE: usize = 32768;
 
 /// Precomputed mapping between linear bins and the spread filter's
@@ -272,11 +270,11 @@ impl Paulstretch {
             spread_scratch: vec![0.0; NLOG],
             prev_tail: [vec![0.0; H], vec![0.0; H]],
             // FIFO capacity invariant (§3.1.1): no Vec growth may ever
-            // happen inside `process()`. Steady-state unread length reaches
-            // block_frames * pr + H (8192 * 2.0 + 4096 = 20488 at the
-            // largest device block and pitch ratio), so the worst case is
-            // reserved here and nothing on the per-buffer path can
-            // reallocate. `Vec::clear` in `reset` keeps the capacity.
+            // happen inside `process()`. The worst unread length at the
+            // assumed 8192-frame block ceiling is 20738 (see FIFO_RESERVE),
+            // so that worst case is reserved here and nothing on the
+            // per-buffer path can reallocate. `Vec::clear` in `reset` keeps
+            // the capacity.
             fifo_l: Vec::with_capacity(FIFO_RESERVE),
             fifo_r: Vec::with_capacity(FIFO_RESERVE),
             fifo_read_pos: 0,
@@ -288,6 +286,48 @@ impl Paulstretch {
             spread_bw: SPREAD_BANDWIDTH,
             identity: false,
         }
+    }
+
+    /// Guarantee FIFO capacity for a device block of `block_frames` frames.
+    ///
+    /// `FIFO_RESERVE` assumes the 8192-frame block ceiling the selector's
+    /// hosts deliver; the true worst-case unread length is
+    /// `block_frames * pr_max + H + ~258` of retained read history, so a
+    /// host reporting a larger block gets an explicit top-up here. Called
+    /// once at stream construction, never on the audio thread (§3.1.1).
+    ///
+    /// The request is clamped to a 16384-frame ceiling: hosts sometimes
+    /// report nonsense maxima (cpal's WASAPI backend falls back to
+    /// `Range { 0, u32::MAX }` when `GetBufferSizeLimits` fails), and
+    /// reserving for that is a multi-gigabyte commit. The ask is measured
+    /// from `len`, not from the current capacity — `Vec::reserve` guarantees
+    /// `capacity >= len + additional`, so asking `need - capacity` (len is 0
+    /// at the only call site) would be silently swallowed by the 32768-sample
+    /// construction reserve and the top-up would never grow anything.
+    ///
+    /// The ceiling is a fast-path bound, not a safety cliff: if a real
+    /// callback block ever exceeds it, growth always precedes zero-padding
+    /// when `needed` runs past capacity — the produce loop's `guard < 64`
+    /// caps that fallback at a bounded one-time realloc of at most 64 x H
+    /// samples per channel (the capacity is retained afterwards), never a
+    /// panic and never a per-block repeat.
+    pub fn reserve_for_block(&mut self, block_frames: usize) {
+        const CEILING: usize = 16384;
+        let need = block_frames.min(CEILING) * 2 + H + 260;
+        if self.fifo_l.capacity() < need {
+            self.fifo_l.reserve(need - self.fifo_l.len());
+        }
+        if self.fifo_r.capacity() < need {
+            self.fifo_r.reserve(need - self.fifo_r.len());
+        }
+    }
+
+    /// Test only: the raw source-sample cursor. The selector's tests use it
+    /// to prove that fader moves inside the Paulstretch region do not
+    /// re-seed the engine. Compiled out of non-test builds.
+    #[cfg(test)]
+    pub fn cursor_for_test(&self) -> f64 {
+        self.read_pos
     }
 
     /// Reset all state and seek to `pos` in the source.

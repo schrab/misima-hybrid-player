@@ -305,17 +305,23 @@ pub fn set_params(cutoff: f32, pitch_st: f32, reverb: f32, eq: [f32; 10], speed:
     // ±1 octave, matching the pitch fader's range in skin.json. Two octaves
     // is not reachable from the UI, and clamping here keeps the Rust contract
     // honest: at 2x ratio the WSOLA runs at 4x incoherent grain overlap, which
-    // is audibly granular. Do not widen without replacing the stretcher.
+    // is audibly granular. Tempo >= 1.0 never exceeds that; only pitch moves
+    // the stretch, and pitch is clamped to the same octaves.
     *shared().pitch_semitones.lock() = pitch_st.clamp(-12.0, 12.0);
-    *shared().speed.lock() = speed.clamp(0.5, 2.0);
+    // Tempo range [0.1, 2.0]. The bottom half belongs to the Paulstretch
+    // engine (`paulstretch.rs`), which owns every speed < 1.0 and stays
+    // musical up to 20x expansion — so the WSOLA/vocoder pair never sees a
+    // stretch beyond 4 and their own clamps stay untouched.
+    *shared().speed.lock() = speed.clamp(0.1, 2.0);
     *shared().reverb_mix.lock() = reverb.clamp(0.0, 1.0);
     set_eq(eq);
 }
 
 /// Combined playback rate: speed (tape) * pitch semitones.
-/// Tempo: how fast music plays. Does NOT change pitch (WSOLA/OLA time-stretch).
+/// Tempo: how fast music plays. Does NOT change pitch (Paulstretch/WSOLA/OLA
+/// time-stretch).
 fn tempo_factor() -> f32 {
-    shared().speed.lock().clamp(0.5, 2.0)
+    shared().speed.lock().clamp(0.1, 2.0)
 }
 
 /// Pitch: semitone tone shift. Does NOT change speed (OLA pitch-shifter).
@@ -536,6 +542,10 @@ where
     use cpal::traits::DeviceTrait;
     let shared = shared.clone();
     let mut stretcher = Stretcher::new();
+    // Top up the Paulstretch FIFOs for a device block larger than the
+    // engine's assumed 8192-frame ceiling — here on the stream-construction
+    // thread, never inside the callback (AGENTS.md 3.1).
+    stretcher.reserve_block(block);
     // Pre-sized from the device's buffer range so the callback only resizes
     // within existing capacity — never allocates on the RT thread.
     let mut bl: Vec<f32> = Vec::with_capacity(block);
@@ -615,9 +625,10 @@ where
                 }
                 shared.cursor.store((cur_play_pos as usize) * ch_in, Ordering::SeqCst);
             } else {
-                // WSOLA time-stretch + Cubic Hermite resample for tempo, the
-                // phase vocoder for the granular pitch-up region — see
-                // `Stretcher`.
+                // Paulstretch owns tempo-down (speed < 1.0, any pitch); the
+                // WSOLA time-stretch + Cubic Hermite resample cover the rest
+                // of the tempo range, and the phase vocoder the granular
+                // pitch-up region — see `Stretcher`.
                 stretcher.process(
                     &samples,
                     ch_in,

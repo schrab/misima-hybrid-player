@@ -30,7 +30,8 @@ const TAP_INTERVAL_FRAMES: usize = 1584;
 pub struct Params {
     /// Master lowpass cutoff in Hz; `OPEN_CUTOFF` = fully open.
     pub cutoff: f32,
-    /// Combined playback rate (tape speed), 0.5..2.0.
+    /// Combined playback rate (tape speed), 0.1..2.0. The bottom half is
+    /// owned by the Paulstretch engine via the selector.
     pub speed: f32,
     /// Pitch in semitones, -12..+12 (±1 octave).
     pub pitch_semitones: f32,
@@ -299,7 +300,7 @@ impl DspProcessor {
     fn render_source(&mut self, frames: usize, bl: &mut [f32], br: &mut [f32]) {
         let total_frames = self.track.total_frames();
         let ch = self.track.channels.max(1);
-        let speed = self.params.speed.clamp(0.5, 2.0);
+        let speed = self.params.speed.clamp(0.1, 2.0);
         let pr = self.params.pitch_ratio();
         let bypass = self.params.is_bypass();
 
@@ -411,6 +412,20 @@ mod tests {
             let s = (2.0 * std::f32::consts::PI * freq * i as f32 / sr).sin() * 0.5;
             v.push(s);
             v.push(s);
+        }
+        (v, 2)
+    }
+
+    /// Stereo white noise, uncorrelated between channels — broadband
+    /// material per AGENTS.md 3.1.11 (never sine-only for stretch tests).
+    fn noise(frames: usize, amp: f32) -> (Vec<f32>, usize) {
+        let mut v = Vec::with_capacity(frames * 2);
+        let (mut sl, mut sr) = (0x1234_5678u32, 0x9ABC_DEF0u32);
+        for _ in 0..frames {
+            sl = sl.wrapping_mul(1664525).wrapping_add(1013904223);
+            sr = sr.wrapping_mul(1664525).wrapping_add(1013904223);
+            v.push((((sl >> 8) & 0xFFFF) as f32 / 65535.0 - 0.5) * 2.0 * amp);
+            v.push((((sr >> 8) & 0xFFFF) as f32 / 65535.0 - 0.5) * 2.0 * amp);
         }
         (v, 2)
     }
@@ -617,6 +632,136 @@ mod tests {
         assert!(
             p.spectrum().iter().all(|v| *v <= 0.02),
             "spectrum did not settle to zero when paused"
+        );
+    }
+
+    #[test]
+    fn paulstretch_crossover_at_speed_one_is_glitch_free() {
+        // Sweep speed down through 1.0 (vocoder -> Paulstretch) and back up,
+        // in both directions, with pitch up so the >= 1.0 side is the
+        // vocoder's. Every block must be finite and bounded, and the render
+        // must carry real signal — a flipped engine that emits silence or
+        // NaN fails here.
+        let sr = 48_000.0;
+        let (samples, ch) = noise(48_000, 0.4);
+        let mut p = DspProcessor::new(sr);
+        p.load_track(samples, ch);
+        p.set_playing(true);
+        let mut out = vec![0.0f32; 128 * 2];
+        let mut peak = 0.0f32;
+        for speed in [1.05f32, 1.03, 1.01, 0.99, 0.97, 0.95, 0.97, 0.99, 1.05] {
+            let mut params = Params::default();
+            params.speed = speed;
+            params.pitch_semitones = 3.0;
+            p.set_params(params);
+            for _ in 0..8 {
+                p.process(&mut out);
+                for v in &out {
+                    assert!(
+                        v.is_finite(),
+                        "crossover produced non-finite output at speed {speed}"
+                    );
+                    assert!(v.abs() <= 4.0, "crossover diverged to {v} at speed {speed}");
+                    peak = peak.max(v.abs());
+                }
+            }
+        }
+        assert!(peak > 1e-2, "crossover sweep rendered silence (peak {peak})");
+    }
+
+    #[test]
+    fn paulstretch_end_to_end_at_speed_point_one() {
+        // The fader's new floor: speed 0.1 through the whole processor.
+        // Output length ~10x input (+-window), play_pos monotonic and
+        // advancing ~0.1 source frames per output frame, `ended` reported
+        // after the tail drains.
+        let sr = 48_000.0;
+        let total = 12_000usize;
+        let (samples, ch) = noise(total, 0.4);
+        let mut p = DspProcessor::new(sr);
+        p.load_track(samples, ch);
+        let mut params = Params::default();
+        params.speed = 0.1;
+        p.set_params(params);
+        p.set_playing(true);
+
+        let mut out = vec![0.0f32; 128 * 2];
+        let mut collected: Vec<f32> = Vec::new();
+        let mut prev_pos = 0.0f64;
+        let mut blocks = 0usize;
+        let cap = (total as f64 / 0.1) as usize / 128 + 128;
+        let mut ended = false;
+        while blocks < cap {
+            p.process(&mut out);
+            assert!(out.iter().all(|v| v.is_finite()), "NaN at block {blocks}");
+            collected.extend_from_slice(&out);
+            let pos = p.play_pos();
+            assert!(pos >= prev_pos, "play_pos went backwards at block {blocks}");
+            if (50..150).contains(&blocks) {
+                // Mid-track: ~0.1 source frames per output frame, i.e. ~12.8
+                // per 128-frame block (loose tolerance: the position lags by
+                // the FIFO depth estimate, which moves in whole frames).
+                let adv = pos - prev_pos;
+                assert!(
+                    (0.5 * 12.8..=1.5 * 12.8).contains(&adv),
+                    "block {blocks} advanced {adv:.2}, expected ~12.8"
+                );
+            }
+            prev_pos = pos;
+            blocks += 1;
+            if p.take_ended() {
+                ended = true;
+                break;
+            }
+        }
+        assert!(ended, "finished never fired at speed 0.1");
+
+        let out_frames = collected.len() / 2;
+        let expected = total as f64 / 0.1;
+        assert!(
+            (out_frames as f64 - expected).abs() <= 8192.0,
+            "output {out_frames} frames vs expected {expected}"
+        );
+        assert!(
+            collected.iter().any(|v| v.abs() > 1e-2),
+            "paulstretch end-to-end rendered silence"
+        );
+    }
+
+    #[test]
+    fn seek_during_paulstretch_is_clean() {
+        // Seek mid-stream at speed 0.5 (Paulstretch's region): the seek_gen
+        // flush must reset the engine with no NaN and land the position at
+        // the requested frame.
+        let sr = 48_000.0;
+        let (samples, ch) = noise(48_000, 0.4);
+        let mut p = DspProcessor::new(sr);
+        p.load_track(samples, ch);
+        let mut params = Params::default();
+        params.speed = 0.5;
+        p.set_params(params);
+        p.set_playing(true);
+        let mut out = vec![0.0f32; 128 * 2];
+        for _ in 0..32 {
+            p.process(&mut out);
+        }
+
+        p.seek_secs(0.5); // frame 24000
+        let mut prev = p.play_pos();
+        for _ in 0..16 {
+            p.process(&mut out);
+            for v in &out {
+                assert!(v.is_finite(), "NaN after seek during paulstretch");
+                assert!(v.abs() <= 4.0, "diverged to {v} after seek");
+            }
+            let pos = p.play_pos();
+            assert!(pos >= prev, "play_pos went backwards after seek");
+            prev = pos;
+        }
+        // 16 blocks at speed 0.5 consume ~1024 source frames past the cue.
+        assert!(
+            (prev - 24_000.0).abs() < 2048.0,
+            "play_pos {prev} did not settle at the seek target 24000"
         );
     }
 }
