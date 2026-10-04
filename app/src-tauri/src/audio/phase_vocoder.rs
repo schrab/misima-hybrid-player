@@ -107,8 +107,8 @@ fn resynthesise(
     // keeping every partial that carries audible energy.
     peaks.clear();
     let mut frame_max = 0.0f32;
-    for k in 1..half {
-        let m = spec[k].norm();
+    for s in &spec[1..half] {
+        let m = s.norm();
         if m > frame_max {
             frame_max = m;
         }
@@ -124,14 +124,17 @@ fn resynthesise(
     if peaks.is_empty() {
         // Silence, or a pure noise floor: fall back to advancing every bin on
         // its own, which is the plain phase vocoder.
-        for k in 0..half {
-            owner[k] = k;
+        for (k, o) in owner.iter_mut().enumerate().take(half) {
+            *o = k;
         }
     } else {
         // Nearest-peak regions of influence. A forward walk suffices: both the
         // bins and the peaks are increasing, so the nearest peak index is
         // monotonic in k.
         let mut pi = 0usize;
+        // The index k is the semantic here: bin position, compared against the
+        // peak table, not just a slice subscript.
+        #[allow(clippy::needless_range_loop)]
         for k in 0..half {
             while pi + 1 < peaks.len()
                 && (k as isize - peaks[pi + 1] as isize).abs()
@@ -161,9 +164,7 @@ fn resynthesise(
         ana[k] = spec[k].arg();
     }
     if !*seeded && frame_max > 1e-6 {
-        for k in 0..half {
-            synth[k] = ana[k];
-        }
+        synth[..half].copy_from_slice(&ana[..half]);
         *seeded = true;
     } else {
         for k in 0..half {
@@ -620,8 +621,8 @@ mod tests {
         fft.process(&mut buf);
         let mut best = 0usize;
         let mut bestv = 0.0f32;
-        for k in 1..n / 2 {
-            let m = buf[k].norm();
+        for (k, cell) in buf.iter().enumerate().take(n / 2).skip(1) {
+            let m = cell.norm();
             if m > bestv {
                 bestv = m;
                 best = k;

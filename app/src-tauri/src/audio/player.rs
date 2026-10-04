@@ -818,6 +818,9 @@ mod tests {
     /// One callback block's worth of the post-source chain, mirroring
     /// `build_stream`'s bypass/select/reset logic. Returns (dry peak, wet peak
     /// before the output clamp).
+    // The argument list deliberately mirrors the callback's per-buffer
+    // surface one-to-one; grouping it would only blur that correspondence.
+    #[allow(clippy::too_many_arguments)]
     fn block(
         stretcher: &mut Stretcher,
         reverb: &mut Reverb,

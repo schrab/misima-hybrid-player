@@ -146,9 +146,9 @@ impl WsolaProcessor {
         // Extract mono template for correlation
         let mut template = [0.0f32; WSOLA_TEMP];
         let mut template_energy = 0.0f32;
-        for j in 0..WSOLA_TEMP {
+        for (j, t) in template.iter_mut().enumerate() {
             let s = get_mono_frame(samples, ch, total_frames, tau_template + j as isize);
-            template[j] = s;
+            *t = s;
             template_energy += s * s;
         }
 
@@ -170,9 +170,9 @@ impl WsolaProcessor {
                 let cand_start = l_nominal + d;
                 let mut dot = 0.0f32;
                 let mut cand_energy = 0.0f32;
-                for j in 0..WSOLA_TEMP {
+                for (j, t) in template.iter().enumerate() {
                     let c = get_mono_frame(samples, ch, total_frames, cand_start + j as isize);
-                    dot += template[j] * c;
+                    dot += *t * c;
                     cand_energy += c * c;
                 }
                 if dot > 0.0 && cand_energy > 1e-6 {
@@ -194,18 +194,21 @@ impl WsolaProcessor {
                     let cand_start = l_nominal + cand_d;
                     let mut dot = 0.0f32;
                     let mut cand_energy = 0.0f32;
-                    for j in 0..WSOLA_TEMP {
+                    for (j, t) in template.iter().enumerate() {
                         let c = get_mono_frame(samples, ch, total_frames, cand_start + j as isize);
-                        dot += template[j] * c;
+                        dot += *t * c;
                         cand_energy += c * c;
                     }
-                    if dot > 0.0 && cand_energy > 1e-6 {
-                        if !found_positive || (dot * dot * best_energy > best_dot * best_dot * cand_energy) {
-                            found_positive = true;
-                            best_dot = dot;
-                            best_energy = cand_energy;
-                            best_delta = cand_d;
-                        }
+                    // Compare dot^2 / cand_energy > best_dot^2 / best_energy without division
+                    if dot > 0.0
+                        && cand_energy > 1e-6
+                        && (!found_positive
+                            || (dot * dot * best_energy > best_dot * best_dot * cand_energy))
+                    {
+                        found_positive = true;
+                        best_dot = dot;
+                        best_energy = cand_energy;
+                        best_delta = cand_d;
                     }
                 }
             }
@@ -238,6 +241,9 @@ impl WsolaProcessor {
     }
 
     /// Process a block of audio frames with WSOLA time-stretching and pitch-shifting.
+    // The ten arguments are the per-buffer DSP surface consumed straight from
+    // the audio callback; grouping them would push a struct through the hot path.
+    #[allow(clippy::too_many_arguments)]
     pub fn process(
         &mut self,
         samples: &[f32],

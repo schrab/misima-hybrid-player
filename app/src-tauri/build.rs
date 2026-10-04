@@ -103,7 +103,7 @@ fn png_bytes(size: u32, r: u8, g: u8, b: u8) -> Vec<u8> {
         a = (a + *byte as u32) % 65521;
         bsum = (bsum + a) % 65521;
     }
-    zlib.extend_from_slice(&(((bsum << 16) | a) as u32).to_be_bytes());
+    zlib.extend_from_slice(&((bsum << 16) | a).to_be_bytes());
 
     let mut out = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
     out.extend(chunk(b"IHDR", &ihdr));

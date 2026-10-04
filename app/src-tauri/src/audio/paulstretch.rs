@@ -648,8 +648,8 @@ mod tests {
         let fft = rustfft::FftPlanner::<f32>::new().plan_fft_forward(n);
         fft.process(&mut buf);
         let (mut best, mut bestv) = (0usize, 0.0f32);
-        for k in 1..n / 2 {
-            let m = buf[k].norm();
+        for (k, cell) in buf.iter().enumerate().take(n / 2).skip(1) {
+            let m = cell.norm();
             if m > bestv {
                 bestv = m;
                 best = k;

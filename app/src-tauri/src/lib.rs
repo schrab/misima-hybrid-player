@@ -46,7 +46,7 @@ fn pick_default_scale(max_s: f64) -> f64 {
     if max_s >= 0.5 {
         0.5
     } else {
-        max_s.min(0.375).max(0.25)
+        max_s.clamp(0.25, 0.375)
     }
 }
 
@@ -110,9 +110,7 @@ pub fn cycle_ui_scale(app: &tauri::AppHandle, direction: i32) -> Result<UiScaleI
         .copied()
         .filter(|p| *p <= max_s + 0.02)
         .collect();
-    if presets.is_empty() {
-        presets.push((max_s * 100.0).round() / 100.0);
-    } else if (presets[presets.len() - 1] - max_s).abs() > 0.03 {
+    if presets.is_empty() || (presets[presets.len() - 1] - max_s).abs() > 0.03 {
         presets.push((max_s * 100.0).round() / 100.0);
     }
 

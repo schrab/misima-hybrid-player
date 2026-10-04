@@ -370,7 +370,7 @@ mod tests {
                     );
                 }
             }
-            assert!(size >= lines[9].base + lines[9].len + 1);
+            assert!(size > lines[9].base + lines[9].len);
         }
     }
 
