@@ -5,6 +5,7 @@
 //! whole chain can be unit-tested on the host target. `lib.rs` wraps it.
 
 use crate::audio::eq::EqState;
+use crate::audio::lpf::{Lowpass4, OPEN_CUTOFF};
 use crate::audio::reverb_mix::Reverb;
 use crate::audio::spectrum::SpectrumAnalyzer;
 use crate::audio::stretcher::Stretcher;
@@ -27,7 +28,8 @@ const TAP_INTERVAL_FRAMES: usize = 1584;
 /// Player parameters, mirrored from `player::set_params`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Params {
-    pub volume: f32,
+    /// Master lowpass cutoff in Hz; `OPEN_CUTOFF` = fully open.
+    pub cutoff: f32,
     /// Combined playback rate (tape speed), 0.5..2.0.
     pub speed: f32,
     /// Pitch in semitones, -12..+12 (±1 octave).
@@ -41,7 +43,7 @@ pub struct Params {
 impl Default for Params {
     fn default() -> Self {
         Self {
-            volume: 1.0,
+            cutoff: OPEN_CUTOFF,
             speed: 1.0,
             pitch_semitones: 0.0,
             reverb: 0.0,
@@ -91,6 +93,7 @@ pub struct DspProcessor {
 
     eq: EqState,
     reverb: Reverb,
+    lpf: Lowpass4,
     stretcher: Stretcher,
 
     playing: bool,
@@ -126,6 +129,7 @@ impl DspProcessor {
             params: Params::default(),
             eq: EqState::new(sample_rate, &[0.0; 10]),
             reverb: Reverb::new(sample_rate),
+            lpf: Lowpass4::new(sample_rate),
             stretcher: Stretcher::new(),
             playing: false,
             play_pos: 0.0,
@@ -179,6 +183,8 @@ impl DspProcessor {
             // which is what keeps a fader sweep free of clicks (AGENTS.md 3.1).
             self.eq.set_gains(self.sample_rate, &self.params.eq);
         }
+        // No-ops when the cutoff (or the rate, fixed per context) is unchanged.
+        self.lpf.set_cutoff(self.sample_rate, self.params.cutoff);
     }
 
     pub fn params(&self) -> Params {
@@ -266,7 +272,6 @@ impl DspProcessor {
 
         self.render_source(frames, &mut bl, &mut br);
 
-        let volume = self.params.volume.clamp(0.0, 1.0);
         let mix = self.params.reverb.clamp(0.0, 1.0);
         self.reverb.set_mix(mix);
         let wg = self.reverb.wet_gain();
@@ -278,8 +283,10 @@ impl DspProcessor {
             // Tap point: post-EQ, pre-reverb — same place the desktop taps.
             self.mono.push((frame[0] + frame[1]) * 0.5);
             self.reverb.process_with_gain(&mut frame, wg);
-            out[f * 2] = (frame[0] * volume).clamp(-1.0, 1.0);
-            out[f * 2 + 1] = (frame[1] * volume).clamp(-1.0, 1.0);
+            self.lpf.process_frame(&mut frame);
+            // Unity master gain; the clamp stays as the safety net.
+            out[f * 2] = frame[0].clamp(-1.0, 1.0);
+            out[f * 2 + 1] = frame[1].clamp(-1.0, 1.0);
         }
 
         self.run_taps();
@@ -296,12 +303,14 @@ impl DspProcessor {
         let pr = self.params.pitch_ratio();
         let bypass = self.params.is_bypass();
 
-        // A seek (or a fresh track) flushes the stretcher and the reverb tail.
+        // A seek (or a fresh track) flushes the stretcher and the reverb tail,
+        // and the master lowpass's ringing registers with them.
         let seek_gen = self.seek_gen;
         if seek_gen != self.last_seek_gen {
             self.last_seek_gen = seek_gen;
             self.stretcher.reset(self.play_pos);
             self.reverb.clear();
+            self.lpf.clear();
         }
 
         if self.playing && !bypass && self.was_bypass {

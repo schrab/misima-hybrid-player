@@ -131,8 +131,8 @@
   ],
   "faders": [
     {
-      "id": "volume",
-      "param": "volume",
+      "id": "cutoff",
+      "param": "cutoff",
       "orientation": "vertical",
       "origin": {
         "x": 515,
@@ -146,10 +146,11 @@
       },
       "knobHotspot": "top-left",
       "range": [
-        0,
-        1
+        30,
+        20000
       ],
-      "value": 1
+      "value": 20000,
+      "curve": "log"
     },
     {
       "id": "pitch",

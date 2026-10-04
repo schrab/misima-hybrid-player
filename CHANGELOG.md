@@ -13,6 +13,38 @@ the desktop installers; pushing `main` on its own deploys the web app.
 
 ## [Unreleased]
 
+## [0.4.4] — 2026-10-04
+
+The volume fader is gone; its slot now carries the cutoff.
+
+### Added
+- **Resonant master lowpass** (`lpf.rs`, new shared module) — the fader that
+  used to be volume is now a 4-pole (24 dB/oct) lowpass built from two RBJ
+  biquad stages with the Butterworth pole Qs raised by a fixed `RESONANCE`
+  factor for a ~+4 dB peak at the cutoff. The top of the fader (20 kHz) swaps
+  in identity coefficients and clears the registers, so fully open is
+  bit-transparent rather than a real 20 kHz lowpass; the bottom stops at
+  30 Hz, almost closed. Coefficients update in place with the delay registers
+  kept — the same click-free discipline as the EQ — and the filter flushes on
+  seek and track change next to the stretcher and reverb. It sits after the
+  reverb and before the output clamp, so the tail darkens with everything
+  else while the reverb's envelope follower still sees the full-band signal.
+  Master gain is now fixed at unity (what fader-top did anyway); the hard
+  clamp stays as the safety net. Runs on both runtimes from the same file,
+  with 8 new unit tests (bit-transparency at the top, the 24 dB/oct slope,
+  the resonance bump, passband flatness, the 30 Hz floor, sweep stability,
+  clear-equals-fresh).
+- **Log fader curves** — `FaderDef` gains `curve: "log"`, and the cutoff
+  fader sweeps 30 Hz – 20 kHz logarithmically in travel and in mouse-wheel
+  steps (a linear wheel step over that range would jump ~800 Hz per tick).
+  The tempo fader's legacy `[0.5, 2]` range keeps its implicit log behaviour
+  for skins that never set the field.
+
+### Removed
+- **The `volume` parameter is gone from the whole param surface** —
+  `AudioParamsInput`, `set_params` (IPC and worklet message), `Params`, and
+  the dormant `set_volume` command nobody called. Nothing else referenced it.
+
 ## [0.4.3] — 2026-10-04
 
 Found by installing 0.4.2 on Arch: the player runs, the audio works, but the

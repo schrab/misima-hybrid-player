@@ -12,6 +12,8 @@ export type FaderDef = {
   knobHotspot?: string;
   range: [number, number];
   value: number;
+  /** "log" = knob travel and wheel steps move multiplicatively across the range. */
+  curve?: "log";
   unit?: string;
 };
 
@@ -161,7 +163,8 @@ export type PlaylistRow = {
 };
 
 export type AudioParams = {
-  volume: number;
+  /** Master lowpass cutoff in Hz; 20000 = fully open (bypass). */
+  cutoff: number;
   pitch: number;
   reverb: number;
   eq: number[];

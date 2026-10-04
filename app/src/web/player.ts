@@ -32,7 +32,7 @@ export class WebPlayer {
   private node: AudioWorkletNode | null = null;
   /**
    * Safety mute between the worklet and the destination. The DSP already
-   * applies master volume, but a stuck `playing` flag should never produce
+   * runs the master filter, but a stuck `playing` flag should never produce
    * sound that no fader can stop.
    */
   private gain: GainNode | null = null;
@@ -46,7 +46,7 @@ export class WebPlayer {
   private playing = false;
   private position = 0;
   private params: AudioParamsInput = {
-    volume: 1.0,
+    cutoff: 20000,
     speed: 1,
     pitch: 0,
     reverb: 0,
@@ -167,8 +167,8 @@ export class WebPlayer {
       };
     });
 
-    // A safety mute on the far side of the worklet. The DSP already applies
-    // master volume, but a stuck `playing` flag should never produce sound
+    // A safety mute on the far side of the worklet. The DSP already runs the
+    // master filter, but a stuck `playing` flag should never produce sound
     // that no fader can stop.
     const gain = ctx.createGain();
     gain.gain.value = 1;
@@ -447,7 +447,7 @@ export class WebPlayer {
     if (!node) return;
     node.port.postMessage({
       type: "params",
-      volume: this.params.volume,
+      cutoff: this.params.cutoff,
       speed: this.params.speed,
       pitch: this.params.pitch,
       reverb: this.params.reverb,

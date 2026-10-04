@@ -84,7 +84,7 @@ class DspProcessorNode extends AudioWorkletProcessor {
       }
       case "params":
         this.processor.set_params(
-          msg.volume,
+          msg.cutoff,
           msg.speed,
           msg.pitch,
           msg.reverb,

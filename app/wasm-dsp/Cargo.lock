@@ -57,7 +57,7 @@ dependencies = [
 
 [[package]]
 name = "misima-wasm-dsp"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "js-sys",
  "rustfft",

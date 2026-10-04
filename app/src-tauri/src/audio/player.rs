@@ -3,6 +3,7 @@
 use crate::audio::decoder::decode_file;
 use crate::audio::eq::Biquad;
 use crate::audio::eq::EqState;
+use crate::audio::lpf::{Lowpass4, CLOSED_CUTOFF, OPEN_CUTOFF};
 use crate::audio::reverb_mix::Reverb;
 use crate::audio::spectrum::SpectrumAnalyzer;
 use crate::audio::stretcher::Stretcher;
@@ -22,14 +23,12 @@ pub enum Transport {
 #[derive(Debug)]
 pub struct PlayerState {
     pub transport: Transport,
-    pub volume: f32,
 }
 
 impl Default for PlayerState {
     fn default() -> Self {
         Self {
             transport: Transport::Stopped,
-            volume: 0.8,
         }
     }
 }
@@ -40,7 +39,10 @@ pub struct SharedPlay {
     pub channels: AtomicUsize,
     pub cursor: AtomicUsize,
     pub playing: AtomicBool,
-    pub volume: Mutex<f32>,
+    /// Cutoff fader in Hz; `OPEN_CUTOFF` (the default) = fully open.
+    pub cutoff: Mutex<f32>,
+    /// Master lowpass state, persistent across parameter updates.
+    pub lpf: Mutex<Lowpass4>,
     pub eq: Mutex<EqState>,
     pub eq_gains: Mutex<[f32; 10]>,
     pub spectrum_tx: Mutex<Vec<f32>>,
@@ -71,7 +73,8 @@ impl Default for SharedPlay {
             channels: AtomicUsize::new(2),
             cursor: AtomicUsize::new(0),
             playing: AtomicBool::new(false),
-            volume: Mutex::new(0.8),
+            cutoff: Mutex::new(OPEN_CUTOFF),
+            lpf: Mutex::new(Lowpass4::new(44_100.0)),
             eq: Mutex::new(EqState::default()),
             eq_gains: Mutex::new([0.0; 10]),
             spectrum_tx: Mutex::new(vec![0.0; 48]),
@@ -286,10 +289,6 @@ pub fn seek_secs(secs: f64) {
     shared.seek_gen.fetch_add(1, Ordering::SeqCst);
 }
 
-pub fn set_volume(v: f32) {
-    *shared().volume.lock() = v.clamp(0.0, 1.0);
-}
-
 pub fn set_eq(gains: [f32; 10]) {
     let shared = shared();
     *shared.eq_gains.lock() = gains;
@@ -298,8 +297,11 @@ pub fn set_eq(gains: [f32; 10]) {
     shared.eq.lock().set_gains(sr, &gains);
 }
 
-pub fn set_params(volume: f32, pitch_st: f32, reverb: f32, eq: [f32; 10], speed: f32) {
-    set_volume(volume);
+pub fn set_params(cutoff: f32, pitch_st: f32, reverb: f32, eq: [f32; 10], speed: f32) {
+    // The volume fader is now the master lowpass: unity gain, and the only
+    // tone control left in the chain. `OPEN_CUTOFF` = fully open, the old
+    // fader-top behaviour.
+    *shared().cutoff.lock() = cutoff.clamp(CLOSED_CUTOFF, OPEN_CUTOFF);
     // ±1 octave, matching the pitch fader's range in skin.json. Two octaves
     // is not reachable from the UI, and clamping here keeps the Rust contract
     // honest: at 2x ratio the WSOLA runs at 4x incoherent grain overlap, which
@@ -550,7 +552,6 @@ where
             let frames = data.len() / out_channels.max(1);
             let playing = shared.playing.load(Ordering::SeqCst);
             let ch_in = shared.channels.load(Ordering::SeqCst).max(1);
-            let volume = *shared.volume.lock();
             let speed = tempo_factor();
             let pr = pitch_ratio();
             let device_sr = shared.device_rate.load(Ordering::SeqCst) as f32;
@@ -571,6 +572,7 @@ where
                 // A seek must not drag the previous position's tail along
                 // with it.
                 shared.reverb.lock().clear();
+                shared.lpf.lock().clear();
             }
 
             let is_bypass = (speed - 1.0).abs() < 0.002 && (pr - 1.0).abs() < 0.002;
@@ -636,6 +638,10 @@ where
 
             mono_scratch.clear();
             let mut eq = shared.eq.lock();
+            let mut lpf = shared.lpf.lock();
+            // Applied here rather than in set_params so a device-rate change
+            // rebuilds the coefficients with the rate the stream actually runs.
+            lpf.set_cutoff(device_sr, *shared.cutoff.lock());
             let mix = (*shared.reverb_mix.lock()).clamp(0.0, 1.0);
             let mut reverb_guard = if mix > 0.001 {
                 let mut guard = shared.reverb.lock();
@@ -653,8 +659,10 @@ where
                 if let Some(reverb) = reverb_guard.as_deref_mut() {
                     reverb.process_with_gain(&mut frame, wg);
                 }
-                let l = (frame[0] * volume).clamp(-1.0, 1.0);
-                let r = (frame[1] * volume).clamp(-1.0, 1.0);
+                lpf.process_frame(&mut frame);
+                // Unity master gain; the clamp stays as the safety net.
+                let l = frame[0].clamp(-1.0, 1.0);
+                let r = frame[1].clamp(-1.0, 1.0);
                 let o = f * out_channels;
                 if out_channels >= 1 {
                     data[o] = T::from_sample(l);
@@ -667,6 +675,7 @@ where
                 }
             }
             drop(eq);
+            drop(lpf);
             drop(reverb_guard);
 
             if playing && !mono_scratch.is_empty() {

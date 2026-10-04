@@ -39,7 +39,7 @@ Misima Hybrid Player is a high-performance, skinnable, multiplatform (Windows, m
 │      3) 10-Band Peaking EQ (RBJ biquad filters, seamless updates)      │
 │      4) Post-EQ visualizer taps (spectrum + waveform)                  │
 │      5) Stereo FDN Reverb (Dattorro/Griesinger, Clouds port)            │
-│      6) Output soft-clipping & master volume attenuation               │
+│      6) Master 4-pole lowpass (cutoff fader), then output soft-clip    │
 │  - Real-time Visualizer Taps (post-EQ):                                │
 │      * rustfft 1024-point FFT analyzer → 48 log-spaced energy bins     │
 │      * Decimated 226-point mono PCM buffer for echo scope              │
@@ -58,7 +58,7 @@ the *same* DSP modules:
 │        │  decodeAudioData — browser-native; resamples to the context    │
 │        ▼                                                               │
 │  AudioWorkletNode "dsp-processor"                                      │
-│        │  ← app/wasm-dsp, the eight platform-free modules compiled to │
+│        │  ← app/wasm-dsp, the nine platform-free modules compiled to  │
 │        │    WASM (+simd128). Same bypass / stretcher / EQ / taps /     │
 │        │    reverb / clip chain, same order, same tap points.          │
 │        ▼                                                               │
@@ -111,7 +111,7 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
    - **Never acquire or release mutexes per sample**.
    - Acquire locks (`shared.eq.lock()`, `shared.reverb.lock()`, `shared.reverb_mix.lock()`) once per callback buffer, process the block, and release them.
 3. **Glitch-Free Filter Updates**:
-   - When updating DSP parameters (such as EQ gains or volume), update the filter coefficients in-place.
+   - When updating DSP parameters (such as EQ gains or the cutoff fader), update the filter coefficients in-place.
    - **Never wipe delay-line registers (`z1`, `z2`, `z1r`, `z2r`)** during gain adjustments. Doing so causes sharp discontinuities (clicks and pops).
 4. **Sample-Rate Scaling**:
    - Reverb delay lengths must scale proportionally with `device_sample_rate / 32,000.0` (the rate Clouds' table is written for). Never assume a fixed rate.
@@ -131,6 +131,10 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
 9. **Reverb Loop Gain**:
    - `CloudsReverb::write` stores the accumulator **unscaled** and returns it scaled; the scale applies to the running accumulator only. Scaling the stored sample as well doubles the feedback gain and diverges the loop to NaN.
    - `REVERB_TIME` (loop gain) sets the tail's RT60 and has a stability cliff: ~0.6 is the practical ceiling, 0.65 already rings for 10 s, and past 0.9 the loop builds up instead of decaying. The original caps its internal reverb amount at 0.54 so `krt` never exceeds 0.69 — do not map a 0..1 fader onto `0.35 + 0.63 * amount` (that reaches 0.98 and diverges). `tail_decays_in_a_musical_time` guards this.
+10. **Master Lowpass Bypass & Flush** (`lpf.rs`, the cutoff fader):
+   - At `cutoff ≥ 20 kHz` the `Lowpass4` becomes identity **and clears its registers**, entered exactly once — the fader's top position must stay bit-transparent, and a real 20 kHz lowpass would not be. Never clear per buffer while open.
+   - `set_cutoff` is an epsilon no-op when cutoff and rate are unchanged; `set_params` fires on every pointermove of any fader drag. The desktop callback re-applies it per buffer with the live device rate (a device change rebuilds the coefficients); the worklet applies it in `set_params`.
+   - A seek or track change flushes the filter alongside the stretcher and the reverb on the `seek_gen` path, or a closed filter rings across the gap.
 
 ### 3.2 Frontend & UI Compositor Rules
 
@@ -205,7 +209,7 @@ The player is designed for cross-platform deployment. Agents must verify platfor
 Before committing or completing any task, agents must run and pass the following checks:
 
 ```bash
-# 1. Rust Audio Core & DSP Unit Tests (Must pass 43/43, 1 ignored smoke test)
+# 1. Rust Audio Core & DSP Unit Tests (Must pass 51/51, 1 ignored smoke test)
 cd app/src-tauri
 export PATH="$HOME/.cargo/bin:$PATH"
 cargo test -- --nocapture
@@ -214,7 +218,7 @@ cargo test -- --nocapture
 cargo check
 
 # 3. Web DSP Crate — same shared modules, wasm32 target
-#    The unit tests of the eight shared DSP modules run here too, so a
+#    The unit tests of the nine shared DSP modules run here too, so a
 #    regression that only shows up in the WASM build is caught without a
 #    browser. This is mandatory for any change under `src/audio/`.
 cd ../wasm-dsp
@@ -289,7 +293,7 @@ misima-hybrid-player/
 │   ├── wasm-dsp/               # The DSP chain compiled to WASM for the browser
 │   │   ├── Cargo.toml          # wasm-bindgen, js-sys, rustfft — no cpal/tauri/symphonia
 │   │   └── src/
-│   │       ├── lib.rs          # #[path]-includes the eight shared audio modules
+│   │       ├── lib.rs          # #[path]-includes the nine shared audio modules
 │   │       ├── processor.rs    # DspProcessor: the whole worklet-side engine
 │   │       └── bindings.rs     # wasm_bindgen surface (wasm32 only)
 │   └── src-tauri/              # Rust backend core (desktop)
@@ -305,6 +309,7 @@ misima-hybrid-player/
 │               ├── decoder.rs  # Symphonia multi-format audio decoder
 │               ├── dsp_utils.rs # Shared interpolation and buffer readers
 │               ├── eq.rs       # 10-band peaking biquad EQ & anti-aliasing lowpass
+│               ├── lpf.rs      # 4-pole resonant master lowpass (cutoff fader)
 │               ├── phase_vocoder.rs # Stereo phase vocoder (pitch-up engine)
 │               ├── reverb_mix.rs # Reverb dry/wet balance + envelope gain policy
 │               ├── spectrum.rs # FFT spectrum analyzer (rustfft)
@@ -325,7 +330,7 @@ Their unit tests run in **both** crates. `player.rs` (cpal, tauri, parking_lot)
 and `decoder.rs` (Symphonia) stay desktop-only — the browser equivalents are
 the `AudioContext` and `decodeAudioData`.
 
-When editing one of the eight, the shared module's `use crate::audio::…` paths
+When editing one of the nine, the shared module's `use crate::audio::…` paths
 must keep resolving in both crates. Declare new modules at the crate root of
 `wasm-dsp/src/lib.rs`, not inside an inline `mod audio { … }`: an inline
 module anchors a nested `#[path]` at `src/audio/`, and the resulting `..` count

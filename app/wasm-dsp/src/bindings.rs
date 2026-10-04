@@ -43,14 +43,14 @@ impl DspProcessor {
         self.core.duration_secs()
     }
 
-    pub fn set_params(&mut self, volume: f32, speed: f32, pitch: f32, reverb: f32, eq: Vec<f32>) {
+    pub fn set_params(&mut self, cutoff: f32, speed: f32, pitch: f32, reverb: f32, eq: Vec<f32>) {
         let mut bands = [0.0f32; 10];
         for (i, slot) in bands.iter_mut().enumerate() {
             // A short `eq` must not panic on the audio thread.
             *slot = eq.get(i).copied().unwrap_or(0.0);
         }
         self.core.set_params(Params {
-            volume,
+            cutoff,
             speed,
             pitch_semitones: pitch,
             reverb,

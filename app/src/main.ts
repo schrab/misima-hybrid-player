@@ -11,6 +11,7 @@ import type {
 import {
   canvasPointFrom,
   faderHit,
+  faderStepValue,
   faderValueToY,
   faderYToValue,
   hitRect,
@@ -343,8 +344,11 @@ let spot: HTMLCanvasElement | null = null;
 /** Previous rAF timestamp, for the frame delta. */
 let lastFrame = 0;
 
+/** Master lowpass top: at this cutoff the filter is identity (bypass). */
+const OPEN_CUTOFF_HZ = 20000;
+
 const params: AudioParamsInput = {
-  volume: 1.0,
+  cutoff: OPEN_CUTOFF_HZ,
   pitch: 0,
   reverb: 0,
   eq: new Array(10).fill(0),
@@ -380,7 +384,7 @@ function setParam(key: string, value: number) {
   if (key.startsWith("eq")) {
     const i = Number(key.slice(2));
     params.eq[i] = value;
-  } else if (key === "volume") params.volume = value;
+  } else if (key === "cutoff") params.cutoff = value;
   else if (key === "pitch") params.pitch = value;
   else if (key === "reverb") params.reverb = value;
   else if (key === "speed") params.speed = value;
@@ -392,7 +396,7 @@ function pushParams() {
   const reverb = fxOn ? params.reverb : 0;
   void transport
     .setParams({
-      volume: params.volume,
+      cutoff: fxOn ? params.cutoff : OPEN_CUTOFF_HZ,
       pitch: fxOn ? params.pitch : 0,
       reverb,
       eq,
@@ -403,7 +407,7 @@ function pushParams() {
 
 function valueOf(param: string): number {
   if (param.startsWith("eq")) return params.eq[Number(param.slice(2))] ?? 0;
-  if (param === "volume") return params.volume;
+  if (param === "cutoff") return params.cutoff;
   if (param === "pitch") return params.pitch;
   if (param === "reverb") return params.reverb;
   if (param === "speed") return params.speed;
@@ -492,6 +496,7 @@ async function action(name: string) {
       } else {
         for (let i = 0; i < 10; i++) params.eq[i] = 0;
         params.reverb = 0;
+        params.cutoff = OPEN_CUTOFF_HZ;
         params.pitch = 0; params.speed = 1;
         status = "FX reset";
       }
@@ -523,7 +528,7 @@ function drawFader(f: FaderDef) {
   // pink slab over the dark page for half a second and then vanished. An absent
   // fader reads as "not ready yet"; a magenta one reads as a glitch.
   if (!knob) return;
-  const y = faderValueToY(f.origin, f.travel, f.range, valueOf(f.param));
+  const y = faderValueToY(f.origin, f.travel, f.range, valueOf(f.param), f.curve);
   // Natural pixel size — never scale knobs
   ctx.drawImage(knob, Math.round(f.origin.x), Math.round(y));
 }
@@ -735,7 +740,7 @@ canvas.addEventListener("pointerdown", (ev) => {
   if (fader) {
     dragFader = fader.id;
     canvas.setPointerCapture(ev.pointerId);
-    setParam(fader.param, faderYToValue(fader.origin, fader.travel, fader.range, p.y));
+    setParam(fader.param, faderYToValue(fader.origin, fader.travel, fader.range, p.y, fader.curve));
     return;
   }
   // playlist rows: do not startDragging (click must play the track)
@@ -757,7 +762,7 @@ canvas.addEventListener("pointermove", (ev) => {
   const p = canvasPoint(ev);
   if (dragFader) {
     const fader = skin.faders.find((f) => f.id === dragFader);
-    if (fader) setParam(fader.param, faderYToValue(fader.origin, fader.travel, fader.range, p.y));
+    if (fader) setParam(fader.param, faderYToValue(fader.origin, fader.travel, fader.range, p.y, fader.curve));
     return;
   }
   const over = findFaderAt(p.x, p.y);
@@ -791,10 +796,8 @@ canvas.addEventListener(
     }
     const fader = findFaderAt(p.x, p.y);
     if (!fader) return;
-    const [lo, hi] = fader.range;
-    const span = hi - lo;
-    const step = (ev.shiftKey ? span * 0.01 : span * 0.04) * (ev.deltaY < 0 ? 1 : -1);
-    const next = Math.min(hi, Math.max(lo, valueOf(fader.param) + step));
+    const frac = ev.shiftKey ? 0.01 : 0.04;
+    const next = faderStepValue(fader.range, valueOf(fader.param), frac, ev.deltaY < 0, fader.curve);
     setParam(fader.param, next);
   },
   { passive: false },

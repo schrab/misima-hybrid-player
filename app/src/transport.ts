@@ -12,7 +12,8 @@
  */
 
 export type AudioParamsInput = {
-  volume: number;
+  /** Master lowpass cutoff in Hz; 20000 = fully open (bit-transparent). */
+  cutoff: number;
   speed: number;
   pitch: number;
   reverb: number;

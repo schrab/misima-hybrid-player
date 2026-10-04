@@ -3,27 +3,39 @@ export type { XY, Size, FaderDef, ButtonDef, SkinManifestV2, PlaylistRow, AudioP
 import type { FaderDef, XY } from "./types";
 
 /** Map fader value (in range) to knob TOP-LEFT Y (origin = max value). */
-﻿export function faderValueToY(
+export function faderValueToY(
   origin: XY,
   travel: number,
   range: [number, number],
   value: number,
+  curve?: "log",
 ): number {
-  const n = valueToNorm(range, value);
+  const n = valueToNorm(range, value, curve);
   return origin.y + (1 - n) * travel;
 }
 
-function valueToNorm(range: [number, number], value: number): number {
+/**
+ * A log fader needs lo > 0; anything else silently falls back to linear.
+ * Legacy: the tempo fader's [0.5, 2] range predates the `curve` field and was
+ * always log — keep matching it so old skins that never set `curve` keep
+ * their travel.
+ */
+function isLog(curve: "log" | undefined, lo: number, hi: number): boolean {
+  if (curve === "log") return lo > 0;
+  return lo > 0 && Math.abs(hi - 2) < 0.01 && Math.abs(lo - 0.5) < 0.01;
+}
+
+function valueToNorm(range: [number, number], value: number, curve?: "log"): number {
   const [lo, hi] = range;
-  if (lo > 0 && Math.abs(hi - 2) < 0.01 && Math.abs(lo - 0.5) < 0.01) {
+  if (isLog(curve, lo, hi)) {
     return Math.min(1, Math.max(0, Math.log(value / lo) / Math.log(hi / lo)));
   }
   return hi === lo ? 1 : (value - lo) / (hi - lo);
 }
 
-function normToValue(range: [number, number], n: number): number {
+function normToValue(range: [number, number], n: number, curve?: "log"): number {
   const [lo, hi] = range;
-  if (lo > 0 && Math.abs(hi - 2) < 0.01 && Math.abs(lo - 0.5) < 0.01) {
+  if (isLog(curve, lo, hi)) {
     return lo * Math.pow(hi / lo, n);
   }
   return lo + n * (hi - lo);
@@ -34,10 +46,33 @@ export function faderYToValue(
   travel: number,
   range: [number, number],
   y: number,
+  curve?: "log",
 ): number {
   let n = 1 - (y - origin.y) / travel;
   n = Math.min(1, Math.max(0, n));
-  return normToValue(range, n);
+  return normToValue(range, n, curve);
+}
+
+/**
+ * One wheel tick: the same fraction of the range, linear or multiplicative
+ * depending on the curve, clamped. Over a 30 Hz..20 kHz range a linear step
+ * of the span would jump ~800 Hz per tick and make the bottom half of the
+ * sweep unreachable by wheel.
+ */
+export function faderStepValue(
+  range: [number, number],
+  value: number,
+  fraction: number,
+  up: boolean,
+  curve?: "log",
+): number {
+  const [lo, hi] = range;
+  if (isLog(curve, lo, hi)) {
+    const next = value * Math.pow(hi / lo, up ? fraction : -fraction);
+    return Math.min(hi, Math.max(lo, next));
+  }
+  const step = (hi - lo) * fraction * (up ? 1 : -1);
+  return Math.min(hi, Math.max(lo, value + step));
 }
 
 export function hitRect(

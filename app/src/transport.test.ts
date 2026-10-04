@@ -68,7 +68,7 @@ async function main() {
   // setParams before the worklet exists must not throw — main.ts pushes
   // initial fader values during init, long before any user gesture.
   await t.setParams({
-    volume: 0.8,
+    cutoff: 20000,
     speed: 1,
     pitch: 0,
     reverb: 0.2,

@@ -32,7 +32,9 @@ bit-perfect bypass ──or──► Stretcher (stretcher.rs)
         ▼
 stereo reverb (clouds_reverb.rs) + dry/wet balance + envelope gain (reverb_mix.rs::Reverb)
         ▼
-master volume, soft clip, cpal output
+master lowpass (lpf.rs, 24 dB/oct) — identity (bypass) at the fader's top
+        ▼
+soft clip, cpal output
 ```
 
 Every stage runs on the cpal audio callback thread (see AGENTS.md §3.1 for the
@@ -55,6 +57,7 @@ stale state.
 
 | Parameter | Range | Where clamped |
 |---|---|---|
+| Cutoff | 30 – 20000 Hz (≥ 20000 = bypass) | `player::set_params` |
 | Speed (tempo) | 0.5 – 2.0 | `player::set_params` |
 | Pitch | ±12 st (±1 octave) | `player::set_params`, both engines |
 | Reverb mix | 0 – 1 | `player::set_params` |
@@ -237,9 +240,36 @@ both `env_wet` and `env_dry` to zero.
 
 ---
 
-## 5. Test methodology
+## 5. Master lowpass (`lpf.rs`)
 
-`cargo test` from `app/src-tauri` (39 passing, 1 ignored smoke test, zero
+The former volume fader is now a resonant master lowpass — the last stage
+before the output clamp, after the reverb, so the tail darkens with everything
+else while the reverb's envelope follower still sees the full-band signal.
+
+- **Topology**: two cascaded RBJ lowpass biquads (`Biquad::lowpass`), 24 dB/oct.
+  The Butterworth pole Qs (0.5412, 1.3066) are multiplied by `RESONANCE = 1.4`,
+  which lifts a ~+4 dB peak at the cutoff. RBJ biquads are stable for any
+  finite Q, so this sits far from self-oscillation.
+- **Bypass at the top**: `cutoff ≥ 20 kHz` swaps in identity coefficients and
+  clears the registers once, so the fader's top position is bit-transparent —
+  a real 20 kHz lowpass would still shave the top octave. An epsilon no-op
+  guard makes repeat applications free, which matters because `set_params`
+  fires on every pointermove of *any* fader drag.
+- **Glitch-free sweeps**: coefficients update in place; the per-stage,
+  per-channel delay registers live outside the coefficient structs (the same
+  discipline as `EqState`) and keep their memory across a sweep.
+- **Flush on seek**: a seek or track change clears the filter together with
+  the stretcher and the reverb, so a closed filter cannot ring across the gap.
+- **Fader mapping**: `skin.json` range 30 Hz – 20 kHz with `curve: "log"`
+  (knob travel and wheel steps move multiplicatively); the DSP clamps to the
+  same bounds. 30 Hz is deliberately not silence — the sub-bass floor stays
+  alive ("almost closed").
+
+---
+
+## 6. Test methodology
+
+`cargo test` from `app/src-tauri` (51 passing, 1 ignored smoke test, zero
 warnings is the bar — AGENTS.md §5). The tests are the specification; the
 useful ones to understand before touching DSP:
 
@@ -253,6 +283,10 @@ useful ones to understand before touching DSP:
 | `lines_do_not_overlap_at_any_rate` | reverb layout scales both offsets and lengths |
 | `tail_decays_in_a_musical_time` | reverb loop gain stays off the stability cliff |
 | `reverb_mix_loudness_constant` | wet level within ±4 dB of dry at 0/50/100% mix |
+| `open_is_bit_transparent` / `closing_then_reopening_is_transparent_again` | fader top = identity; state clears once on re-entry |
+| `two_octaves_above_cutoff_lands_near_48db` | the 24 dB/oct slope |
+| `resonance_bump_at_the_cutoff` | the resonant Q pair peaks at the cutoff |
+| `sweep_stays_finite_and_bounded` | no divergence while the coefficients move |
 
 Measurement conventions that have bitten us:
 
@@ -268,7 +302,7 @@ Measurement conventions that have bitten us:
 
 ---
 
-## 6. Known limitations / future work
+## 7. Known limitations / future work
 
 - Transient smear on percussive material through the vocoder (inherent to
   STFT); WSOLA remains better for pure tempo.
@@ -282,13 +316,14 @@ Measurement conventions that have bitten us:
   multi-resolution vocoder + transient detection (Rubber Band is GPL-2.0+ —
   do not adopt without a licence decision).
 
-## 7. Module map
+## 8. Module map
 
 | File | Purpose |
 |---|---|
 | `decoder.rs` | Symphonia decode to interleaved f32 PCM |
 | `dsp_utils.rs` | Shared DSP utilities: `cubic_hermite`, `read_stereo_*`, `read_mono` |
 | `eq.rs` | 10-band RBJ biquad EQ; `process_frame` for single stereo frames, `process_interleaved` for bulk |
+| `lpf.rs` | 4-pole resonant master lowpass (cutoff fader); identity + cleared state at the top |
 | `phase_vocoder.rs` | Stereo STFT pitch shifter with Laroche & Dolson phase locking |
 | `wsola.rs` | WSOLA time-stretcher + Cubic Hermite resampler |
 | `clouds_reverb.rs` | Dattorro/Griesinger FDN reverb (Clouds port) |
@@ -306,8 +341,8 @@ the two builds cannot silently diverge. Anything that touches cpal, tauri,
 parking_lot, or crossbeam stays in `player.rs` and is reimplemented in the
 worklet instead.
 
-**Platform-free (shared):** `clouds_reverb`, `dsp_utils`, `eq`, `phase_vocoder`,
-`spectrum`, `wsola`, `reverb_mix`, `stretcher`.
+**Platform-free (shared):** `clouds_reverb`, `dsp_utils`, `eq`, `lpf`,
+`phase_vocoder`, `spectrum`, `wsola`, `reverb_mix`, `stretcher`.
 
 **Desktop-only:** `player.rs` (cpal stream + `SharedPlay`), `decoder.rs`
 (Symphonia — the browser uses `decodeAudioData`).

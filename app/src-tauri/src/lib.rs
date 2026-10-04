@@ -235,7 +235,6 @@ pub fn run() {
             commands::cue_percent,
             commands::toggle_play,
             commands::get_position,
-            commands::set_volume,
             commands::set_eq,
             commands::set_params,
             commands::get_playlist,

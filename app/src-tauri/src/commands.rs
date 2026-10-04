@@ -167,11 +167,6 @@ pub fn get_position() -> f64 {
 }
 
 #[tauri::command]
-pub fn set_volume(volume: f64) {
-    player::set_volume(volume as f32);
-}
-
-#[tauri::command]
 pub fn set_eq(gains: Vec<f64>, state: State<'_, AppInner>) -> Result<(), String> {
     if gains.len() != 10 {
         return Err("expected 10 EQ gains".into());
@@ -187,7 +182,7 @@ pub fn set_eq(gains: Vec<f64>, state: State<'_, AppInner>) -> Result<(), String>
 
 #[tauri::command]
 pub fn set_params(
-    volume: f64,
+    cutoff: f64,
     pitch: f64,
     reverb: f64,
     eq: Vec<f64>,
@@ -201,7 +196,7 @@ pub fn set_params(
         arr[i] = *g as f32;
     }
     player::set_params(
-        volume as f32,
+        cutoff as f32,
         pitch as f32,
         reverb as f32,
         arr,

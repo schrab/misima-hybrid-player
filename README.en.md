@@ -32,6 +32,7 @@ MI$IM∆ elsewhere: [Instagram](https://www.instagram.com/misima.gibrid/) · [Te
 - **Bit-Perfect Bypass**: at 1.0x speed and 0 st the dsp steps aside completely. 100% original master. MI$IM∆ respects the master.
 - **Speed & Pitch, Separate Faders**: tempo 0.5x–2.0x, pitch ±12 st. two engines behind them, picked automatically per fader position: a phase vocoder where it runs smooth, a WSOLA time-stretcher where it stays clean. no hollow flanging. no comb filtering. MI$IM∆ tested. MI$IM∆ approves.
 - **10-Band Equalizer**: reshape the tone of the sound while it plays — ten bands, from warm lows to airy highs.
+- **Resonant Master Lowpass**: the volume fader's slot now hosts a 4-pole lowpass (24 dB/oct, a hint of resonance). top of the fader = fully open and bit-transparent; from there the fader glides the signal from clean to fully processed with no loudness dips across the whole range, down to an almost-closed 30 Hz. volume lives in your OS mixer now — MI$IM∆ only shapes tone.
 - **Stereo Reverb**: a port of [Mutable Instruments Clouds](https://github.com/pichenettes/eurorack). the mix fader sweeps from dry to full wet at matched loudness — no volume dips on the way.
 - **Dynamic Visualizers**: a 10-band spectrum lighting hand-drawn segment chips, sprite-sheet animations, warm beads of light drifting along the wires, and a 226-point echo scope with a fading trail.
 - **Glitch-Free Track Switching**: click through the playlist as fast as the mouse can go; decodes never overlap, audio never stutters. (MI$IM∆ learned this one the hard way. see the changelog.)

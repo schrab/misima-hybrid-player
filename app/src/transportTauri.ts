@@ -45,7 +45,7 @@ export class TauriTransport implements Transport {
   }
   setParams(params: AudioParamsInput): Promise<void> {
     return invoke("set_params", {
-      volume: params.volume,
+      cutoff: params.cutoff,
       pitch: params.pitch,
       reverb: params.reverb,
       eq: params.eq,
