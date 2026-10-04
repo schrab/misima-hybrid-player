@@ -327,9 +327,12 @@ let skin: SkinManifestV2;
 /** Cryptic bitmap glyphs — decorative only; functional text uses canvas font. */
 let font: BitmapFont | null = null;
 const images = new Map<string, HTMLImageElement>();
-let bg: HTMLImageElement | null = null;
+/** Background + still overlays, flattened once; doubles as the anim mask. */
+let plate: HTMLCanvasElement | null = null;
 let bgOverlays: { img: HTMLImageElement; x: number; y: number }[] = [];
 let anims: { def: SkinAnimDef; img: HTMLImageElement; cw: number; ch: number; start: number }[] = [];
+/** Offscreen cell buffer for the plate mask, grown on demand and reused. */
+let animMask: HTMLCanvasElement | null = null;
 
 const params: AudioParamsInput = {
   volume: 1.0,
@@ -505,16 +508,15 @@ async function action(name: string) {
 
 function drawFader(f: FaderDef) {
   const knob = images.get(f.knob);
+  // Draw nothing until the knob sprite lands. This used to fall back to a
+  // magenta block, which is fine in a still and wrong in motion: the render
+  // loop starts on the manifest, well before the art, so every fader flashed a
+  // pink slab over the dark page for half a second and then vanished. An absent
+  // fader reads as "not ready yet"; a magenta one reads as a glitch.
+  if (!knob) return;
   const y = faderValueToY(f.origin, f.travel, f.range, valueOf(f.param));
   // Natural pixel size — never scale knobs
-  const kw = knob?.width ?? f.knobSize?.w ?? 24;
-  const kh = knob?.height ?? f.knobSize?.h ?? 24;
-  if (knob) {
-    ctx.drawImage(knob, Math.round(f.origin.x), Math.round(y));
-  } else {
-    ctx.fillStyle = "#ff4fd8";
-    ctx.fillRect(f.origin.x, y, kw, kh);
-  }
+  ctx.drawImage(knob, Math.round(f.origin.x), Math.round(y));
 }
 
 /** Magenta line + 5 fading echoes in SCOPE rect (cheap polyline trail). */
@@ -547,9 +549,31 @@ function drawEchoScope(ctx: CanvasRenderingContext2D) {
   ctx.restore();
 }
 
-/** Sprite-sheet frames: slice current cell, screen-blend drops solid black. */
+/** Offscreen buffer sized to at least w x h, reused across frames. */
+function maskBuffer(w: number, h: number): CanvasRenderingContext2D {
+  if (!animMask) animMask = document.createElement("canvas");
+  if (animMask.width < w || animMask.height < h) {
+    animMask.width = Math.max(animMask.width, w);
+    animMask.height = Math.max(animMask.height, h);
+  }
+  const mctx = animMask.getContext("2d")!;
+  mctx.globalCompositeOperation = "source-over";
+  mctx.clearRect(0, 0, w, h);
+  return mctx;
+}
+
+/**
+ * Sprite-sheet frames: slice current cell, screen-blend drops solid black.
+ *
+ * The sheets carry an opaque black backdrop, which `screen` erases — but only
+ * where the player is already painted. Over the plate's transparent gaps the
+ * blend has nothing to lift and the black cell survives as a hard square,
+ * glaring against a light desktop. So each cell is first cut to the plate's
+ * own alpha with `destination-in`: identical wherever the player is solid, and
+ * gone everywhere it is not.
+ */
 function drawAnimations() {
-  if (anims.length === 0) return;
+  if (anims.length === 0 || !plate) return;
   const now = performance.now();
   for (const a of anims) {
     if (a.def.playback === "on-playing" && !playing) continue;
@@ -560,21 +584,20 @@ function drawAnimations() {
     const row = Math.floor(idx / a.def.grid.cols);
     const sw = a.cw;
     const sh = a.ch;
+    const x = a.def.origin.x;
+    const y = a.def.origin.y;
     const dw = a.def.size?.w ?? sw;
     const dh = a.def.size?.h ?? sh;
+    if (dw <= 0 || dh <= 0) continue;
+
+    const mctx = maskBuffer(dw, dh);
+    mctx.drawImage(a.img, col * sw, row * sh, sw, sh, 0, 0, dw, dh);
+    mctx.globalCompositeOperation = "destination-in";
+    mctx.drawImage(plate, -x, -y);
+
     ctx.save();
     if ((a.def.blend ?? "screen") === "screen") ctx.globalCompositeOperation = "screen";
-    ctx.drawImage(
-      a.img,
-      col * sw,
-      row * sh,
-      sw,
-      sh,
-      a.def.origin.x,
-      a.def.origin.y,
-      dw,
-      dh,
-    );
+    ctx.drawImage(animMask!, 0, 0, dw, dh, x, y, dw, dh);
     ctx.restore();
   }
 }
@@ -583,8 +606,7 @@ function render(_time: number) {
   const { width, height } = skin.canvas;
   ctx.clearRect(0, 0, width, height);
 
-  if (bg) ctx.drawImage(bg, skin.background.origin.x, skin.background.origin.y);
-  for (const o of bgOverlays) ctx.drawImage(o.img, o.x, o.y);
+  if (plate) ctx.drawImage(plate, 0, 0);
   drawAnimations();
 
   if (playing) {
@@ -860,7 +882,7 @@ async function init() {
   // here means the page is alive as soon as the skin manifest parses and fills
   // in progressively: background first, then knobs and chips as they land.
   //
-  // Safe on partial assets: render() skips the background when `bg` is null,
+  // Safe on partial assets: render() skips the background when `plate` is null,
   // `drawAnimations` returns early with no anims, and every glyph draw is
   // `font?.draw`, a no-op until the atlas arrives.
   canvas.width = skin.canvas.width;
@@ -930,8 +952,6 @@ async function init() {
   if (loadFill) loadFill.style.width = "100%";
   loadBar?.classList.add("done");
 
-  bg = bgImgs;
-
   // Sprite-sheet animations (uniform grid, solid black BG → screen blend).
   anims = animDefs.flatMap((def, i) => {
     const img = animImgs[i];
@@ -951,6 +971,19 @@ async function init() {
     const img = overlayImgs[i];
     return img ? [{ img, x: o.origin.x, y: o.origin.y }] : [];
   });
+
+  // Flatten background + overlays into one plate. render() blits it, and
+  // drawAnimations() uses its alpha as the mask that keeps a cell from
+  // spilling past the silhouette — so this has to be baked, not re-blitted
+  // per frame, and it must land at the same coordinates the mask samples.
+  if (bgImgs) {
+    plate = document.createElement("canvas");
+    plate.width = skin.canvas.width;
+    plate.height = skin.canvas.height;
+    const pctx = plate.getContext("2d")!;
+    pctx.drawImage(bgImgs, skin.background.origin.x, skin.background.origin.y);
+    for (const o of bgOverlays) pctx.drawImage(o.img, o.x, o.y);
+  }
 
   segments.forEach((seg, i) => {
     const img = segmentImgs[i];

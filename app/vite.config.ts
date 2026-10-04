@@ -17,11 +17,14 @@ const isPages = process.env.GH_PAGES === "1";
 const base = isPages ? "/misima-hybrid-player/" : "/";
 
 /**
- * `public/` is copied verbatim into `dist/`, so the WASM build output and the
- * bundled demo track ride along on desktop builds too — about 3.7 MB the
- * desktop app never loads, plus the `.d.ts` files wasm-pack emits. Drop both
- * unless this is the Pages build, the only target with a worklet and a
- * startup track.
+ * `public/` is copied verbatim into `dist/`, so the WASM build output, the
+ * bundled demo track and the page backdrop all ride along on desktop builds
+ * too — weight the desktop app never loads, plus the `.d.ts` files wasm-pack
+ * emits. Drop all three unless this is the Pages build, the only target with a
+ * worklet, a startup track and a wallpaper behind the player.
+ *
+ * The backdrop is referenced from CSS, but only under `html.web`, which the
+ * desktop never sets — so the missing file is never requested there.
  */
 function stripWebOnlyAssets(): Plugin {
   return {
@@ -29,8 +32,12 @@ function stripWebOnlyAssets(): Plugin {
     apply: "build",
     async closeBundle() {
       if (isPages) return;
-      for (const dir of ["dist/wasm", "dist/music"]) {
-        await rm(resolve(__dirname, dir), { recursive: true, force: true });
+      for (const path of [
+        "dist/wasm",
+        "dist/music",
+        "dist/misima-background.webp",
+      ]) {
+        await rm(resolve(__dirname, path), { recursive: true, force: true });
       }
     },
   };

@@ -12,10 +12,46 @@ body {
    wallpaper, so the page must stay see-through there. In a browser tab there
    is no wallpaper to show through to — transparent renders as white, which
    looks badly wrong behind a dark sci-fi skin. `main.ts` sets this class when
-   it detects the web platform. */
-html.web,
+   it detects the web platform. Base colour only: the artwork goes on
+   `html::below` so the body's own background can't paint over it. */
+html.web {
+  background: #05080a;
+}
+
+/* Page backdrop, web only: the artwork at cover fit, knocked back to 50% and
+   blurred so it reads as depth behind the player rather than competing with
+   it. The 50% matters — the player's silhouette is drawn for a dark
+   surround, and at full strength this wallpaper is bright enough to eat the
+   edges of the panels.
+
+   Deliberately a pseudo-element on `html` rather than a `background-image` on
+   `body`: blur is a `filter`, which would otherwise blur the player canvas
+   along with the page. Ordering is explicit (`z-index: 0` here, `1` on body)
+   rather than a negative z-index, because a negative one drops behind the
+   body's own background box.
+
+   Blur samples past the element's edge, so the box is inflated well beyond the
+   viewport (far more than the blur radius) to keep the sampled margin opaque.
+   Without it the whole border fades out. */
+html.web::before {
+  content: "";
+  position: fixed;
+  inset: -80px;
+  z-index: 0;
+  /* Layer order is top-first in CSS, not bottom-first as in canvas: the scrim
+     has to come *before* the artwork, or the opaque image buries it. */
+  background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)),
+    url("/misima-background.webp");
+  background-size: cover;
+  background-position: center;
+  filter: blur(26px);
+  pointer-events: none;
+}
+
 html.web body {
-  background: #000;
+  position: relative;
+  z-index: 1;
+  background: transparent;
 }
 
 /* The player is a tall, narrow panel. Centre it rather than pinning it to the
