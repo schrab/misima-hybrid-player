@@ -229,7 +229,7 @@ against the local `music/` library.
 
 **Live at 0.4.0.** `npm run build:pages` emits a `dist/` whose HTML references
 `/misima-hybrid-player/assets/…`, with `dist/wasm/` (353 KB wasm + 12 KB
-bundled worklet), `dist/music/` (28 MB of bundled tracks) and the skin in
+bundled worklet), `dist/music/` (70 MB of bundled tracks) and the skin in
 place. Every asset returns 200 from the subpath.
 
 ---
@@ -301,11 +301,11 @@ reads as broken rather than loading.
 
 ### 4. The bundled music
 
-Four Wit Chu tracks (used with his permission) ship in `app/public/music/` and
-are served same-origin. Only the first is fetched on arrival; the rest are
-registered as playlist rows carrying a `sourceUrl` and downloaded by
-`playIndex` when the listener reaches them — decoding all four up front would
-make every page load pay for 28 MB.
+Ten Wit Chu tracks (used with his permission) ship in `app/public/music/` and
+are served same-origin, spanning more than one album. Only the first is fetched
+on arrival; the rest are registered as playlist rows carrying a `sourceUrl` and
+downloaded by `playIndex` when the listener reaches them — decoding all ten up
+front would make every page load pay for 70 MB.
 
 Credit line under the player links to the Misima Telegram first, then to Wit
 Chu's Bandcamp. Hidden on the desktop build, which ships no bundled music.

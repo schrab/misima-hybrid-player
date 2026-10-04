@@ -12,7 +12,7 @@ prefer it native? **[download the latest release](https://github.com/schrab/misi
 
 ### credits
 
-- the four tracks bundled with the web build are from **[Wit Chu](https://witchu.bandcamp.com)**'s album [*Once*](https://witchu.bandcamp.com/album/once), used with his permission. thank you, Anton.
+- the ten tracks bundled with the web build are by **[Wit Chu](https://witchu.bandcamp.com)**, used with his permission. thank you, Anton.
 - skin, icons, and everything else on screen: MI$IM∆.
 - the reverb is a port of [Mutable Instruments Clouds](https://github.com/pichenettes/eurorack) by Emilie Gillet, who sped off into the sunrise with a capybara on the back seat of her vespa (MIT, © 2014).
 

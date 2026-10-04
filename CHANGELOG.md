@@ -39,6 +39,13 @@ The volume fader is gone; its slot now carries the cutoff.
   steps (a linear wheel step over that range would jump ~800 Hz per tick).
   The tempo fader's legacy `[0.5, 2]` range keeps its implicit log behaviour
   for skins that never set the field.
+- **Six more tracks in the web playlist** — `backwards`, `da`, `life on bass`,
+  `theme`, `tribal` and `voice of...` join the four numbered ones, all copied
+  byte-for-byte from the untracked `music/` folder into `app/public/music/`.
+  Ten rows now, still lazy: only the first is fetched on arrival and the rest
+  download when the listener reaches them, so a page load still pays for one
+  track rather than 70 MB. The music credit no longer names a single album,
+  since the set now spans more than one.
 
 ### Removed
 - **The `volume` parameter is gone from the whole param surface** —

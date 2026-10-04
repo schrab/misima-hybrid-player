@@ -40,7 +40,7 @@ const BASE = assetUrl("sprite/");
  * fetched same-origin — no CORS, no third-party host in the request path.
  *
  * Only the first is decoded eagerly (that is the one autoplayed). The rest are
- * fetched when the listener reaches them, so the page does not pull 28 MB on
+ * fetched when the listener reaches them, so the page does not pull 73 MB on
  * every visit.
  */
 const STARTUP_TRACKS = [
@@ -48,6 +48,12 @@ const STARTUP_TRACKS = [
   { url: assetUrl("music/02 Wit Chu - In The Loop.mp3"), title: "02 Wit Chu - In The Loop" },
   { url: assetUrl("music/07 Wit Chu - The Joy.mp3"), title: "07 Wit Chu - The Joy" },
   { url: assetUrl("music/10 Wit Chu - Technical Problem.mp3"), title: "10 Wit Chu - Technical Problem" },
+  { url: assetUrl("music/Wit Chu - backwards.mp3"), title: "Wit Chu - backwards" },
+  { url: assetUrl("music/Wit Chu - da.mp3"), title: "Wit Chu - da" },
+  { url: assetUrl("music/Wit Chu - life on bass.mp3"), title: "Wit Chu - life on bass" },
+  { url: assetUrl("music/Wit Chu - theme.mp3"), title: "Wit Chu - theme" },
+  { url: assetUrl("music/Wit Chu - tribal.mp3"), title: "Wit Chu - tribal" },
+  { url: assetUrl("music/Wit Chu - voice of....mp3"), title: "Wit Chu - voice of..." },
 ];
 
 const canvas = document.getElementById("ui") as HTMLCanvasElement;

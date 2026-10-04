@@ -12,7 +12,7 @@
 
 ### благодарности
 
-- четыре трека, идущие в комплекте с веб-версией, взяты с альбома [*Once*](https://witchu.bandcamp.com/album/once) **[Wit Chu](https://witchu.bandcamp.com)** и используются с его разрешения. спасибо, Антон.
+- десять треков, идущих в комплекте с веб-версией, — **[Wit Chu](https://witchu.bandcamp.com)**, используются с его разрешения. спасибо, Антон.
 - скин, иконки и вообще всё, что на экране: MI$IM∆.
 - ревербератор — порт [Mutable Instruments Clouds](https://github.com/pichenettes/eurorack) авторства Emilie Gillet, умчавшейся в рассвет с капибарой на заднем сиденьи веспы (MIT, © 2014).
 
