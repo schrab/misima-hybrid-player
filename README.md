@@ -189,6 +189,12 @@ platform-specific troubleshooting and development guidelines: [`AGENTS.md`](AGEN
 - **FX Reset**: EQ to 0 dB, reverb to 0%, pitch to 0 st, speed to 1.0x.
 - **Power Button**: clean application shutdown.
 
+![MI$IM∆ hybrid player — keyboard layout](docs/keyboard_layout.png)
+
+Every key the player listens for, on one board. The transport and cue keys
+(`1`…`9`, `0`, `Space`, `←`/`→`, `z`/`x`) are bare; the zoom keys take `Ctrl`
+(`Cmd` on macOS) with `-`, `+`, `0` or `D`.
+
 ---
 
 ## Development & Build
