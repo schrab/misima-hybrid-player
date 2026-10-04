@@ -8,6 +8,8 @@ MI$IM∆ built a music player. no boring window frames. no html widgets. hand-dr
 
 **[schrab.github.io/misima-hybrid-player](https://schrab.github.io/misima-hybrid-player/)** — same skin, same DSP, no install. the difference is that the rust gets compiled to wasm and runs in an `AudioWorklet` instead of on a cpal thread.
 
+prefer it native? **[download the latest release](https://github.com/schrab/misima-hybrid-player/releases/latest)** — `.msi` / `.exe` for windows, one universal `.dmg` for macos, and `.deb` / `.rpm` / `.AppImage` for linux. on arch take the `.pkg.tar.zst` instead: the appimage aborts on launch there, because it carries support libraries built on ubuntu-22.04 that shadow the host's.
+
 ### credits
 
 - the four tracks bundled with the web build are from **[Wit Chu](https://witchu.bandcamp.com)**'s album [*Once*](https://witchu.bandcamp.com/album/once), used with his permission. thank you, wit chu.
