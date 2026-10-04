@@ -287,8 +287,12 @@ def build(deb_path, out_dir):
         depends = resolve_depends(control, payload)
 
         # deb Description carries its synopsis then an indented body; .PKGINFO
-        # wants only the synopsis.
-        desc = control.get("Description", "Multiplatform skinnable music player").split(" -")[0].strip()
+        # wants only the synopsis. debhelper writes "(none)" as the body when
+        # there is no extended description, and that placeholder would otherwise
+        # end up in `pacman -Qi` output.
+        desc = control.get("Description", "Multiplatform skinnable music player")
+        desc = re.sub(r"\s*\(none\)\s*$", "", desc).strip()
+        desc = desc.split(" -")[0].strip()
 
         mtime = int(os.path.getmtime(deb_path))
         pkginfo = [
