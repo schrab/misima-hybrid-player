@@ -2,7 +2,7 @@
 
 [русский](README.md) · english
 
-MI$IM∆ built a music player. no boring window frames. no html widgets. hand-drawn plates, glowing wireframes, and rust doing real-time dsp underneath the skin. it plays mp3, flac, wav, ogg. it has visualizers. MI$IM∆ lives inside the art.
+it all started with Winamp aesthetics. 65,000 skins. digital folklore. creative freedom in its purest form. MI$IM∆ lived in someone else's skin for a while, then built a player of its own. no boring window frames. no html widgets. hand-drawn plates, glowing wireframes, and rust doing real-time dsp underneath the skin. it plays mp3, flac, wav, ogg. it has visualizers. MI$IM∆ lives inside the art.
 
 **[play it in a browser](https://schrab.github.io/misima-hybrid-player/)** — same skin, same DSP, no install.
 
