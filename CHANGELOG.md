@@ -9,6 +9,49 @@ together.
 > here. Reconstruct them from `git log v0.2.1..v0.3.2` if the detail is ever
 > needed; nothing below depends on them.
 
+## [0.4.1] — 2026-10-04
+
+First tagged build of the desktop app: `release.yml` builds Windows, macOS
+(universal) and Linux installers on the `v*` tag. 0.4.0 was never tagged, so
+this is also the first time the installers exist for the web-build era.
+
+### Fixed
+- **Animated sprites no longer bleed past the player** — the `anim/*_sheet.png`
+  cells carry an opaque black backdrop, and `screen` blending only erases black
+  where something is already painted. Over the plate's transparent gaps the
+  black cell survived compositing as a hard square: four of them, invisible
+  against a dark desktop and glaring against a light one. The background and
+  its still overlays are now flattened once into a `plate` canvas that serves as
+  both the render blit and a mask, and each cell is cut to that alpha with
+  `destination-in` before it is blended. Worst-case leaked pixels per frame fell
+  from 4,137 to 49. Affects both runtimes.
+- **Right-click is no longer an interaction** — it opened the browser context
+  menu ("Save image as / Inspect") over what is a picture of a player, and
+  because `pointerdown` fires for every button it was also grabbing faders and
+  calling `startDragging()`, which would drag the window across the screen.
+  The menu is suppressed except on credit links, and `pointerdown` now ignores
+  everything but the primary button.
+- **No magenta faders during load** — the render loop starts on the skin
+  manifest, well before the sprites, and `drawFader()` fell back to a `#ff4fd8`
+  block in that window. Every fader flashed a pink slab over the dark page for
+  about half a second. It now draws nothing until its knob arrives.
+
+### Added
+- **Page backdrop on the web build** — the tab was flat black; it now carries the
+  artwork at cover fit, shipped as the artist's PNG untouched with no scrim and
+  no blur. Web only, stripped from the desktop bundle.
+
+### Changed
+- **`agents.md` renamed to `AGENTS.md`**, matching how the repo already referred
+  to it. The lowercase references in `README.md`, `docs/DSP.md`,
+  `clouds_reverb.rs` and `player.rs` were fixed in the same commit, since they
+  would not resolve on a case-sensitive filesystem.
+- **README** — the Pages link and the credits (Wit Chu's *Once* album, used with
+  his permission) moved to the top of the file instead of living in a footer
+  section.
+- **Pitch fader travel** shortened from 228 to 200 artboard pixels, so the knob
+  stops short of the panel edge.
+
 ## [0.4.0] — 2026-10-04
 
 ### Added
