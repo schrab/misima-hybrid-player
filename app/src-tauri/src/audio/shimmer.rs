@@ -1,7 +1,9 @@
 //! Dual delay-line pitch shifter for the shimmer reverb loop.
 //!
 //! Two read heads half a ring apart sweep one ring per channel at the pitch
-//! ratio, carrying complementary raised-cosine gains — `a1 + a2 = 1` at every
+//! ratio — the heads traverse the ring at `ratio` times the write head's
+//! speed, so +12 semitones laps them twice per write lap — carrying
+//! complementary raised-cosine gains — `a1 + a2 = 1` at every
 //! position, which is what keeps the crossfade free of the periodic 6 dB
 //! thump a short fade region produces. Reads are cubic Hermite; the ring
 //! length scales with the device rate the way `clouds_reverb::layout` scales
@@ -162,7 +164,7 @@ impl Shimmer {
         let len = (self.mask + 1) as f32;
         self.read_l += self.ratio * mod_l;
         self.read_r += self.ratio * mod_r;
-        // ratio stays within [0.25, 4] and len >= 1024, so one wrap suffices.
+        // ratio stays within [0.5, 4] and len >= 1024, so one wrap suffices.
         if self.read_l >= len {
             self.read_l -= len;
         }
@@ -237,6 +239,14 @@ mod tests {
                     (((sr >> 8) & 0xFFFF) as f32 / 65535.0 - 0.5) * 2.0 * amp,
                 ]
             })
+            .collect()
+    }
+
+    /// Sine driver for tests whose per-sample delta must be small enough that a
+    /// bound on it means something (see `stop_change_is_continuous`).
+    fn sine_frames(n: usize, freq: f32, amp: f32, sr: f32) -> Vec<f32> {
+        (0..n)
+            .map(|i| (TAU * freq * i as f32 / sr).sin() * amp)
             .collect()
     }
 
@@ -315,45 +325,33 @@ mod tests {
 
     #[test]
     fn stop_change_is_continuous() {
-        // Broadband noise has a per-sample delta floor well above anything a
-        // click could add: the crossfade sums two uncorrelated heads, so the
-        // output peaks near 0.7 and consecutive samples routinely differ by
-        // 0.6. An absolute bound therefore measures the noise, not the slew —
-        // the plan's 0.35 guess sits *below* the floor (measured 0.614), so it
-        // cannot fail on a click and does not test anything. The identical run
-        // is measured twice instead, with and without the stop change, and the
-        // change has to stay within the floor it inherits.
-        fn max_jump(change: bool) -> f32 {
-            let frames = noise_frames(48_000, 0.5);
-            let mut sh = Shimmer::new(48_000.0);
-            sh.set_shift(12.0);
-            sh.set_tone(1.0);
-            for f in &frames[..24_000] {
-                let _ = sh.process(f[0], f[1]);
-            }
-            if change {
-                sh.set_shift(-12.0);
-            }
-            let (mut jump, mut prev) = (0.0f32, 0.0f32);
-            for f in &frames[24_000..26_400] {
-                let (l, _) = sh.process(f[0], f[1]);
-                jump = jump.max((l - prev).abs());
-                prev = l;
-            }
-            jump
+        // Driven by a 220 Hz sine rather than broadband noise: noise gives a
+        // per-sample delta floor of ~0.6, which buries any click under the
+        // floor; the sine's floor is ~2π·220/48000·0.5 ≈ 0.014, so the
+        // absolute bound below is a real bound.
+        let sr = 48_000.0f32;
+        let mut sh = Shimmer::new(sr);
+        sh.set_shift(12.0);
+        sh.set_tone(1.0);
+        let frames = sine_frames(26_400, 220.0, 0.5, sr);
+        for &x in &frames[..24_000] {
+            let _ = sh.process(x, x);
         }
-
-        let floor = max_jump(false);
-        let after = max_jump(true);
-        assert!(
-            after <= floor * 1.5,
-            "stop change clicked: max jump {after} against a noise floor of {floor}"
-        );
-        assert!(after < 1.0, "stop change blew up: max jump {after}");
+        sh.set_shift(-12.0);
+        // `prev` is primed with the first real output sample: seeding it with
+        // 0.0 would bill the sine's own mid-cycle amplitude as a jump.
+        let mut max_jump = 0.0f32;
+        let mut prev = sh.process(frames[24_000], frames[24_000]).0;
+        for &x in &frames[24_001..26_400] {
+            let (l, _) = sh.process(x, x);
+            max_jump = max_jump.max((l - prev).abs());
+            prev = l;
+        }
+        assert!(max_jump < 0.1, "stop change clicked: max jump {max_jump}");
     }
 
     #[test]
-    fn wrap_fuzz_never_panics_or_nan() {
+    fn stop_churn_fuzz_stays_finite() {
         let mut sh = Shimmer::new(48_000.0);
         sh.set_tone(DEFAULT_TONE);
         let mut seed = 0x2545_F491_4F6C_DD1Du64;
@@ -373,5 +371,41 @@ mod tests {
                 assert!(l.is_finite() && r.is_finite(), "fuzz non-finite at {i}");
             }
         }
+    }
+
+    /// The read-position wrap itself: the shortest ring the engine can build
+    /// (MIN_RING floor, via an 8 kHz device) against the fastest ratio it can
+    /// be set to, so `read += ratio * mod` overshoots `len` every frame.
+    #[test]
+    fn read_position_wrap_stays_finite_at_the_extremes() {
+        let mut sh = Shimmer::new(8_000.0);
+        sh.set_shift(24.0); // ratio 4 — four write laps per read lap
+        sh.set_tone(1.0);
+        let frames = noise_frames(100_000, 0.5);
+        for (i, f) in frames.iter().enumerate() {
+            let (l, r) = sh.process(f[0], f[1]);
+            assert!(
+                l.is_finite() && r.is_finite(),
+                "wrap non-finite at frame {i}"
+            );
+        }
+    }
+
+    /// `clear` is the seek/track-load flush: the rings and every filter
+    /// register go, so a silent frame into a cleared shifter is silent out.
+    #[test]
+    fn clear_silences_the_ring() {
+        let mut sh = Shimmer::new(48_000.0);
+        sh.set_shift(12.0);
+        let frames = noise_frames(2_000, 0.5);
+        for f in &frames {
+            let _ = sh.process(f[0], f[1]);
+        }
+        sh.clear();
+        let (l, r) = sh.process(0.0, 0.0);
+        assert!(
+            l.abs() < 1e-6 && r.abs() < 1e-6,
+            "clear left residue: {l} / {r}"
+        );
     }
 }
