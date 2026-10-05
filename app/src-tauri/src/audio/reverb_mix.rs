@@ -34,9 +34,7 @@ const CROSS_OTHER: f32 = 0.3;
 /// normaliser: because the loop gain is capped below unity the coupled
 /// reverb+shimmer loop settles at a finite equilibrium, so the envelope
 /// follows the shimmered tail just as it follows the dry one.
-// No `Debug` derive: `Shimmer` does not implement it and nothing in the tree
-// prints a `Reverb`, so carrying one would be plumbing for a caller that does
-// not exist.
+#[derive(Debug)]
 pub struct Reverb {
     inner: CloudsReverb,
     mix: f32,
@@ -95,11 +93,13 @@ impl Reverb {
     }
 
     /// Shift interval in semitones (fader stop values).
+    #[allow(dead_code)] // Task 4 wires set_shift/set_tone to the UI plumbing
     pub fn set_shift(&mut self, semitones: f32) {
         self.shimmer.set_shift(semitones);
     }
 
     /// Loop damping, 0..1.
+    #[allow(dead_code)] // Task 4 wires set_shift/set_tone to the UI plumbing
     pub fn set_tone(&mut self, t: f32) {
         self.shimmer.set_tone(t);
     }

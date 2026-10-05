@@ -49,6 +49,8 @@ fn head_gain(phase: f32, len: f32) -> f32 {
 }
 
 /// Dual delay-line pitch shifter. See the module docs.
+// `Debug` exists so `Reverb`'s derive survives: this is a field of it.
+#[derive(Debug)]
 pub struct Shimmer {
     sample_rate: f32,
     ring_l: Box<[f32]>,
