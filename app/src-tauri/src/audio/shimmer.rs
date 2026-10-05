@@ -1,11 +1,10 @@
 //! Dual delay-line pitch shifter for the shimmer reverb loop.
 //!
-//! Two read heads half a ring apart sweep one ring per channel at the pitch
-//! ratio — the heads traverse the ring at `ratio` times the write head's
-//! speed, so +12 semitones laps them twice per write lap — carrying
-//! complementary raised-cosine gains — `a1 + a2 = 1` at every
-//! position, which is what keeps the crossfade free of the periodic 6 dB
-//! thump a short fade region produces. Reads are cubic Hermite; the ring
+//! Two read heads half a ring apart, one ring per channel, traverse it at
+//! `ratio` times the write head's speed — +12 semitones laps them twice per
+//! write lap. They carry complementary raised-cosine gains, `a1 + a2 = 1` at
+//! every position, which is what keeps the crossfade free of the periodic
+//! 6 dB thump a short fade region produces. Reads are cubic Hermite; the ring
 //! length scales with the device rate the way `clouds_reverb::layout` scales
 //! its lines (AGENTS.md 3.1.4). A slow sine modulates the left head and a
 //! cosine the right, decorrelating the channels' comb structure (Elysiera's
@@ -328,26 +327,34 @@ mod tests {
         // Driven by a 220 Hz sine rather than broadband noise: noise gives a
         // per-sample delta floor of ~0.6, which buries any click under the
         // floor; the sine's floor is ~2π·220/48000·0.5 ≈ 0.014, so the
-        // absolute bound below is a real bound.
+        // absolute bound below is a real bound. The bound checks *waveform*
+        // continuity — a click — not the glide itself: a direct ratio
+        // assignment would pass it too, by design.
         let sr = 48_000.0f32;
         let mut sh = Shimmer::new(sr);
         sh.set_shift(12.0);
         sh.set_tone(1.0);
         let frames = sine_frames(26_400, 220.0, 0.5, sr);
+        // `prev` carries the warmup's last output across `set_shift`, so the
+        // delta that straddles the call itself is inside the measurement — a
+        // discontinuous `set_shift` would land in that one pair.
+        let mut prev = 0.0f32;
         for &x in &frames[..24_000] {
-            let _ = sh.process(x, x);
+            prev = sh.process(x, x).0;
         }
         sh.set_shift(-12.0);
-        // `prev` is primed with the first real output sample: seeding it with
-        // 0.0 would bill the sine's own mid-cycle amplitude as a jump.
         let mut max_jump = 0.0f32;
-        let mut prev = sh.process(frames[24_000], frames[24_000]).0;
-        for &x in &frames[24_001..26_400] {
+        let mut peak = 0.0f32;
+        for &x in &frames[24_000..26_400] {
             let (l, _) = sh.process(x, x);
             max_jump = max_jump.max((l - prev).abs());
+            peak = peak.max(l.abs());
             prev = l;
         }
         assert!(max_jump < 0.1, "stop change clicked: max jump {max_jump}");
+        // Without this the test passes just as happily on a dead shifter, so
+        // it only means something while the output is actually alive.
+        assert!(peak > 0.1, "window is silent: peak {peak}");
     }
 
     #[test]
@@ -375,7 +382,9 @@ mod tests {
 
     /// The read-position wrap itself: the shortest ring the engine can build
     /// (MIN_RING floor, via an 8 kHz device) against the fastest ratio it can
-    /// be set to, so `read += ratio * mod` overshoots `len` every frame.
+    /// be set to. At ratio 4.006 the read pointer advances ~4 samples a frame
+    /// over a 1024-sample ring, so it crosses the wrap ~390 times in the run
+    /// below rather than never.
     #[test]
     fn read_position_wrap_stays_finite_at_the_extremes() {
         let mut sh = Shimmer::new(8_000.0);
