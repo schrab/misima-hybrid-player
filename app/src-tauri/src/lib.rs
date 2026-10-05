@@ -11,7 +11,7 @@ use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
 pub struct AppInner {
     pub player: Arc<RwLock<audio::PlayerState>>,
     pub playlist: Arc<RwLock<playlist::Playlist>>,
-    pub eq_gains: Arc<RwLock<[f32; 10]>>,
+    pub eq_gains: Arc<RwLock<[f32; 8]>>,
     /// Artboard CSS scale (0.5 = classic 750x1030). Native-owned so Ctrl+/-
     /// works even when WebView2 swallows DOM key events.
     pub ui_scale: Arc<RwLock<f64>>,
@@ -184,7 +184,7 @@ pub fn run() {
         .manage(AppInner {
             player: Arc::new(RwLock::new(audio::PlayerState::default())),
             playlist: Arc::new(RwLock::new(playlist::Playlist::default())),
-            eq_gains: Arc::new(RwLock::new([0.0; 10])),
+            eq_gains: Arc::new(RwLock::new([0.0; 8])),
             ui_scale: Arc::new(RwLock::new(0.5)),
         })
         .setup(|app| {

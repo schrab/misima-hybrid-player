@@ -1,4 +1,4 @@
-//! 10-band peaking EQ using RBJ biquad coefficients.
+//! 8-band peaking EQ using RBJ biquad coefficients.
 
 #[derive(Debug, Clone)]
 pub struct Biquad {
@@ -81,55 +81,41 @@ impl Biquad {
 
 #[derive(Debug, Clone)]
 pub struct EqState {
-    pub bands: [Biquad; 10],
+    pub bands: [Biquad; 8],
     // per-band delay (stereo)
-    z1: [f32; 10],
-    z2: [f32; 10],
-    z1r: [f32; 10],
-    z2r: [f32; 10],
+    z1: [f32; 8],
+    z2: [f32; 8],
+    z1r: [f32; 8],
+    z2r: [f32; 8],
 }
 
-pub const EQ_FREQS: [f32; 10] = [
-    60.0, 170.0, 310.0, 600.0, 1000.0, 3000.0, 6000.0, 12000.0, 14000.0, 16000.0,
-];
+pub const EQ_FREQS: [f32; 8] = [310.0, 600.0, 1000.0, 3000.0, 6000.0, 12000.0, 14000.0, 16000.0];
 
 impl Default for EqState {
     fn default() -> Self {
-        Self::new(44_100.0, &[0.0; 10])
+        Self::new(44_100.0, &[0.0; 8])
     }
 }
 
 impl EqState {
-    pub fn new(sample_rate: f32, gains_db: &[f32; 10]) -> Self {
+    pub fn new(sample_rate: f32, gains_db: &[f32; 8]) -> Self {
         let mut bands = core::array::from_fn(|_| Biquad::identity());
         for (i, freq) in EQ_FREQS.iter().enumerate() {
-            let q = if *freq < 100.0 {
-                0.7
-            } else if *freq > 10_000.0 {
-                0.9
-            } else {
-                1.0
-            };
+            let q = if *freq > 10_000.0 { 0.9 } else { 1.0 };
             bands[i] = Biquad::peaking(sample_rate, *freq, q, gains_db[i]);
         }
         Self {
             bands,
-            z1: [0.0; 10],
-            z2: [0.0; 10],
-            z1r: [0.0; 10],
-            z2r: [0.0; 10],
+            z1: [0.0; 8],
+            z2: [0.0; 8],
+            z1r: [0.0; 8],
+            z2r: [0.0; 8],
         }
     }
 
-    pub fn set_gains(&mut self, sample_rate: f32, gains_db: &[f32; 10]) {
+    pub fn set_gains(&mut self, sample_rate: f32, gains_db: &[f32; 8]) {
         for (i, freq) in EQ_FREQS.iter().enumerate() {
-            let q = if *freq < 100.0 {
-                0.7
-            } else if *freq > 10_000.0 {
-                0.9
-            } else {
-                1.0
-            };
+            let q = if *freq > 10_000.0 { 0.9 } else { 1.0 };
             self.bands[i] = Biquad::peaking(sample_rate, *freq, q, gains_db[i]);
         }
     }
@@ -153,13 +139,13 @@ impl EqState {
                 continue;
             }
             let mut x = frame[0];
-            for i in 0..10 {
+            for i in 0..8 {
                 x = Self::tick(&self.bands[i], x, &mut self.z1[i], &mut self.z2[i]);
             }
             frame[0] = x;
             if channels >= 2 {
                 let mut xr = frame[1];
-                for i in 0..10 {
+                for i in 0..8 {
                     xr = Self::tick(&self.bands[i], xr, &mut self.z1r[i], &mut self.z2r[i]);
                 }
                 frame[1] = xr;
@@ -173,12 +159,12 @@ impl EqState {
     #[inline]
     pub fn process_frame(&mut self, frame: &mut [f32; 2]) {
         let mut x = frame[0];
-        for i in 0..10 {
+        for i in 0..8 {
             x = Self::tick(&self.bands[i], x, &mut self.z1[i], &mut self.z2[i]);
         }
         frame[0] = x;
         let mut xr = frame[1];
-        for i in 0..10 {
+        for i in 0..8 {
             xr = Self::tick(&self.bands[i], xr, &mut self.z1r[i], &mut self.z2r[i]);
         }
         frame[1] = xr;
@@ -249,7 +235,7 @@ mod tests {
             stereo.push(*s);
         }
         let before = rms(&stereo);
-        let mut eq = EqState::new(sr, &[0.0, 0.0, 0.0, 0.0, 12.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        let mut eq = EqState::new(sr, &[0.0, 0.0, 12.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
         eq.process_interleaved(&mut stereo, 2);
         let after = rms(&stereo);
         assert!(after > before * 1.2, "before={before} after={after}");
@@ -262,7 +248,7 @@ mod tests {
             stereo2.push(*s);
         }
         let before2 = rms(&stereo2);
-        let mut eq2 = EqState::new(sr, &[0.0, 0.0, 0.0, 0.0, -12.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        let mut eq2 = EqState::new(sr, &[0.0, 0.0, -12.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
         eq2.process_interleaved(&mut stereo2, 2);
         let after2 = rms(&stereo2);
         assert!(after2 < before2 * 0.8, "before={before2} after={after2}");

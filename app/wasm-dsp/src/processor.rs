@@ -37,8 +37,8 @@ pub struct Params {
     pub pitch_semitones: f32,
     /// Reverb wet/dry, 0..1.
     pub reverb: f32,
-    /// Ten peaking bands in dB.
-    pub eq: [f32; 10],
+    /// Eight peaking bands in dB.
+    pub eq: [f32; 8],
 }
 
 impl Default for Params {
@@ -48,7 +48,7 @@ impl Default for Params {
             speed: 1.0,
             pitch_semitones: 0.0,
             reverb: 0.0,
-            eq: [0.0; 10],
+            eq: [0.0; 8],
         }
     }
 }
@@ -128,7 +128,7 @@ impl DspProcessor {
             sample_rate,
             track: Track::default(),
             params: Params::default(),
-            eq: EqState::new(sample_rate, &[0.0; 10]),
+            eq: EqState::new(sample_rate, &[0.0; 8]),
             reverb: Reverb::new(sample_rate),
             lpf: Lowpass4::new(sample_rate),
             stretcher: Stretcher::new(),
@@ -507,7 +507,7 @@ mod tests {
         let mut cut = DspProcessor::new(sr);
         cut.load_track(samples, ch);
         let mut params = Params::default();
-        params.eq[4] = -12.0; // 1000 Hz band
+        params.eq[2] = -12.0; // 1000 Hz band
         cut.set_params(params);
         cut.set_playing(true);
 

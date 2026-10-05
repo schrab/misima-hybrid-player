@@ -17,6 +17,7 @@ export type AudioParamsInput = {
   speed: number;
   pitch: number;
   reverb: number;
+  /** Eight peaking bands in dB (310 Hz..16 kHz). */
   eq: number[];
 };
 

@@ -44,7 +44,7 @@ pub struct SharedPlay {
     /// Master lowpass state, persistent across parameter updates.
     pub lpf: Mutex<Lowpass4>,
     pub eq: Mutex<EqState>,
-    pub eq_gains: Mutex<[f32; 10]>,
+    pub eq_gains: Mutex<[f32; 8]>,
     pub spectrum_tx: Mutex<Vec<f32>>,
     pub spectrum_ready: AtomicBool,
     /// 226-point mono waveform for echo scope (last block, decimated).
@@ -76,7 +76,7 @@ impl Default for SharedPlay {
             cutoff: Mutex::new(OPEN_CUTOFF),
             lpf: Mutex::new(Lowpass4::new(44_100.0)),
             eq: Mutex::new(EqState::default()),
-            eq_gains: Mutex::new([0.0; 10]),
+            eq_gains: Mutex::new([0.0; 8]),
             spectrum_tx: Mutex::new(vec![0.0; 48]),
             spectrum_ready: AtomicBool::new(false),
             wave_tx: Mutex::new(vec![0.0; 226]),
@@ -289,7 +289,7 @@ pub fn seek_secs(secs: f64) {
     shared.seek_gen.fetch_add(1, Ordering::SeqCst);
 }
 
-pub fn set_eq(gains: [f32; 10]) {
+pub fn set_eq(gains: [f32; 8]) {
     let shared = shared();
     *shared.eq_gains.lock() = gains;
     let sr = shared.device_rate.load(Ordering::SeqCst) as f32;
@@ -297,7 +297,7 @@ pub fn set_eq(gains: [f32; 10]) {
     shared.eq.lock().set_gains(sr, &gains);
 }
 
-pub fn set_params(cutoff: f32, pitch_st: f32, reverb: f32, eq: [f32; 10], speed: f32) {
+pub fn set_params(cutoff: f32, pitch_st: f32, reverb: f32, eq: [f32; 8], speed: f32) {
     // The volume fader is now the master lowpass: unity gain, and the only
     // tone control left in the chain. `OPEN_CUTOFF` = fully open, the old
     // fader-top behaviour.
@@ -1022,9 +1022,9 @@ mod tests {
 
     #[test]
     fn eq_gains_persist_across_set() {
-        set_eq([6.0; 10]);
-        assert_eq!(*shared().eq_gains.lock(), [6.0; 10]);
-        set_eq([0.0; 10]);
+        set_eq([6.0; 8]);
+        assert_eq!(*shared().eq_gains.lock(), [6.0; 8]);
+        set_eq([0.0; 8]);
     }
 
     #[test]
@@ -1034,7 +1034,7 @@ mod tests {
         write_test_wav(&path, 1000.0, 0.15, 44100).unwrap();
         let audio = decode_file(&path).unwrap();
         let mut buf = audio.samples.clone();
-        let mut eq = EqState::new(44100.0, &[0.0, 0.0, 0.0, 0.0, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        let mut eq = EqState::new(44100.0, &[0.0, 0.0, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
         eq.process_interleaved(&mut buf, audio.channels.max(1));
         assert!(buf.iter().any(|s| s.abs() > 0.01));
     }
@@ -1101,7 +1101,7 @@ mod tests {
         // NOTE: only a short burst — engaging DSP must continue from the live
         // cursor, so after 0.3 s the position must be *ahead* of bypass_pos.
         // (A stale WSOLA cursor restarts the track: pos would fall to ~15k.)
-        set_params(0.8, 3.0, 0.35, [4.0; 10], 1.25);
+        set_params(0.8, 3.0, 0.35, [4.0; 8], 1.25);
         std::thread::sleep(std::time::Duration::from_millis(300));
         let wsola_pos = *shared.play_pos.lock();
         assert!(
@@ -1113,7 +1113,7 @@ mod tests {
         println!("wsola: pos={wsola_pos:.1} frames  spectrum peak={wsola_peak:.4}");
 
         // Teardown must be panic-free and must not block.
-        set_params(1.0, 0.0, 0.0, [0.0; 10], 1.0);
+        set_params(1.0, 0.0, 0.0, [0.0; 8], 1.0);
         stop();
         shutdown();
         assert!(

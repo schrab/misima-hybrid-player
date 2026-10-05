@@ -55,7 +55,7 @@ export class WebPlayer {
     speed: 1,
     pitch: 0,
     reverb: 0,
-    eq: new Array(10).fill(0),
+    eq: new Array(8).fill(0),
   };
 
   private onTap: TapHandler | null = null;

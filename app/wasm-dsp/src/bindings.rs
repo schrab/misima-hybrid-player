@@ -44,7 +44,7 @@ impl DspProcessor {
     }
 
     pub fn set_params(&mut self, cutoff: f32, speed: f32, pitch: f32, reverb: f32, eq: Vec<f32>) {
-        let mut bands = [0.0f32; 10];
+        let mut bands = [0.0f32; 8];
         for (i, slot) in bands.iter_mut().enumerate() {
             // A short `eq` must not panic on the audio thread.
             *slot = eq.get(i).copied().unwrap_or(0.0);

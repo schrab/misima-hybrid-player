@@ -357,7 +357,7 @@ const params: AudioParamsInput = {
   cutoff: OPEN_CUTOFF_HZ,
   pitch: 0,
   reverb: 0,
-  eq: new Array(10).fill(0),
+  eq: new Array(8).fill(0),
   speed: 1,
 };
 
@@ -398,7 +398,7 @@ function setParam(key: string, value: number) {
 }
 
 function pushParams() {
-  const eq = fxOn ? params.eq : new Array(10).fill(0);
+  const eq = fxOn ? params.eq : new Array(8).fill(0);
   const reverb = fxOn ? params.reverb : 0;
   void transport
     .setParams({
@@ -490,7 +490,7 @@ async function action(name: string) {
       status = "Cleared";
       break;
     case "reset_eq":
-      for (let i = 0; i < 10; i++) params.eq[i] = 0;
+      for (let i = 0; i < 8; i++) params.eq[i] = 0;
       setParam("eq0", 0);
       status = "EQ reset";
       break;
@@ -500,7 +500,7 @@ async function action(name: string) {
         fxOn = !fxOn;
         status = fxOn ? "FX on" : "FX off";
       } else {
-        for (let i = 0; i < 10; i++) params.eq[i] = 0;
+        for (let i = 0; i < 8; i++) params.eq[i] = 0;
         params.reverb = 0;
         params.cutoff = OPEN_CUTOFF_HZ;
         params.pitch = 0; params.speed = 1;

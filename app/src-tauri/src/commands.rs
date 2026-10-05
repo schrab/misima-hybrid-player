@@ -176,10 +176,10 @@ pub fn get_position() -> f64 {
 
 #[tauri::command]
 pub fn set_eq(gains: Vec<f64>, state: State<'_, AppInner>) -> Result<(), String> {
-    if gains.len() != 10 {
-        return Err("expected 10 EQ gains".into());
+    if gains.len() != 8 {
+        return Err("expected 8 EQ gains".into());
     }
-    let mut arr = [0.0f32; 10];
+    let mut arr = [0.0f32; 8];
     for (i, g) in gains.iter().enumerate() {
         arr[i] = *g as f32;
     }
@@ -196,10 +196,10 @@ pub fn set_params(
     eq: Vec<f64>,
     speed: f64,
 ) -> Result<(), String> {
-    if eq.len() != 10 {
-        return Err("expected 10 EQ gains".into());
+    if eq.len() != 8 {
+        return Err("expected 8 EQ gains".into());
     }
-    let mut arr = [0.0f32; 10];
+    let mut arr = [0.0f32; 8];
     for (i, g) in eq.iter().enumerate() {
         arr[i] = *g as f32;
     }
