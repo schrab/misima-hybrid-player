@@ -49,9 +49,7 @@ html.web body {
   overflow: auto;
 }
 
-/* Credit line. Kept deliberately quiet — it is a credit, not chrome.
-   Nudged off-centre so it clears the player's lower panel, which reaches
-   further down the page than a centred caption assumes. */
+/* Credit line. Kept deliberately quiet — it is a credit, not chrome. */
 .credit {
   display: none;
 }
@@ -63,9 +61,6 @@ html.web .credit {
   right: 0;
   bottom: 10px;
   margin: 0;
-  /* Shifted left of centre: the player is tall and its bottom panel sits
-     right of the viewport midpoint, so a centred caption lands on top of it. */
-  transform: translateX(-100px);
   text-align: center;
   font: 11px/1.4 ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.04em;
