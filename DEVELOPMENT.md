@@ -86,8 +86,8 @@ Interleaved Resampler (Device Rate: 44.1k / 48k / 96k)
 [Bypass Check: Speed == 1.0 && Pitch == 0.0] ──► (Bit-perfect direct PCM transfer)
       │ (if FX active)
       ▼
-Stretcher (Speed: 0.1x – 2.0x, Pitch: ±12 st)
-      ├─ speed < 1.0 → Paulstretch (up to 10x slower, pitch kept)
+Stretcher (Speed: 0.05x – 2.0x, Pitch: ±12 st)
+      ├─ speed < 1.0 → Paulstretch (up to 40x slower, pitch kept)
       ├─ stretch ≤ 1 → Stereo Phase Vocoder (pitch-up, smooth partials)
       └─ stretch > 1 → WSOLA Time-Stretcher (tempo + pitch-down)
       │
@@ -104,7 +104,7 @@ Clouds-Style Stereo Reverb (FDN, Modulated, Envelope-Normalized Wet, Dry→Wet C
 Hardware Output Stream (cpal) ──► Spectrum Analyzer (rustfft) ──► Canvas Visuals
 ```
 
-the horse said one time-stretcher was enough. the barn overruled. (the barn IS the horse. denial is structural.) both engines have a job: the vocoder is smooth where the wsola goes granular (pitch-up, 4x grain overlap at +1 octave — MI$IM∆ measured), and the wsola is cheap and clean where it expands (tempo, pitch-down). below 1.0x speed the paulstretch owns the fader — it throws the phase away on purpose, which is why 10x slower still sounds like the track, just poured out. the full reasoning, the failure modes and the numbers live in [`docs/DSP.md`](docs/DSP.md). read it before touching `src/audio/`. MI$IM∆ means it.
+the horse said one time-stretcher was enough. the barn overruled. (the barn IS the horse. denial is structural.) both engines have a job: the vocoder is smooth where the wsola goes granular (pitch-up, 4x grain overlap at +1 octave — MI$IM∆ measured), and the wsola is cheap and clean where it expands (tempo, pitch-down). below 1.0x speed the paulstretch owns the fader — it throws the phase away on purpose, which is why 40x slower still sounds like the track, just poured out. the full reasoning, the failure modes and the numbers live in [`docs/DSP.md`](docs/DSP.md). read it before touching `src/audio/`. MI$IM∆ means it.
 
 ### Audio Performance Invariants
 1. **Zero Steady-State Allocations**: processing vectors (`bl`, `br`, `mono_scratch`, `fifo_l`, `fifo_r`) are pre-allocated and reused. allocation on the audio thread makes the bones creak. the bones do not creak here.

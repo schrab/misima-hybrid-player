@@ -308,11 +308,12 @@ pub fn set_params(cutoff: f32, pitch_st: f32, reverb: f32, eq: [f32; 10], speed:
     // is audibly granular. Tempo >= 1.0 never exceeds that; only pitch moves
     // the stretch, and pitch is clamped to the same octaves.
     *shared().pitch_semitones.lock() = pitch_st.clamp(-12.0, 12.0);
-    // Tempo range [0.1, 2.0]. The bottom half belongs to the Paulstretch
+    // Tempo range [0.05, 2.0]. The bottom half belongs to the Paulstretch
     // engine (`paulstretch.rs`), which owns every speed < 1.0 and stays
-    // musical up to 20x expansion — so the WSOLA/vocoder pair never sees a
-    // stretch beyond 4 and their own clamps stay untouched.
-    *shared().speed.lock() = speed.clamp(0.1, 2.0);
+    // musical up to 40x expansion (the 0.05 fader floor with pitch ratio
+    // 2.0) — so the WSOLA/vocoder pair never sees a stretch beyond 4 and
+    // their own clamps stay untouched.
+    *shared().speed.lock() = speed.clamp(0.05, 2.0);
     *shared().reverb_mix.lock() = reverb.clamp(0.0, 1.0);
     set_eq(eq);
 }
@@ -321,7 +322,7 @@ pub fn set_params(cutoff: f32, pitch_st: f32, reverb: f32, eq: [f32; 10], speed:
 /// Tempo: how fast music plays. Does NOT change pitch (Paulstretch/WSOLA/OLA
 /// time-stretch).
 fn tempo_factor() -> f32 {
-    shared().speed.lock().clamp(0.1, 2.0)
+    shared().speed.lock().clamp(0.05, 2.0)
 }
 
 /// Pitch: semitone tone shift. Does NOT change speed (OLA pitch-shifter).

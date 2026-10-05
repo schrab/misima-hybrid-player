@@ -20,8 +20,11 @@
 //! 1. Read `N` source samples at the read cursor, zero-padded at the edges.
 //! 2. Apply the Paul analysis window `w[i] = (1 - (2i/N - 1)^2)^1.25`.
 //! 3. Forward FFT; keep magnitudes only (`hypot(re, im)`); discard phase.
-//! 4. Smooth the magnitudes along a log-frequency axis (the spread filter,
-//!    bandwidth 0.3) — this is the signature spectral softening.
+//! 4. Smooth the magnitudes along a log-frequency axis (the spread filter) —
+//!    this is the signature spectral softening, and it ships **disabled**
+//!    (`SPREAD_BANDWIDTH = 0`, and the call is skipped outright at `bw <= 0`).
+//!    See the note on `SPREAD_BANDWIDTH` for why and for the reference
+//!    formula if it is ever switched back on.
 //! 5. Zero DC and Nyquist, then give every remaining bin a fresh random
 //!    phase from a deterministic u32 LCG and mirror the conjugate half so the
 //!    inverse transform is real.
@@ -31,16 +34,26 @@
 //! 7. Advance the read cursor by `H / S`, where the expansion
 //!    `S = pitch_ratio / speed` is output duration over source duration.
 //!
-//! Fixed sizes: `N = 8192`, `H = 4096` — the reference python scheme. The
-//! core is rate-independent; the device sample rate only sets the spread
+//! Fixed sizes: `N = 16384`, `H = 8192`. The reference
+//! `paulstretch_python` scheme uses 8192, but the reference *app*
+//! (`paulstretch_cpp`) defaults to a ~2.4x longer analysis window
+//! (~19200 samples) and the 0.5.0 listening pass called our 8192 output "a
+//! bit dirtier than the original" — the frame-phase noise of a shorter
+//! window is the grain that survives the magnitude-only resynthesis. 16384 is
+//! the next power of two above 8192 and lands at ~0.37 s / ~5.4 frames per
+//! second per channel at 44.1 kHz, which is where the spread filter's own
+//! literature stops improving audibly.
+//!
+//! The core is rate-independent; the device sample rate only sets the spread
 //! filter's Hz-to-bin mapping (a rate change rebuilds that mapping, exactly
 //! like the WSOLA rebuilds its anti-alias biquad).
 //!
 //! ## Engagement
 //!
 //! Task 2 wires the selector: `speed < 1.0` routes through this engine (S up
-//! to 10x at the tempo fader's new floor of 0.1); `speed >= 1.0` keeps the
-//! existing bypass / vocoder / WSOLA split untouched. Pitch is NOT applied
+//! to 40x at the tempo fader floor of 0.05 with pitch ratio 2.0);
+//! `speed >= 1.0` keeps the existing bypass / vocoder / WSOLA split
+//! untouched. Pitch is NOT applied
 //! here — the FIFO is consumed at `step = pitch_ratio` by the shared Cubic
 //! Hermite resampler, exactly like the other engines, so
 //! `speed 0.5, pr 0.5` is pure pitch-down through S = 1.
@@ -67,8 +80,13 @@ use std::sync::Arc;
 
 use crate::audio::dsp_utils::{cubic_hermite, read_stereo_isize};
 
-/// FFT / window size in samples — the `paulstretch_python` reference scheme.
-const N: usize = 8192;
+/// FFT / window size in samples — a power of two, ~0.37 s at 44.1 kHz.
+///
+/// The reference `paulstretch_python` scheme uses 8192; `paulstretch_cpp`
+/// defaults to ~19200 and sounds cleaner, because a longer window averages
+/// more of the frame-phase noise into the magnitude spectrum before that
+/// noise is re-dealt. See the module header.
+const N: usize = 16384;
 
 /// Synthesis hop: output samples emitted per processed frame (50% overlap).
 const H: usize = N / 2;
@@ -79,8 +97,28 @@ const HALF: usize = N / 2 + 1;
 /// Points on the log-frequency axis of the spread filter.
 const NLOG: usize = N / 2;
 
-/// Reference spread bandwidth (the fader default; 0 disables smoothing).
-const SPREAD_BANDWIDTH: f32 = 0.3;
+/// Production spread bandwidth. **0 = the filter is off**, matching the
+/// default of the reference `paulstretch_cpp` app, which ships the filter
+/// disabled.
+///
+/// Two things to know before ever raising this (the helper and its tests are
+/// kept, and `spread_bw` stays a live field so the differential test can
+/// still exercise the code path):
+///
+/// 1. The call must be SKIPPED, not merely run at a near-zero bandwidth. The
+///    spread filter resamples the magnitudes linear-bin -> log axis -> linear
+///    bins; at `bw = 0` the one-pole passes are the identity, but the round
+///    trip through the log axis is not (it interpolates every bin against a
+///    coarser, differently-sampled axis), so `bw = 0` run through the helper
+///    still moves the spectrum. `process` therefore tests `spread_bw <= 0.0`
+///    and bypasses `spread_magnitude` entirely.
+/// 2. Our single-pair reading is WEAKER than the reference and must not ship
+///    enabled. `paulstretch_cpp` smooths a log axis of N points with TWO
+///    forward+backward passes and coefficient
+///    `(1 - 2^(-bw^2 * 10)) ^ (8192 / nfreq * 2)`; we run one pair over
+///    `NLOG = N/2` points. Re-enabling means porting that pair count and that
+///    exponent, then re-measuring — not just flipping the constant.
+const SPREAD_BANDWIDTH: f32 = 0.0;
 
 /// Low edge of the spread filter's log-frequency axis, Hz.
 const F_MIN: f32 = 20.0;
@@ -96,11 +134,23 @@ const SEED_CH1: u32 = 1 + 161103;
 
 /// Per-channel output FIFO capacity reserved at construction: the worst
 /// unread length at the assumed 8192-frame block ceiling and pitch ratio
-/// 2.0 — a full block of resampler demand (`block * pr`), rounded up by one
-/// produce step of H = 4096, plus the ~258 samples of read history the
-/// reclaim path may leave unconsumed: 16384 + 4096 + 258 = 20738. ~128 KB
-/// per channel of f32. `reserve_for_block` tops it up for larger blocks.
+/// 2.0.
+///
+/// Derived, not guessed. The produce loop in `process` stops as soon as the
+/// FIFO holds `needed = ceil(block * pr) + 8` samples, and it only ever adds
+/// whole frames of `H`, so the unread depth after the loop is at most
+/// `needed - 1 + H = 8192 * 2 + 7 + 8192`. On top of that the reclaim path
+/// only fires once `fifo_read_pos > 2 + 256`, so a block can still be entered
+/// with 258 samples of read history booked against the vector's length.
+/// 16384 + 7 + 8192 + 258 = 24841 samples, comfortably inside the 32768
+/// reserved here (128 KB per channel of f32).
+/// `reserve_for_block` tops it up for larger blocks.
 const FIFO_RESERVE: usize = 32768;
+
+/// Slack `reserve_for_block` adds on top of the derived worst case
+/// (`block * pr + H + 265`, see `FIFO_RESERVE`) — 272 rather than 265 so the
+/// two constants are not the same expression that could drift together.
+const FIFO_HEADROOM: usize = 272;
 
 /// Precomputed mapping between linear bins and the spread filter's
 /// log-frequency axis, for one device sample rate.
@@ -158,9 +208,13 @@ fn lerp_at(buf: &[f32], pos: f32) -> f32 {
 ///
 /// The spectrum is resampled onto the log axis, smoothed with one forward
 /// and one backward one-pole pass (the "2 passes"), and resampled back,
-/// REPLACING `mag`. `scratch` must be `NLOG` long. `bandwidth` 0 is the
-/// exact identity (`a_base` goes to 0); larger values flatten spectral
-/// detail progressively.
+/// REPLACING `mag`. `scratch` must be `NLOG` long.
+///
+/// NOTE: this helper is *not* the identity at `bandwidth = 0` — the two
+/// passes are, but the log-axis round trip still resamples every bin against
+/// a coarser axis. Production therefore skips the call entirely when the
+/// engine's bandwidth is `<= 0` (see `SPREAD_BANDWIDTH`); the `bw -> 0`
+/// case here is a *smooth spectrum* case, which the unit test pins.
 fn spread_magnitude(mag: &mut [f32], axis: &SpreadAxis, bandwidth: f32, scratch: &mut [f32]) {
     debug_assert_eq!(mag.len(), HALF);
     debug_assert_eq!(scratch.len(), NLOG);
@@ -172,7 +226,7 @@ fn spread_magnitude(mag: &mut [f32], axis: &SpreadAxis, bandwidth: f32, scratch:
 
     // One-pole coefficient. bw -> 0 makes a_base -> 0 and the passes
     // degenerate to identity. The exponent scales the coefficient for the
-    // axis decimation ratio (a_base^4 at N=8192, nlog=4096).
+    // axis decimation ratio (a_base^4 at N=16384, nlog=8192).
     let a_base = 1.0 - 2.0f32.powf(-bandwidth * bandwidth * 10.0);
     let a_eff = a_base.powf((N / NLOG) as f32 * 2.0);
 
@@ -271,7 +325,7 @@ impl Paulstretch {
             prev_tail: [vec![0.0; H], vec![0.0; H]],
             // FIFO capacity invariant (§3.1.1): no Vec growth may ever
             // happen inside `process()`. The worst unread length at the
-            // assumed 8192-frame block ceiling is 20738 (see FIFO_RESERVE),
+            // assumed 8192-frame block ceiling is 24841 (see FIFO_RESERVE),
             // so that worst case is reserved here and nothing on the
             // per-buffer path can reallocate. `Vec::clear` in `reset` keeps
             // the capacity.
@@ -292,7 +346,7 @@ impl Paulstretch {
     ///
     /// `FIFO_RESERVE` assumes the 8192-frame block ceiling the selector's
     /// hosts deliver; the true worst-case unread length is
-    /// `block_frames * pr_max + H + ~258` of retained read history, so a
+    /// `block_frames * pr_max + 7 + H + 258` of retained read history, so a
     /// host reporting a larger block gets an explicit top-up here. Called
     /// once at stream construction, never on the audio thread (§3.1.1).
     ///
@@ -313,7 +367,7 @@ impl Paulstretch {
     /// panic and never a per-block repeat.
     pub fn reserve_for_block(&mut self, block_frames: usize) {
         const CEILING: usize = 16384;
-        let need = block_frames.min(CEILING) * 2 + H + 260;
+        let need = block_frames.min(CEILING) * 2 + H + FIFO_HEADROOM;
         if self.fifo_l.capacity() < need {
             self.fifo_l.reserve(need - self.fifo_l.len());
         }
@@ -355,7 +409,11 @@ impl Paulstretch {
     /// expansion — the mirror of wsola's `buffered * stretch`.
     pub fn get_play_pos(&self, speed: f32, pitch_ratio: f32) -> f64 {
         let pr = pitch_ratio.clamp(0.5, 2.0) as f64;
-        let s = (pr / speed as f64).clamp(0.1, 20.0);
+        // The fader floor is 0.05 and the pitch ratio reaches 2.0, so S
+        // reaches 40; the 50 ceiling covers that with margin. MUST match the
+        // clamp in `process` — the two disagreeing would make the reported
+        // position drift against the produced audio.
+        let s = (pr / speed as f64).clamp(0.1, 50.0);
         let buffered =
             (self.fifo_l.len().saturating_sub(self.fifo_read_pos) as f64) - self.resample_phase;
         (self.read_pos - buffered.max(0.0) / s).max(0.0)
@@ -387,12 +445,20 @@ impl Paulstretch {
                 for (m, sp) in self.mag.iter_mut().zip(self.spec.iter()) {
                     *m = sp.norm();
                 }
-                spread_magnitude(
-                    &mut self.mag,
-                    &self.spread_axis,
-                    self.spread_bw,
-                    &mut self.spread_scratch,
-                );
+                // The spread filter ships OFF (SPREAD_BANDWIDTH = 0, the
+                // reference app's default), and at bw <= 0 the call must be
+                // SKIPPED rather than run: the two one-pole passes are the
+                // identity at bw 0, but the log-axis round trip inside the
+                // helper is not. Skipping is what makes the disabled state
+                // bit-for-bit transparent.
+                if self.spread_bw > 0.0 {
+                    spread_magnitude(
+                        &mut self.mag,
+                        &self.spread_axis,
+                        self.spread_bw,
+                        &mut self.spread_scratch,
+                    );
+                }
 
                 // DC and Nyquist are zeroed unconditionally, every frame.
                 self.spec[0] = Complex::new(0.0, 0.0);
@@ -468,9 +534,11 @@ impl Paulstretch {
 
         let pr = pitch_ratio.clamp(0.5, 2.0);
         // Expansion S = pr / speed: output duration / source duration.
-        // speed 0.5, pr 1 -> S=2; speed 0.1, pr 1 -> S=10; speed 0.5, pr 0.5
-        // -> S=1 (pure pitch-down, resampled downstream by `step = pr`).
-        let s = (pr as f64 / speed as f64).clamp(0.1, 20.0);
+        // speed 0.5, pr 1 -> S=2; speed 0.05, pr 2 -> S=40 (the fader floor
+        // with pitch up an octave); speed 0.5, pr 0.5 -> S=1 (pure
+        // pitch-down, resampled downstream by `step = pr`). The clamp is
+        // 0.1..50 so S=40 fits with margin; it MUST match `get_play_pos`.
+        let s = (pr as f64 / speed as f64).clamp(0.1, 50.0);
         let step = pr as f64;
 
         // The spread filter's Hz->bin mapping follows the device rate; a
@@ -575,6 +643,12 @@ mod tests {
     use super::*;
 
     const SR: f32 = 44_100.0;
+
+    /// Bandwidth the spread-filter tests drive the helper with. Production
+    /// ships `SPREAD_BANDWIDTH = 0` (the filter is off), so every test that
+    /// needs the filter to actually do something sets this explicitly; the
+    /// `spread_bw` field stays live precisely so those tests can.
+    const SPREAD_BW_TEST: f32 = 0.3;
 
     /// Stereo white noise, uncorrelated between channels (broadband
     /// material per AGENTS.md §3.1.11 — never sine-only).
@@ -745,12 +819,14 @@ mod tests {
                 // The double windowing is only fully compensated for
                 // COHERENT overlap-add. With randomized phases the
                 // resynthesis is diffuse, so the pair costs mean(w^2)
-                // (~-3.1 dB for the Paul window) plus ~0.6 dB of spread
-                // smoothing of the noise floor's Rayleigh fluctuations —
-                // the Public-Domain reference behaves the same way. The
-                // band is therefore centered on the predicted ratio 0.65
-                // with +-4.5 dB of headroom around it, still catching any
-                // gross normalization mistake in either direction.
+                // (~-3.1 dB for the Paul window) — the Public-Domain
+                // reference behaves the same way. The spread filter ships
+                // OFF, so there is no smoothing of the noise floor's Rayleigh
+                // fluctuations on top of that and the observed ratio sits a
+                // touch above the predicted 0.707. The band is therefore
+                // centered on the predicted 0.65 with +-4.5 dB of headroom
+                // around it, still catching any gross normalization mistake
+                // in either direction.
                 assert!(
                     (0.387..1.091).contains(&ratio),
                     "speed {speed} ch {ch} level ratio {ratio:.3}"
@@ -837,6 +913,52 @@ mod tests {
     }
 
     #[test]
+    fn expansion_reaches_forty_x_at_the_fader_floor() {
+        // The tempo fader floor is 0.05 and the pitch ratio reaches 2.0, so
+        // the FIFO expansion S = pr/speed reaches 40 — the reason the
+        // internal clamp is 0.1..50 rather than the old 0.1..20.
+        //
+        // The OUTPUT length is `total / speed`, not `total * S`: the shared
+        // Cubic Hermite resampler drains the FIFO at `step = pr`, so the
+        // 40x expansion is paid back by the 2x pitch ratio. That is exactly
+        // why this pins the clamp — with the 20 ceiling still in place the
+        // FIFO would fill at 20x, the output would come out at half this
+        // length, and the assert below would fail. `get_play_pos` has to
+        // agree with `process` on the same expansion (two separate clamp
+        // literals, free to drift).
+        let total = 8192;
+        let samples = noise_stereo(total, 0.4);
+        let mut v = Paulstretch::new();
+        let (mut l, mut r) = (vec![0f32; 512], vec![0f32; 512]);
+        let mut fin = false;
+        let mut out_len = 0usize;
+        let expect = total as f64 / 0.05;
+        for _ in 0..(expect as usize / 512 + 128) {
+            v.process(
+                &samples, 2, total, 512, 0.05, 2.0, SR, &mut l, &mut r, &mut fin,
+            );
+            for s in l.iter().chain(r.iter()) {
+                assert!(s.is_finite(), "non-finite output at the 40x floor");
+                assert!(s.abs() <= 4.0, "output diverged to {s} at the 40x floor");
+            }
+            out_len += 512;
+            if fin {
+                break;
+            }
+        }
+        assert!(fin, "finished never set at speed 0.05 / pr 2.0");
+        assert!(
+            (out_len as f64 - expect).abs() <= N as f64,
+            "output {out_len} vs expected {expect:.0}"
+        );
+        let pos = v.get_play_pos(0.05, 2.0);
+        assert!(
+            pos <= total as f64 + N as f64,
+            "play pos {pos} escaped the source"
+        );
+    }
+
+    #[test]
     fn reset_seeks_without_stale_audio() {
         // Identity at S=1 is an exact-ish OLA, so samples can be compared
         // element-wise: after reset(pos), output chunk 1 onward must equal
@@ -850,7 +972,11 @@ mod tests {
         let pos = 20000.0f64;
         v.reset(pos);
 
-        let (out_l, out_r) = render(&mut v, &samples, 2, total, 1.0, 1.0, 20);
+        // Rendering must cover the whole `H..2*H` probe window, so the block
+        // count is derived from H rather than hard-coded: at H = 8192 that
+        // is 32 blocks of 512, not the 20 the old 4096-hop window needed.
+        let probe_blocks = 2 * H / 512 + 8;
+        let (out_l, out_r) = render(&mut v, &samples, 2, total, 1.0, 1.0, probe_blocks);
         for s in out_l.iter().chain(out_r.iter()) {
             assert!(s.is_finite(), "NaN after reset");
         }
@@ -892,8 +1018,9 @@ mod tests {
         );
 
         // bw = 0.3 must flatten a harmonic comb: peak-to-average drops.
-        // Harmonics of 100 Hz (bin spacing 8192*100/44100 = 18.6 bins), so
-        // the comb is defined by the material, not by a bin period.
+        // Harmonics of 100 Hz (bin spacing N*100/44100 = 37.2 bins at
+        // N = 16384), so the comb is defined by the material, not by a bin
+        // period.
         let mut comb: Vec<f32> = vec![0.1; HALF];
         let mut n = 1f32;
         while n * 100.0 * N as f32 / SR < HALF as f32 {
@@ -904,7 +1031,7 @@ mod tests {
         let peak_before = comb.iter().cloned().fold(0.0f32, f32::max);
         let ratio_before = peak_before / mean_before;
 
-        spread_magnitude(&mut comb, &axis, SPREAD_BANDWIDTH, &mut scratch);
+        spread_magnitude(&mut comb, &axis, SPREAD_BW_TEST, &mut scratch);
         let mean_after = comb.iter().sum::<f32>() / HALF as f32;
         let peak_after = comb.iter().cloned().fold(0.0f32, f32::max);
         let ratio_after = peak_after / mean_after;
@@ -956,6 +1083,10 @@ mod tests {
         let mut flat = Paulstretch::new();
         flat.spread_bw = 1e-6;
         let mut spread = Paulstretch::new();
+        // Production ships bw = 0 (filter off, and `process` skips the
+        // helper outright at that setting), so the "spread" arm has to opt
+        // in explicitly for this differential to mean anything.
+        spread.spread_bw = SPREAD_BW_TEST;
         let (fl, fr) = render(&mut flat, &samples, 2, total, 0.5, 1.0, 200);
         let (sl, sr) = render(&mut spread, &samples, 2, total, 0.5, 1.0, 200);
         for (ch, (f, s)) in [(0, (&fl, &sl)), (1, (&fr, &sr))] {
@@ -963,8 +1094,9 @@ mod tests {
                 assert!(x.is_finite(), "non-finite output, ch {ch}");
                 assert!(x.abs() <= 4.0, "output diverged to {x}, ch {ch}");
             }
-            // 8 windows of 8192 from 20480 on: well past the ramp-in,
-            // inside the rendered output.
+            // 8 Welch windows of 8192 from 20480 on: past the ramp-in (output is
+            // fully overlapped from sample H = 8192 on) and still inside the
+            // ~88200-sample rendered output.
             let a = 20480;
             let n = 8192;
             let k = 8;

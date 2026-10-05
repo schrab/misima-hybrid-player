@@ -14,6 +14,8 @@ export type FaderDef = {
   value: number;
   /** "log" = knob travel and wheel steps move multiplicatively across the range. */
   curve?: "log";
+  /** Multiplier on the wheel's per-tick fraction; default 1. */
+  wheelStep?: number;
   unit?: string;
 };
 

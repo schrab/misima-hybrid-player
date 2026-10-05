@@ -802,7 +802,7 @@ canvas.addEventListener(
     }
     const fader = findFaderAt(p.x, p.y);
     if (!fader) return;
-    const frac = ev.shiftKey ? 0.01 : 0.04;
+    const frac = (ev.shiftKey ? 0.01 : 0.04) * (fader.wheelStep ?? 1);
     const next = faderStepValue(fader.range, valueOf(fader.param), frac, ev.deltaY < 0, fader.curve);
     setParam(fader.param, next);
   },

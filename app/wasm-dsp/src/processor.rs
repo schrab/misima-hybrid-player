@@ -300,7 +300,7 @@ impl DspProcessor {
     fn render_source(&mut self, frames: usize, bl: &mut [f32], br: &mut [f32]) {
         let total_frames = self.track.total_frames();
         let ch = self.track.channels.max(1);
-        let speed = self.params.speed.clamp(0.1, 2.0);
+        let speed = self.params.speed.clamp(0.05, 2.0);
         let pr = self.params.pitch_ratio();
         let bypass = self.params.is_bypass();
 
@@ -671,7 +671,9 @@ mod tests {
 
     #[test]
     fn paulstretch_end_to_end_at_speed_point_one() {
-        // The fader's new floor: speed 0.1 through the whole processor.
+        // Deep in the tempo-down region: speed 0.1 through the whole
+        // processor (the fader floor is 0.05; 0.1 keeps the fixture's
+        // 240k-sample tail drain cheap).
         // Output length ~10x input (+-window), play_pos monotonic and
         // advancing ~0.1 source frames per output frame, `ended` reported
         // after the tail drains.
@@ -718,8 +720,12 @@ mod tests {
 
         let out_frames = collected.len() / 2;
         let expected = total as f64 / 0.1;
+        // Overshoot is one Paulstretch synthesis flush (H = 8192) plus the
+        // last partial 128-frame block, so the tolerance is the engine's
+        // full analysis window N = 16384.
+        const PAUL_WINDOW: f64 = 16_384.0;
         assert!(
-            (out_frames as f64 - expected).abs() <= 8192.0,
+            (out_frames as f64 - expected).abs() <= PAUL_WINDOW,
             "output {out_frames} frames vs expected {expected}"
         );
         assert!(

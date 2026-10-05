@@ -420,10 +420,11 @@
       },
       "knobHotspot": "top-left",
       "range": [
-        0.1,
+        0.05,
         2
       ],
       "curve": "log",
+      "wheelStep": 0.5,
       "value": 1
     }
   ],

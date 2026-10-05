@@ -26,7 +26,7 @@ use crate::audio::wsola::WsolaProcessor;
 ///
 /// Tempo-down playback (`speed < 1.0`) belongs to the Paulstretch engine, at
 /// any pitch ratio: it stays musical at expansions the WSOLA would turn
-/// granular (up to 20x at the fader floor of 0.1 with pitch ratio 2.0). At
+/// granular (up to 40x at the fader floor of 0.05 with pitch ratio 2.0). At
 /// `speed >= 1.0` the original split is unchanged — vocoder for
 /// `stretch <= 1`, WSOLA for `stretch > 1` — and neither of those engines
 /// ever sees a stretch beyond 4 (`speed 2.0 / pr 0.5`). Bit-perfect bypass
@@ -292,10 +292,14 @@ mod tests {
                 break;
             }
         }
-        // ~4x expansion within a window of tolerance.
+        // ~4x expansion within a window of tolerance. The overshoot is one
+        // Paulstretch synthesis flush (H = 8192) plus the rounding of the
+        // last partial block, so the tolerance is the engine's full analysis
+        // window N = 16384.
+        const PAUL_WINDOW: f64 = 16_384.0;
         let expected = num_frames as f64 / 0.25;
         assert!(
-            (total_out as f64 - expected).abs() <= 8192.0,
+            (total_out as f64 - expected).abs() <= PAUL_WINDOW,
             "output {total_out} vs expected {expected}"
         );
         let pos = s.get_play_pos(0.25, 1.0);
@@ -303,7 +307,7 @@ mod tests {
         // At the drain the cursor sits one window past the source (the last
         // flush read), so allow up to total + N.
         assert!(
-            (0.0..=(num_frames as f64 + 8192.0)).contains(&pos),
+            (0.0..=(num_frames as f64 + PAUL_WINDOW)).contains(&pos),
             "play pos {pos} escaped the source"
         );
     }

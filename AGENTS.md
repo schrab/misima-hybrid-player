@@ -32,7 +32,7 @@ Misima Hybrid Player is a high-performance, skinnable, multiplatform (Windows, m
 │  - Resampler: Interleaved SRC to device rate + anti-alias lowpass      │
 │  - DSP Pipeline:                                                       │
 │      1) Bit-perfect bypass (1.0x speed, 0 st pitch)                     │
-│      2) Time/pitch engine: speed < 1.0 → Paulstretch (up to 10x,        │
+│      2) Time/pitch engine: speed < 1.0 → Paulstretch (up to 40x,       │
 │         pitch kept); at speed >= 1.0 the split by stretch = speed/pitch:│
 │         stretch <= 1 → stereo phase vocoder (pitch-up; smooth)          │
 │         stretch  > 1 → WSOLA time-stretch (expansion; WSOLA's good side)│

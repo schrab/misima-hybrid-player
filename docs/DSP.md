@@ -201,7 +201,7 @@ Public-Domain `paulstretch_python` plus published formulas; nothing was
 transcribed from the GPL-2 C++ implementations or the unlicensed
 `realstretch`. Per frame, per channel:
 
-1. Read `N = 8192` source samples, apply the Paul window `(1−x²)^1.25`.
+1. Read `N = 16384` source samples, apply the Paul window `(1−x²)^1.25`.
 2. Forward FFT, keep **magnitudes only — phase is deliberately discarded**.
    This is the entire idea: instead of tracking phase coherence like the
    vocoder or waveform similarity like the WSOLA, every frame becomes a fresh
@@ -209,17 +209,34 @@ transcribed from the GPL-2 C++ implementations or the unlicensed
    smears the realisations into a continuous wash that never goes granular,
    no matter how large the expansion.
 3. Smooth the magnitudes along a log-frequency axis (20 Hz .. Nyquist,
-   bidirectional one-pole ×2, bandwidth 0.3, fixed — **no UI control**). This
-   "spread" filter replaces the bin magnitudes before resynthesis and is the
-   signature spectral softening; spread 0 is exact identity, which the tests
-   pin so the filter can never quietly become part of the analysis path.
+   bidirectional one-pole ×2). This "spread" filter replaces the bin
+   magnitudes before resynthesis and is the signature spectral softening —
+   but it **ships disabled**: bandwidth 0, and the call is skipped outright
+   at `bw ≤ 0` rather than merely run near zero, because the one-pole passes
+   being the identity does not make the log-axis round trip an identity
+   either. That matches the reference `paulstretch_cpp` app's default, and it
+   is the other half of the "dirtier than the original" fix — the shipped
+   reference does *not* spread. Our single forward/backward pair is weaker
+   than the reference's two pairs with coefficient
+   `(1 − 2^(−bw²·10))^(8192/nfreq · 2)`, so it must not ship enabled; port
+   that pair count and that exponent, then re-measure, before switching it
+   back on. The helper and its tests stay either way, and the end-to-end
+   differential test still drives the filter through the `spread_bw` field.
 4. Zero DC and Nyquist, give every remaining bin a fresh random phase from a
    deterministic u32 LCG, mirror the conjugate half, inverse FFT, apply the
-   window **again**, overlap-add at 50% and emit `H = 4096` output samples.
+   window **again**, overlap-add at 50% and emit `H = 8192` output samples.
+
+**Window size**: 8192 is the `paulstretch_python` scheme, but
+`paulstretch_cpp` defaults to ~2.4× that (~19200 samples) and is audibly
+cleaner — a longer window averages more of the frame-phase noise into the
+magnitude spectrum before that noise is re-dealt, and what survives a
+magnitude-only resynthesis is exactly what reads as grain. `N = 16384` is the
+next power of two above 8192: ~0.37 s, ~5.4 frames per second per channel at
+44.1 kHz, which is where the improvement stops being audible.
 
 The read cursor advances `H / S` per frame, where the expansion
-`S = pitch_ratio / speed` is clamped 0.1..20 internally (the UI reaches
-S = 10 at the tempo floor of 0.1).
+`S = pitch_ratio / speed` is clamped 0.1..50 internally (the UI reaches
+S = 40 at the tempo floor of 0.05 with the pitch fader an octave up).
 
 **Stereo**: two fully independent channel processors — independent RNG seeds,
 independent spread state, one shared read cursor. The per-channel
@@ -235,12 +252,15 @@ engines (nominal position minus buffered lag); a seek flushes through the
 existing `seek_gen` reset path (seeds re-initialised), and track end drains
 the tail before `finished` fires.
 
-**Cost**: ~11 forward+inverse FFT pairs of 8192 points per second per channel
-(≈22 transforms at 44.1 kHz), independent of the stretch factor — negligible
+**Cost**: ~5.4 forward+inverse FFT pairs of 16384 points per second per channel
+(≈11 transforms at 44.1 kHz), independent of the stretch factor — negligible
 on both platforms. Everything is
 preallocated in the constructor; `process` allocates nothing, and all FIFO
 arithmetic uses the same saturating/clamped discipline as the WSOLA
-(overreads past the FIFO near track end are legal and zero-padded). The only
+(overreads past the FIFO near track end are legal and zero-padded). The FIFO
+is reserved for the derived worst case — 8192-frame block, pitch ratio 2.0 →
+`needed − 1 + H` unread plus the 258 samples of read history the reclaim path
+retains, 24841 samples against a 32768 reserve. The only
 rebuild is the spread axis on a device-rate change — a param-update path,
 not a hot-path one.
 
@@ -361,7 +381,7 @@ useful ones to understand before touching DSP:
 | `identity_reconstructs_the_input_at_s1` | Paulstretch: deterministic phases at S = 1 reconstruct the input — the OLA plumbing check |
 | `output_level_tracks_input_across_expansions` | Paulstretch level lands where the window + OLA ratio (0.65) predicts |
 | `frequency_is_preserved_at_expansion` | Paulstretch keeps the spectral peak across expansions |
-| `spread_filter_identity_and_flattening` | spread 0 = identity; spread on = spectrum flattened toward the log-axis envelope |
+| `spread_filter_identity_and_flattening` | bw 0 = identity on a smooth spectrum; bw 0.3 = spectrum flattened toward the log-axis envelope |
 | `play_pos_advances_monotonically_and_finishes` | Paulstretch position bookkeeping and track-end drain |
 | `select_routes_tempo_down_to_paulstretch` / `paulstretch_crossover_at_speed_one_is_glitch_free` | the engine crossover at the speed-1.0 boundary is clean |
 | `paulstretch_end_to_end_at_speed_point_one` / `seek_during_paulstretch_is_clean` | full 10x pipeline; seek mid-paulstretch flushes without stale audio |
@@ -407,7 +427,7 @@ Measurement conventions that have bitten us:
 | `eq.rs` | 10-band RBJ biquad EQ; `process_frame` for single stereo frames, `process_interleaved` for bulk |
 | `lpf.rs` | 4-pole resonant master lowpass (cutoff fader); identity + cleared state at the top |
 | `phase_vocoder.rs` | Stereo STFT pitch shifter with Laroche & Dolson phase locking |
-| `paulstretch.rs` | Paulstretch tempo-down engine: phase-discarding, spread-filtered, wash by design |
+| `paulstretch.rs` | Paulstretch tempo-down engine: phase-discarding, 16384-window, spread shipped off, wash by design |
 | `wsola.rs` | WSOLA time-stretcher + Cubic Hermite resampler |
 | `clouds_reverb.rs` | Dattorro/Griesinger FDN reverb (Clouds port) |
 | `spectrum.rs` | 1024-point FFT → 48 log-spaced bins for the visualizer |
