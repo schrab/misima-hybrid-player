@@ -329,100 +329,108 @@ Deviations from the original, all deliberate:
 ### 4.2 The cascade loop (`reverb_mix.rs`, `shimmer.rs`)
 
 ```
-dry ──► (dry + loop_return) ──► CloudsReverb ──► raw wet tail ──┬─► envelope gain ──► mix ──► out
-           ▲                                                    │
-           │      0.7·own + 0.3·other  (cross-tap)           ◄──┘
-           ▼
-      Shimmer::process — dual delay-line pitch shifter → tone lowpass → 30 Hz DC block
-           │
-           └──► × g = G_MAX · mix^1.5 ──► loop_return, consumed on the NEXT frame
+dry ──► CloudsReverb ──► raw wet tail ──┬─► envelope gain ──► mix ──►(+ cascade)──► out
+                                        │
+                                        │ 0.7·own + 0.3·other (cross-tap)
+                                        ▼
+     tap + CASCADE_FB (0.5) × previous cascade ──► Shimmer::process — the Faust
+     transpose: sawtooth delay ramp d (increment 1 − ratio, wrapped at the
+     window w), two fractional taps at d and d + w, linear crossfade
+     min(d/xfade, 1), xfade = w/2 — then tone lowpass → 30 Hz DC block
+                                        │
+                                        └──► cascade, summed into the wet at
+                                             level = CASCADE_LEVEL · mix^1.5
+                                             and fed back at CASCADE_FB
 ```
 
-The return is added at the reverb **input**, not at the output. That single
-wiring choice is what makes the tail feed itself through the shifter instead of
-just being printed with an extra copy on top, and it is pinned by a dedicated
-test (§4.3).
+The cascade runs in **its own loop**, completely outside the reverb's `krt`
+recirculation, and its output sums directly into the wet — the topology of
+the working Faust reference (`shimmer.dsp`, "Based on: ValhallaShimmer",
+whose transposer loop feedback tops out at 0.35). The separation is
+load-bearing: shimmer loudness is an output level and can never push a loop
+past unity (§4.3). The first attempt fed the cascade into the reverb input
+with the level doubling as loop gain — at 2.0 the coupled loop reached 1.06
+and rang, which the user heard as a slow "volume LFO".
 
 Per frame, in `Reverb::process_with_gain`:
 
 1. **Cross-tap** the raw tail — 0.7 of the channel's own tail plus 0.3 of the
    other, so the cascade is decorrelated rather than feeding each channel its
    own comb back.
-2. **Shift** it (`shimmer.rs`): two read heads per channel, half a ring apart,
-   traversing the ring at `ratio = 2^(st/12)` times the write head's speed.
-   +12 st is an octave up, i.e. two write laps per read lap. Reads are cubic
-   Hermite (`cubic_hermite`, shared with §3). The ring scales with the device
-   rate the same way `clouds_reverb::layout` scales its lines, including the
-   `MIN_RING` floor so a low-rate device does not get an absurdly short
-   crossfade. A 0.2 Hz sine modulates the left head and a cosine the right,
-   which decorrelates the two channels' comb structure (Elysiera's trick —
-   algorithm only, its GPL code is not used).
+2. **Shift** it (`shimmer.rs`): the Faust transpose. The delay ramp `d`
+   advances by `1 − ratio` per sample and wraps at the window `w = ring/2`;
+   the two taps read delays `d` and `d + w`; the linear crossfade
+   `min(d/xfade, 1)` (`xfade = w/2`) moves the signal from tap 2 to tap 1
+   across the first half of the ramp. The handoff at the wrap is continuous
+   because tap 2's delay at `d = 0` equals tap 1's delay at `d → w`. Reads
+   are cubic Hermite (`cubic_hermite`, shared with §3) where Faust uses
+   linear interpolation. The ring scales with the device rate the same way
+   `clouds_reverb::layout` scales its lines (`w = ring/2`, `xfade = ring/4`),
+   including the `MIN_RING` floor.
 3. **Damp** it: the tone lowpass (`Biquad`, cutoff `500 Hz · 32^t` from the
    fader, default 0.65 ≈ 4.8 kHz), then a ~30 Hz one-pole DC blocker. The
    tone filter is what stops the cascade doubling high-frequency energy every
    turn; the DC blocker is why the −12 stop cannot pump sub-bass into the loop.
-4. **Scale** by `g = G_MAX · mix^1.5` (`G_MAX = 1.0`) and store as
-   `loop_return` for the next frame. The exponent keeps the cascade out of the
-   way at low mix and lets it bloom towards the top.
+4. **Sum** it into the wet at `casc_level = CASCADE_LEVEL · mix^1.5`, after
+   the tail's soft clip — the callers' final output clamp is the last line of
+   defence for the sum. The exponent keeps the cascade out of the way at low
+   mix and lets it bloom towards the top.
 
 `set_shift` glides rather than jumps: the ratio slews with a ~5 ms time
 constant, so moving between the −12/+7/+12/+19/+24 stops is a portamento, not
 a click (`stop_change_is_continuous`).
 
-### 4.3 The two invariants this loop rests on
+### 4.3 The invariants this loop rests on
 
-**The window-sum invariant.** `head_gain(p) + head_gain(p + len/2) == 1` at
-every position, exactly, because the two heads carry complementary
-raised-cosine gains (`0.5 - 0.5·cos(2π·p/len)` and its complement). This is
-what keeps the crossfade free of the periodic **6 dB thump** a short fade
-region produces: unity-gain heads with a finite fade sum to 2 inside the
-crossfade and snap back to 1 outside it, so the level pumps every half-lap —
-which at these ring lengths lands as a slow ~12 Hz thump. The test
-`head_gains_are_complementary` guards it. The invariant is also why the shifter
-can be treated as a gain of ≤1 in the loop-gain arithmetic below.
+**The Faust crossfade identities.** The tap gains `min(d/xfade, 1)` and
+`1 − min(d/xfade, 1)` sum to exactly 1, and the wrap handoff lands on equal
+delays: tap 2 at `d = 0` reads the same delay tap 1 just left at `d → w`. For
+a constant-filled ring the shifter's output is the constant at **every** ramp
+position — `constant_input_passes_through_at_every_ramp_position` drives the
+tap layer across the whole sweep (bypassing the tone lowpass and DC blocker,
+which would remove the DC the test is made of) and fails on any wrap click,
+crossfade gain error, or blend off-by-one. This is also why the shifter is a
+gain of ≤ 1 in the loop arithmetic below.
 
-**The loop-gain cap.** The cascade makes the reverb a *coupled* loop: reverb
-loop gain × shifter ≤ 1 (window invariant) × tone ≤ 1 (a lowpass) × `g`. The
-worst case is therefore
+**The cascade loop is stable by construction.** Loop gain is
+`CASCADE_FB (0.5) × shifter (≤ 1) × tone (≤ 1)` < 1 — unconditionally, at
+every frequency and every fader position, because the reverb's own `krt`
+recirculation is **not** inside this loop. The first attempt coupled the
+cascade into the reverb input, making the loop gain ≈ 0.53 (the reverb's
+per-cycle transfer, measured from its RT60) × `G_MAX`; at `G_MAX = 2.0` that
+reached 1.06 — a marginally unstable loop that builds up and dumps at
+specific frequencies, which the user heard as a slow volume LFO. The
+reference keeps the same discipline: its transposer loop feedback is capped
+at 0.35, and loudness is post-loop. `shimmer_cascade_stays_bounded` sweeps
+the tone fader *including its undamped 500 Hz corner* — the undamped corner
+recirculates hardest, so checking only the bright end would test the easy
+half.
 
-```
-REVERB_TIME (0.55) × 1 × 1 × g  <  1
-```
+**The NaN self-heal.** The fixed loop gain keeps the cascade bounded *by
+construction*; the runtime check is defence in depth, so that a future edit
+to `CASCADE_FB`, the crossfade or the tone filter cannot silently ship a
+diverged cascade. What is checked is the **shifter's output before it becomes
+the loop state** — a diverged cascade would reach the output soft clip as
+`inf/inf = NaN`, and a single NaN in the shifter's ring poisons it
+**permanently** — NaN arithmetic has no decay. So a non-finite output flushes
+the shifter and the loop state; the reverb is untouched (it is no longer
+part of the loop) and the tail refills the cascade from silence. This is per
+frame, not per callback, and costs two `is_finite` checks. Guarded by
+`nan_loop_self_heals`.
 
-and `G_MAX = 1.0` satisfies it with margin. This is the same cliff discipline
-as `REVERB_TIME` in §4.1 — the constraint is `< 1` with room to spare, not
-"≤ 1" exactly. Never map the amount fader onto a raw loop gain above 1.
-Guarded by `shimmer_cascade_stays_bounded`, which sweeps the tone fader
-*including its undamped 500 Hz corner* — the undamped corner recirculates
-hardest, so checking only the bright end would test the easy half.
+**Where the cascade is pinned.** Two tests, because neither alone covers it:
 
-**The NaN self-heal.** The cap above is what keeps the loop bounded *by
-construction*; the runtime check is defence in depth, so that a future edit to
-`G_MAX`, the window gains or `REVERB_TIME` cannot silently ship a diverged
-reverb. What is checked is the **shifter's output, before the depth gain is
-applied** — a diverged loop reaches `mix_reverb_frame`'s soft clip as
-`inf/inf = NaN`, and a single NaN entering an FDN poisons every delay line
-**permanently** — it never decays, because NaN arithmetic has no decay. So a
-non-finite shifter output flushes the reverb, the shifter and the return
-itself; the dry input refills the loop from silence. This is per frame, not per
-callback, and costs two `is_finite` checks. Guarded by `nan_loop_self_heals`.
-
-**Where the injection point is pinned.** Two tests, because neither alone
-covers it:
-
-- `shimmer_disabled_matches_plain_engine` — at depth 0 the `Reverb` path must be
-  bit-identical to `CloudsReverb` + envelope + mix stage composed by hand, at
-  `mix = 1.0` (at the default 0 the wet path is multiplied by zero and the
-  assert would pass vacuously). This pins the wrapper to the engine. It
-  **cannot** pin *where* the return is injected: at depth 0 the return is
-  identically zero, so moving it to the output, or dropping it, leaves every
-  sample identical.
-- `shimmer_cascade_feeds_back_into_the_reverb_input` — drives the cascade for
-  real, two engines differing only in `depth_g`, and requires both their
-  outputs *and* their `env_wet` envelopes to separate. `env_wet` follows the
-  reverb's own output before the mix stage, so it can only move if the return
-  reached the reverb's **input**. Adding the return to the output instead fails
-  this while still passing the output-separation check.
+- `shimmer_disabled_matches_plain_engine` — at cascade level 0 the `Reverb`
+  path must be bit-identical to `CloudsReverb` + envelope + mix stage
+  composed by hand, at `mix = 1.0` (at the default 0 the wet path is
+  multiplied by zero and the assert would pass vacuously). This pins the
+  wrapper to the engine. It **cannot** see the cascade: at level 0 its output
+  sum is identically zero, however it is wired.
+- `shimmer_cascade_sums_into_the_wet` — drives the cascade for real, two
+  engines differing only in `casc_level`, and requires their outputs to
+  separate once the rings fill. A cascade that is wired but never summed —
+  or summed after the mix stage, where `mix = 0` would mute it twice — fails
+  this.
 
 ### 4.4 The envelope normalizer rides the cascade
 
@@ -432,15 +440,15 @@ between tonal and broadband material, so no fixed wet gain stays balanced
 (AGENTS.md §3.1.8). `TARGET = 1.8` sits above unity because the soft clip
 `w/√(1+w²)` costs ~3 dB at `w = 1`.
 
-The cascade needed no special-casing here: because the loop gain is capped
-below unity, the coupled reverb+shimmer loop settles at a **finite
-equilibrium**, so the level follower simply follows the shimmered tail the way
-it follows the plain one. Measured with the cascade engaged, broadband lands
-at +0.15 dB (half mix) and +1.30 dB (full mix) against dry; the worst case is
-a pure tone at half mix, −1.76 dB, which is phase cancellation against its own
-coherent tail — the same reason `TARGET` must never be calibrated on a sine.
-`TARGET` therefore needed no adjustment. If the loop-gain cap is ever raised,
-this equilibrium assumption is the first thing that breaks.
+The cascade needed no special-casing here: its loop is stable by construction
+(`CASCADE_FB < 1`), so its level is free to move. Measured with the cascade
+engaged, broadband lands at +0.19 dB (half mix) and +1.51 dB (full mix)
+against dry; the worst case is a pure tone at half mix, −1.44 dB, which is
+phase cancellation against its own coherent tail — the same reason `TARGET`
+must never be calibrated on a sine. At full mix the tone reads +2.59 dB: the
+cascade sums on top of the tail there, which is the intended bloom. If
+`CASCADE_FB` is ever raised, `0.5 × shifter` is the first product to
+re-derive.
 
 The envelope's attack and release coefficients are stored in the `Reverb` struct
 and computed from the actual device sample rate at construction:

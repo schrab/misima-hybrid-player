@@ -140,10 +140,10 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
    - A seek or track change flushes the filter alongside the stretcher and the reverb on the `seek_gen` path, or a closed filter rings across the gap.
 11. **Never Force a Binned Coefficient's Sign** (`phase_vocoder.rs`):
    - The resynthesised DC bin may only have its imaginary rounding cleared. Writing `spec[0].re = spec[0].norm()` takes the magnitude, so a negative analysis DC (ordinary in music) flips by π and injects a constant `2·|X0|` into the whole frame. Steady state buries it; the first frame after a `reset()` divides by a partial sum of squared windows instead of 1.5, multiplying that constant by `1/(N·w[i])` where a Hann window approaches zero — a full-scale burst on every vocoder reset, which the reverb tail then rings for seconds. Sines never showed it (their windowed DC is ~0), so the regression tests must use broadband material.
-12. **Complementary Shifter Windows** (`shimmer.rs`):
-   - The two read heads' gains must sum to 1 at every position (`head_gain(p) + head_gain(p + len/2) == 1`). Unity-gain heads with a short fade region sum to 2 and snap back periodically — a ~12 Hz thump. The window-sum test guards this.
-13. **Shimmer Loop-Gain Cap & NaN Self-Heal** (`reverb_mix.rs`):
-   - Worst-case recirculation is `REVERB_TIME × shifter × tone × g` and must stay < 1 with margin (`G_MAX = 1.0` vs 0.55). A diverged shimmer loop hits the soft clip as `inf/inf = NaN`, which poisons every delay line permanently — the per-frame finite check flushes reverb + shifter and restarts from dry. Never map the amount fader onto raw loop gain > 1.
+12. **Faust Transpose Crossfade** (`shimmer.rs`):
+   - The shifter is a faithful port of the Faust `transpose` (the working Valhalla-style shimmer patches use it): a sawtooth delay ramp `d` (increment `1 − ratio`, wrapped at the window `w`), two fractional taps at `d` and `d + w`, linear crossfade `min(d/xfade, 1)` with `xfade = w/2`. The wrap handoff lands on equal delays — click-free by construction; a constant-filled ring must pass through with zero distortion at every ramp position (the constant-ring test).
+13. **Cascade Loop Is Its Own Loop & NaN Self-Heal** (`reverb_mix.rs`):
+   - The shifter runs in its OWN feedback loop — tap + `CASCADE_FB` (0.5) × previous cascade → shifter — never inside the reverb's `krt` recirculation. Its output sums directly into the wet, so shimmer loudness is pure output level and can never push a loop past unity. Coupling loudness into loop gain (the first attempt's `G_MAX`) put the cascade loop at 1.06 > 1 at 2.0 — periodic build-and-dump the user heard as a "volume LFO". A diverged cascade hits the soft clip as `inf/inf = NaN` — the per-frame finite check flushes shifter + loop state (the reverb is untouched; it is no longer in the loop).
 
 ### 3.2 Frontend & UI Compositor Rules
 
