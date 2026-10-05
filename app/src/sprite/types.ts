@@ -16,6 +16,13 @@ export type FaderDef = {
   curve?: "log";
   /** Multiplier on the wheel's per-tick fraction; default 1. */
   wheelStep?: number;
+  /**
+   * Quantize the fader to these stops, evenly spaced in travel. A stopped
+   * fader ignores `curve` and steps exactly one stop per wheel tick — that is
+   * the shimmer's shift interval, which only sounds right on musical
+   * intervals (octave, fifth, fourth).
+   */
+  stops?: number[];
   unit?: string;
 };
 
@@ -171,4 +178,8 @@ export type AudioParams = {
   reverb: number;
   eq: number[];
   speed: number;
+  /** Shimmer shift interval in semitones (stepped fader stops). */
+  shift: number;
+  /** Shimmer loop damping, 0..1. */
+  tone: number;
 };

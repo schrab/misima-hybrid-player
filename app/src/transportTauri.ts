@@ -50,6 +50,8 @@ export class TauriTransport implements Transport {
       reverb: params.reverb,
       eq: params.eq,
       speed: params.speed,
+      shift: params.shift,
+      tone: params.tone,
     });
   }
   openFiles(paths: string[]): Promise<void> {

@@ -93,13 +93,11 @@ impl Reverb {
     }
 
     /// Shift interval in semitones (fader stop values).
-    #[allow(dead_code)] // Task 4 wires these to the UI — delete this attribute then.
     pub fn set_shift(&mut self, semitones: f32) {
         self.shimmer.set_shift(semitones);
     }
 
     /// Loop damping, 0..1.
-    #[allow(dead_code)] // Task 4 wires these to the UI — delete this attribute then.
     pub fn set_tone(&mut self, t: f32) {
         self.shimmer.set_tone(t);
     }

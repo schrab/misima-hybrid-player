@@ -195,6 +195,8 @@ pub fn set_params(
     reverb: f64,
     eq: Vec<f64>,
     speed: f64,
+    shift: f64,
+    tone: f64,
 ) -> Result<(), String> {
     if eq.len() != 8 {
         return Err("expected 8 EQ gains".into());
@@ -209,6 +211,8 @@ pub fn set_params(
         reverb as f32,
         arr,
         speed as f32,
+        shift as f32,
+        tone as f32,
     );
     Ok(())
 }
@@ -307,15 +311,20 @@ pub fn load_skin(path: String) -> Result<serde_json::Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::audio::player::TEST_LOCK;
 
     /// The EQ length guard is the desktop half of the 8-band wire contract,
     /// and its failure mode is silent: `main.ts` swallows the rejection, so an
     /// over-long payload would drop *every* param update, not just the EQ.
     #[test]
     fn set_params_rejects_wrong_eq_length() {
-        assert!(set_params(20_000.0, 0.0, 0.0, vec![0.0; 9], 1.0)
+        // `set_params` writes the process-wide `player::shared()` singleton,
+        // which `player::eq_gains_persist_across_set` asserts on; both tests
+        // run on the same thread pool in one process.
+        let _guard = TEST_LOCK.lock().unwrap();
+        assert!(set_params(20_000.0, 0.0, 0.0, vec![0.0; 9], 1.0, 12.0, 0.65)
             .unwrap_err()
             .contains("expected 8 EQ gains"));
-        assert!(set_params(20_000.0, 0.0, 0.0, vec![0.0; 8], 1.0).is_ok());
+        assert!(set_params(20_000.0, 0.0, 0.0, vec![0.0; 8], 1.0, 12.0, 0.65).is_ok());
     }
 }

@@ -19,6 +19,10 @@ export type AudioParamsInput = {
   reverb: number;
   /** Eight peaking bands in dB (310 Hz..16 kHz). */
   eq: number[];
+  /** Shimmer shift interval in semitones (stepped fader stops). */
+  shift: number;
+  /** Shimmer loop damping, 0..1. */
+  tone: number;
 };
 
 export type UiScaleInfo = { scale: number; w: number; h: number; max_scale: number };

@@ -39,6 +39,10 @@ pub struct Params {
     pub reverb: f32,
     /// Eight peaking bands in dB.
     pub eq: [f32; 8],
+    /// Shimmer shift interval in semitones (UI sends stop values).
+    pub shift: f32,
+    /// Shimmer loop damping, 0..1.
+    pub tone: f32,
 }
 
 impl Default for Params {
@@ -49,6 +53,9 @@ impl Default for Params {
             pitch_semitones: 0.0,
             reverb: 0.0,
             eq: [0.0; 8],
+            // The shimmer's musical rest position: an octave up, medium damping.
+            shift: 12.0,
+            tone: 0.65,
         }
     }
 }
@@ -164,6 +171,11 @@ impl DspProcessor {
         self.playing = false;
         self.eq = EqState::new(self.sample_rate, &self.params.eq);
         self.reverb = Reverb::new(self.sample_rate);
+        // `Reverb::new` starts the cascade at its own defaults, so re-apply the
+        // live shift/tone — otherwise every track load silently resets the
+        // shimmer faders.
+        self.reverb.set_shift(self.params.shift.clamp(-12.0, 24.0));
+        self.reverb.set_tone(self.params.tone.clamp(0.0, 1.0));
         self.seek_gen += 1;
     }
 
@@ -186,6 +198,8 @@ impl DspProcessor {
         }
         // No-ops when the cutoff (or the rate, fixed per context) is unchanged.
         self.lpf.set_cutoff(self.sample_rate, self.params.cutoff);
+        self.reverb.set_shift(self.params.shift.clamp(-12.0, 24.0));
+        self.reverb.set_tone(self.params.tone.clamp(0.0, 1.0));
     }
 
     pub fn params(&self) -> Params {

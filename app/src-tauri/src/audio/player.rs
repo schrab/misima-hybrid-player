@@ -57,6 +57,10 @@ pub struct SharedPlay {
     pub speed: Mutex<f32>,
     pub reverb: Mutex<Reverb>,
     pub reverb_mix: Mutex<f32>,
+    /// Shimmer shift interval in semitones (the fader's stop values).
+    pub shift: Mutex<f32>,
+    /// Shimmer loop damping, 0..1.
+    pub tone: Mutex<f32>,
     /// Fractional source frame index (device-rate buffer).
     pub play_pos: Mutex<f64>,
     /// Bumped on stop so late decode must not autoplay.
@@ -88,6 +92,9 @@ impl Default for SharedPlay {
             speed: Mutex::new(1.0),
             reverb: Mutex::new(Reverb::default()),
             reverb_mix: Mutex::new(0.15),
+            // The shimmer's musical rest position: an octave up, medium damping.
+            shift: Mutex::new(12.0),
+            tone: Mutex::new(0.65),
             play_pos: Mutex::new(0.0),
             load_gen: std::sync::atomic::AtomicUsize::new(0),
             seek_gen: std::sync::atomic::AtomicUsize::new(0),
@@ -103,6 +110,18 @@ fn shared_cell() -> &'static Arc<SharedPlay> {
 pub fn shared() -> Arc<SharedPlay> {
     shared_cell().clone()
 }
+
+/// Serialises the tests that mutate the process-wide `shared()` singleton.
+///
+/// `cargo test` runs every test in one process on one thread pool, and these
+/// tests share module-level state that no amount of per-test cleanup can
+/// isolate — a params write in one test lands in another's assertion. The lock
+/// is deliberately `std::sync` (not the parking_lot one above): poisoning is
+/// ignored rather than handled, because a panicked test has already failed.
+///
+/// Lock it at the top of any test that touches `shared()`'s params.
+#[cfg(test)]
+pub static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Linear resample interleaved PCM from `from_rate` to `to_rate`.
 pub fn resample_interleaved(
@@ -297,7 +316,15 @@ pub fn set_eq(gains: [f32; 8]) {
     shared.eq.lock().set_gains(sr, &gains);
 }
 
-pub fn set_params(cutoff: f32, pitch_st: f32, reverb: f32, eq: [f32; 8], speed: f32) {
+pub fn set_params(
+    cutoff: f32,
+    pitch_st: f32,
+    reverb: f32,
+    eq: [f32; 8],
+    speed: f32,
+    shift: f32,
+    tone: f32,
+) {
     // The volume fader is now the master lowpass: unity gain, and the only
     // tone control left in the chain. `OPEN_CUTOFF` = fully open, the old
     // fader-top behaviour.
@@ -315,6 +342,11 @@ pub fn set_params(cutoff: f32, pitch_st: f32, reverb: f32, eq: [f32; 8], speed: 
     // their own clamps stay untouched.
     *shared().speed.lock() = speed.clamp(0.05, 2.0);
     *shared().reverb_mix.lock() = reverb.clamp(0.0, 1.0);
+    // Shimmer cascade: the shift interval is clamped to the fader's own travel
+    // (-12..+24 semitones, so -12 is the octave-down stop and +24 the extreme
+    // two-octave ring), the loop damping to a plain 0..1.
+    *shared().shift.lock() = shift.clamp(-12.0, 24.0);
+    *shared().tone.lock() = tone.clamp(0.0, 1.0);
     set_eq(eq);
 }
 
@@ -669,9 +701,18 @@ where
             // rebuilds the coefficients with the rate the stream actually runs.
             lpf.set_cutoff(device_sr, *shared.cutoff.lock());
             let mix = (*shared.reverb_mix.lock()).clamp(0.0, 1.0);
+            // Read once per buffer alongside the mix, applied only when the
+            // reverb guard is actually taken (hoisted locks, AGENTS.md 3.1).
+            let shift = *shared.shift.lock();
+            let tone = *shared.tone.lock();
             let mut reverb_guard = if mix > 0.001 {
                 let mut guard = shared.reverb.lock();
                 guard.set_mix(mix);
+                // The shimmer's two faders ride the same guard as the mix —
+                // one lock per buffer, applied in place (no allocation, no
+                // per-sample locking).
+                guard.set_shift(shift);
+                guard.set_tone(tone);
                 Some(guard)
             } else {
                 None
@@ -1022,6 +1063,7 @@ mod tests {
 
     #[test]
     fn eq_gains_persist_across_set() {
+        let _guard = TEST_LOCK.lock().unwrap();
         set_eq([6.0; 8]);
         assert_eq!(*shared().eq_gains.lock(), [6.0; 8]);
         set_eq([0.0; 8]);
@@ -1101,7 +1143,7 @@ mod tests {
         // NOTE: only a short burst — engaging DSP must continue from the live
         // cursor, so after 0.3 s the position must be *ahead* of bypass_pos.
         // (A stale WSOLA cursor restarts the track: pos would fall to ~15k.)
-        set_params(0.8, 3.0, 0.35, [4.0; 8], 1.25);
+        set_params(0.8, 3.0, 0.35, [4.0; 8], 1.25, 12.0, 0.65);
         std::thread::sleep(std::time::Duration::from_millis(300));
         let wsola_pos = *shared.play_pos.lock();
         assert!(
@@ -1113,7 +1155,7 @@ mod tests {
         println!("wsola: pos={wsola_pos:.1} frames  spectrum peak={wsola_peak:.4}");
 
         // Teardown must be panic-free and must not block.
-        set_params(1.0, 0.0, 0.0, [0.0; 8], 1.0);
+        set_params(1.0, 0.0, 0.0, [0.0; 8], 1.0, 12.0, 0.65);
         stop();
         shutdown();
         assert!(

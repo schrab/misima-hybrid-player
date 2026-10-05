@@ -43,7 +43,19 @@ impl DspProcessor {
         self.core.duration_secs()
     }
 
-    pub fn set_params(&mut self, cutoff: f32, speed: f32, pitch: f32, reverb: f32, eq: Vec<f32>) {
+    /// `set_params` mirrors the desktop's flat parameter list one-for-one; the
+    /// allow matches the same decision there (`player::set_params`).
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_params(
+        &mut self,
+        cutoff: f32,
+        speed: f32,
+        pitch: f32,
+        reverb: f32,
+        eq: Vec<f32>,
+        shift: f32,
+        tone: f32,
+    ) {
         let mut bands = [0.0f32; 8];
         for (i, slot) in bands.iter_mut().enumerate() {
             // A short `eq` must not panic on the audio thread.
@@ -55,6 +67,8 @@ impl DspProcessor {
             pitch_semitones: pitch,
             reverb,
             eq: bands,
+            shift,
+            tone,
         });
     }
 

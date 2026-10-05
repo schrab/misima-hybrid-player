@@ -359,6 +359,9 @@ const params: AudioParamsInput = {
   reverb: 0,
   eq: new Array(8).fill(0),
   speed: 1,
+  // The shimmer's rest position, matching the skin's shift/tone faders.
+  shift: 12,
+  tone: 0.65,
 };
 
 let playlist: PlaylistRow[] = [];
@@ -394,14 +397,16 @@ function setParam(key: string, value: number) {
   else if (key === "pitch") params.pitch = value;
   else if (key === "reverb") params.reverb = value;
   else if (key === "speed") params.speed = value;
+  else if (key === "shift") params.shift = value;
+  else if (key === "tone") params.tone = value;
   pushParams();
 }
 
 function pushParams() {
   // The sender owns the 8-band wire contract: a stale skin fader (`eq8` /
-  // `eq9` / `eq10`, until Task 4 remaps them) writes past index 7 and would
-  // make the whole payload the wrong length — the desktop guard then rejects
-  // *every* param update, not just that fader, and the error is swallowed here.
+  // `eq9` / `eq10`) writes past index 7 and would make the whole payload the
+  // wrong length — the desktop guard then rejects *every* param update, not
+  // just that fader, and the error is swallowed here.
   const eq = fxOn ? params.eq.slice(0, 8) : new Array(8).fill(0);
   const reverb = fxOn ? params.reverb : 0;
   void transport
@@ -411,6 +416,10 @@ function pushParams() {
       reverb,
       eq,
       speed: params.speed,
+      // The shimmer lives inside the reverb, so `reverb = 0` above already
+      // silences it — there is nothing to gate these two on.
+      shift: params.shift,
+      tone: params.tone,
     })
     .catch(() => {});
 }
@@ -421,6 +430,8 @@ function valueOf(param: string): number {
   if (param === "pitch") return params.pitch;
   if (param === "reverb") return params.reverb;
   if (param === "speed") return params.speed;
+  if (param === "shift") return params.shift;
+  if (param === "tone") return params.tone;
   return 0;
 }
 
@@ -508,6 +519,7 @@ async function action(name: string) {
         params.reverb = 0;
         params.cutoff = OPEN_CUTOFF_HZ;
         params.pitch = 0; params.speed = 1;
+        params.shift = 12; params.tone = 0.65;
         status = "FX reset";
       }
       pushParams();
@@ -538,7 +550,7 @@ function drawFader(f: FaderDef) {
   // pink slab over the dark page for half a second and then vanished. An absent
   // fader reads as "not ready yet"; a magenta one reads as a glitch.
   if (!knob) return;
-  const y = faderValueToY(f.origin, f.travel, f.range, valueOf(f.param), f.curve);
+  const y = faderValueToY(f.origin, f.travel, f.range, valueOf(f.param), f.curve, f.stops);
   // Natural pixel size — never scale knobs
   ctx.drawImage(knob, Math.round(f.origin.x), Math.round(y));
 }
@@ -754,7 +766,7 @@ canvas.addEventListener("pointerdown", (ev) => {
   if (fader) {
     dragFader = fader.id;
     canvas.setPointerCapture(ev.pointerId);
-    setParam(fader.param, faderYToValue(fader.origin, fader.travel, fader.range, p.y, fader.curve));
+    setParam(fader.param, faderYToValue(fader.origin, fader.travel, fader.range, p.y, fader.curve, fader.stops));
     return;
   }
   // playlist rows: do not startDragging (click must play the track)
@@ -776,7 +788,7 @@ canvas.addEventListener("pointermove", (ev) => {
   const p = canvasPoint(ev);
   if (dragFader) {
     const fader = skin.faders.find((f) => f.id === dragFader);
-    if (fader) setParam(fader.param, faderYToValue(fader.origin, fader.travel, fader.range, p.y, fader.curve));
+    if (fader) setParam(fader.param, faderYToValue(fader.origin, fader.travel, fader.range, p.y, fader.curve, fader.stops));
     return;
   }
   const over = findFaderAt(p.x, p.y);
@@ -811,7 +823,7 @@ canvas.addEventListener(
     const fader = findFaderAt(p.x, p.y);
     if (!fader) return;
     const frac = (ev.shiftKey ? 0.01 : 0.04) * (fader.wheelStep ?? 1);
-    const next = faderStepValue(fader.range, valueOf(fader.param), frac, ev.deltaY < 0, fader.curve);
+    const next = faderStepValue(fader.range, valueOf(fader.param), frac, ev.deltaY < 0, fader.curve, fader.stops);
     setParam(fader.param, next);
   },
   { passive: false },

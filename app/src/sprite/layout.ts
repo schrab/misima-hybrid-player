@@ -9,9 +9,39 @@ export function faderValueToY(
   range: [number, number],
   value: number,
   curve?: "log",
+  stops?: number[],
 ): number {
-  const n = valueToNorm(range, value, curve);
+  const idx = nearestStop(stops, value);
+  let n = valueToNorm(range, value, curve);
+  if (idx >= 0 && stops) n = idx / (stops.length - 1);
   return origin.y + (1 - n) * travel;
+}
+
+/**
+ * Index of the stop nearest `value`, or -1 when the fader is unstopped.
+ *
+ * Stops are spaced evenly by index, not by value: the shimmer's shift fader
+ * runs -12, 7, 12, 19, 24 semitones, and a value-proportional map would cramp
+ * the octave-down stop into the bottom 4% of the slot.
+ */
+function nearestStop(stops: number[] | undefined, value: number): number {
+  if (!stops || stops.length < 2) return -1;
+  let best = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < stops.length; i++) {
+    const d = Math.abs(stops[i] - value);
+    if (d < bestDist) {
+      bestDist = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/** The stop at a travel slot, or null when the fader is unstopped. */
+function normToStop(stops: number[] | undefined, n: number): number | null {
+  if (!stops || stops.length < 2) return null;
+  return stops[Math.min(stops.length - 1, Math.max(0, Math.round(n * (stops.length - 1))))];
 }
 
 /**
@@ -47,10 +77,13 @@ export function faderYToValue(
   range: [number, number],
   y: number,
   curve?: "log",
+  stops?: number[],
 ): number {
   let n = 1 - (y - origin.y) / travel;
   n = Math.min(1, Math.max(0, n));
-  return normToValue(range, n, curve);
+  // A stopped fader never returns a between-stops value: the DSP gets exactly
+  // the interval the knob is sitting on.
+  return normToStop(stops, n) ?? normToValue(range, n, curve);
 }
 
 /**
@@ -65,7 +98,15 @@ export function faderStepValue(
   fraction: number,
   up: boolean,
   curve?: "log",
+  stops?: number[],
 ): number {
+  // A stopped fader moves exactly one stop per tick — a shifter landing
+  // between intervals is not a musical interval, it is a tuning error.
+  const idx = nearestStop(stops, value);
+  if (idx >= 0 && stops) {
+    const next = Math.min(stops.length - 1, Math.max(0, idx + (up ? 1 : -1)));
+    return stops[next];
+  }
   const [lo, hi] = range;
   if (isLog(curve, lo, hi)) {
     const next = value * Math.pow(hi / lo, up ? fraction : -fraction);

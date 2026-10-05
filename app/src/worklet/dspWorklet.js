@@ -89,6 +89,8 @@ class DspProcessorNode extends AudioWorkletProcessor {
           msg.pitch,
           msg.reverb,
           msg.eq,
+          msg.shift,
+          msg.tone,
         );
         break;
       case "play":

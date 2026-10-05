@@ -56,6 +56,8 @@ export class WebPlayer {
     pitch: 0,
     reverb: 0,
     eq: new Array(8).fill(0),
+    shift: 12,
+    tone: 0.65,
   };
 
   private onTap: TapHandler | null = null;
@@ -495,6 +497,8 @@ export class WebPlayer {
       pitch: this.params.pitch,
       reverb: this.params.reverb,
       eq: Float32Array.from(this.params.eq),
+      shift: this.params.shift,
+      tone: this.params.tone,
     });
   }
 

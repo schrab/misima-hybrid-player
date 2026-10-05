@@ -73,6 +73,8 @@ async function main() {
     pitch: 0,
     reverb: 0.2,
     eq: [0, 0, 0, 0, 6, 0, 0, 0, 0, 0],
+    shift: 12,
+    tone: 0.65,
   });
   check("setParams before engine start is safe", true);
 

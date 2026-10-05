@@ -197,8 +197,8 @@
       "value": 0
     },
     {
-      "id": "eq1",
-      "param": "eq0",
+      "id": "shift",
+      "param": "shift",
       "orientation": "vertical",
       "origin": {
         "x": 664,
@@ -213,13 +213,20 @@
       "knobHotspot": "top-left",
       "range": [
         -12,
-        12
+        24
       ],
-      "value": 0
+      "value": 12,
+      "stops": [
+        -12,
+        7,
+        12,
+        19,
+        24
+      ]
     },
     {
-      "id": "eq2",
-      "param": "eq1",
+      "id": "tone",
+      "param": "tone",
       "orientation": "vertical",
       "origin": {
         "x": 714,
@@ -233,14 +240,14 @@
       },
       "knobHotspot": "top-left",
       "range": [
-        -12,
-        12
+        0,
+        1
       ],
-      "value": 0
+      "value": 0.65
     },
     {
       "id": "eq3",
-      "param": "eq2",
+      "param": "eq0",
       "orientation": "vertical",
       "origin": {
         "x": 764,
@@ -261,7 +268,7 @@
     },
     {
       "id": "eq4",
-      "param": "eq3",
+      "param": "eq1",
       "orientation": "vertical",
       "origin": {
         "x": 814,
@@ -282,7 +289,7 @@
     },
     {
       "id": "eq5",
-      "param": "eq4",
+      "param": "eq2",
       "orientation": "vertical",
       "origin": {
         "x": 854,
@@ -303,7 +310,7 @@
     },
     {
       "id": "eq6",
-      "param": "eq5",
+      "param": "eq3",
       "orientation": "vertical",
       "origin": {
         "x": 900,
@@ -324,7 +331,7 @@
     },
     {
       "id": "eq7",
-      "param": "eq6",
+      "param": "eq4",
       "orientation": "vertical",
       "origin": {
         "x": 960,
@@ -345,7 +352,7 @@
     },
     {
       "id": "eq8",
-      "param": "eq7",
+      "param": "eq5",
       "orientation": "vertical",
       "origin": {
         "x": 1000,
@@ -366,7 +373,7 @@
     },
     {
       "id": "eq9",
-      "param": "eq8",
+      "param": "eq6",
       "orientation": "vertical",
       "origin": {
         "x": 1044,
@@ -387,7 +394,7 @@
     },
     {
       "id": "eq10",
-      "param": "eq9",
+      "param": "eq7",
       "orientation": "vertical",
       "origin": {
         "x": 1104,
