@@ -37,9 +37,11 @@ Misima Hybrid Player is a high-performance, skinnable, multiplatform (Windows, m
 │         stretch <= 1 → stereo phase vocoder (pitch-up; smooth)          │
 │         stretch  > 1 → WSOLA time-stretch (expansion; WSOLA's good side)│
 │         then Cubic Hermite resample by the pitch ratio                  │
-│      3) 10-Band Peaking EQ (RBJ biquad filters, seamless updates)      │
+│      3) 8-Band Peaking EQ (RBJ biquad filters, seamless updates)        │
 │      4) Post-EQ visualizer taps (spectrum + waveform)                  │
-│      5) Stereo FDN Reverb (Dattorro/Griesinger, Clouds port)            │
+│      5) Stereo FDN Reverb (Dattorro/Griesinger, Clouds port) wrapped   │
+│         in a shimmer cascade: cross-tap → dual delay-line pitch shifter│
+│         → tone lowpass → DC block → g(mix) → back into the reverb input│
 │      6) Master 4-pole lowpass (cutoff fader), then output soft-clip    │
 │  - Real-time Visualizer Taps (post-EQ):                                │
 │      * rustfft 1024-point FFT analyzer → 48 log-spaced energy bins     │
@@ -59,7 +61,7 @@ the *same* DSP modules:
 │        │  decodeAudioData — browser-native; resamples to the context    │
 │        ▼                                                               │
 │  AudioWorkletNode "dsp-processor"                                      │
-│        │  ← app/wasm-dsp, the ten platform-free modules compiled to  │
+│        │  ← app/wasm-dsp, the eleven platform-free modules compiled to │
 │        │    WASM (+simd128). Same bypass / stretcher / EQ / taps /     │
 │        │    reverb / clip chain, same order, same tap points.          │
 │        ▼                                                               │
@@ -138,6 +140,10 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
    - A seek or track change flushes the filter alongside the stretcher and the reverb on the `seek_gen` path, or a closed filter rings across the gap.
 11. **Never Force a Binned Coefficient's Sign** (`phase_vocoder.rs`):
    - The resynthesised DC bin may only have its imaginary rounding cleared. Writing `spec[0].re = spec[0].norm()` takes the magnitude, so a negative analysis DC (ordinary in music) flips by π and injects a constant `2·|X0|` into the whole frame. Steady state buries it; the first frame after a `reset()` divides by a partial sum of squared windows instead of 1.5, multiplying that constant by `1/(N·w[i])` where a Hann window approaches zero — a full-scale burst on every vocoder reset, which the reverb tail then rings for seconds. Sines never showed it (their windowed DC is ~0), so the regression tests must use broadband material.
+12. **Complementary Shifter Windows** (`shimmer.rs`):
+   - The two read heads' gains must sum to 1 at every position (`head_gain(p) + head_gain(p + len/2) == 1`). Unity-gain heads with a short fade region sum to 2 and snap back periodically — a ~12 Hz thump. The window-sum test guards this.
+13. **Shimmer Loop-Gain Cap & NaN Self-Heal** (`reverb_mix.rs`):
+   - Worst-case recirculation is `REVERB_TIME × shifter × tone × g` and must stay < 1 with margin (`G_MAX = 1.0` vs 0.55). A diverged shimmer loop hits the soft clip as `inf/inf = NaN`, which poisons every delay line permanently — the per-frame finite check flushes reverb + shifter and restarts from dry. Never map the amount fader onto raw loop gain > 1.
 
 ### 3.2 Frontend & UI Compositor Rules
 
@@ -212,7 +218,7 @@ The player is designed for cross-platform deployment. Agents must verify platfor
 Before committing or completing any task, agents must run and pass the following checks:
 
 ```bash
-# 1. Rust Audio Core & DSP Unit Tests (Must pass 65/65, 1 ignored smoke test)
+# 1. Rust Audio Core & DSP Unit Tests (Must pass 80/80, 1 ignored smoke test)
 cd app/src-tauri
 export PATH="$HOME/.cargo/bin:$PATH"
 cargo test -- --nocapture
@@ -221,7 +227,8 @@ cargo test -- --nocapture
 cargo check
 
 # 3. Web DSP Crate — same shared modules, wasm32 target
-#    The unit tests of the ten shared DSP modules run here too, so a
+#    The unit tests of the eleven shared DSP modules run here too (73 passing),
+#    so a regression that only shows up in the WASM build is caught without a
 #    regression that only shows up in the WASM build is caught without a
 #    browser. This is mandatory for any change under `src/audio/`.
 cd ../wasm-dsp
@@ -296,7 +303,7 @@ misima-hybrid-player/
 │   ├── wasm-dsp/               # The DSP chain compiled to WASM for the browser
 │   │   ├── Cargo.toml          # wasm-bindgen, js-sys, rustfft — no cpal/tauri/symphonia
 │   │   └── src/
-│   │       ├── lib.rs          # #[path]-includes the ten shared audio modules
+│   │       ├── lib.rs          # #[path]-includes the eleven shared audio modules
 │   │       ├── processor.rs    # DspProcessor: the whole worklet-side engine
 │   │       └── bindings.rs     # wasm_bindgen surface (wasm32 only)
 │   └── src-tauri/              # Rust backend core (desktop)
@@ -311,11 +318,12 @@ misima-hybrid-player/
 │               ├── clouds_reverb.rs # Stereo FDN reverb (Clouds port, MIT © Emilie Gillet)
 │               ├── decoder.rs  # Symphonia multi-format audio decoder
 │               ├── dsp_utils.rs # Shared interpolation and buffer readers
-│               ├── eq.rs       # 10-band peaking biquad EQ & anti-aliasing lowpass
+│               ├── eq.rs       # 8-band peaking biquad EQ & anti-aliasing lowpass
 │               ├── lpf.rs      # 4-pole resonant master lowpass (cutoff fader)
 │               ├── phase_vocoder.rs # Stereo phase vocoder (pitch-up engine)
 │               ├── paulstretch.rs  # Paulstretch tempo-down engine (phase-discarding, shared)
-│               ├── reverb_mix.rs # Reverb dry/wet balance + envelope gain policy
+│               ├── reverb_mix.rs # Reverb dry/wet balance + envelope gain policy + shimmer cascade loop
+│               ├── shimmer.rs  # Dual delay-line pitch shifter for the shimmer cascade (shared)
 │               ├── spectrum.rs # FFT spectrum analyzer (rustfft)
 │               ├── stretcher.rs # Engine selector between vocoder and WSOLA
 │               ├── player.rs   # Playback state, cpal callback, SharedPlay (desktop-only)
@@ -324,17 +332,17 @@ misima-hybrid-player/
 
 ### Shared DSP modules
 
-Ten modules under `src-tauri/src/audio/` are `#[path]`-included by
+Eleven modules under `src-tauri/src/audio/` are `#[path]`-included by
 `wasm-dsp`, so the browser and desktop run **the same Rust**:
 
 `clouds_reverb`, `dsp_utils`, `eq`, `lpf`, `paulstretch`, `phase_vocoder`,
-`spectrum`, `wsola`, `reverb_mix`, `stretcher`.
+`shimmer`, `spectrum`, `wsola`, `reverb_mix`, `stretcher`.
 
 Their unit tests run in **both** crates. `player.rs` (cpal, tauri, parking_lot)
 and `decoder.rs` (Symphonia) stay desktop-only — the browser equivalents are
 the `AudioContext` and `decodeAudioData`.
 
-When editing one of the ten, the shared module's `use crate::audio::…` paths
+When editing one of the eleven, the shared module's `use crate::audio::…` paths
 must keep resolving in both crates. Declare new modules at the crate root of
 `wasm-dsp/src/lib.rs`, not inside an inline `mod audio { … }`: an inline
 module anchors a nested `#[path]` at `src/audio/`, and the resulting `..` count
@@ -346,7 +354,7 @@ Linux CI runner.
 `docs/DSP.md` is the deep-dive for anyone reviewing or modifying the audio
 engines: the full signal chain, all three time-stretch engines (Paulstretch,
 WSOLA and the phase vocoder) with their measured trade-offs, the reverb
-topology and loudness policy, and the test methodology (including the
-identity-bypass trick for separating overlap-add faults from phase-logic
-faults). Read it before touching anything under `src/audio/`.
+topology with its shimmer cascade and loudness policy, and the test methodology
+(including the identity-bypass trick for separating overlap-add faults from
+phase-logic faults). Read it before touching anything under `src/audio/`.
 

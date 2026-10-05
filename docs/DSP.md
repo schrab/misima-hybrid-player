@@ -6,7 +6,7 @@ invariants that keep the real-time thread safe, and how the test suite verifies
 behaviour. Read this before modifying any DSP code; the module headers repeat
 the critical parts, but this document explains the reasoning.
 
-**Ten of these modules are shared with the browser build.** `app/wasm-dsp/`
+**Eleven of these modules are shared with the browser build.** `app/wasm-dsp/`
 `#[path]`-includes them and compiles them to WebAssembly, so the WSOLA, the
 vocoder, the Paulstretch, the EQ, the spectrum analyzer and the reverb are the
 same Rust on both platforms. See §8, *Shared vs desktop-only*, for the list and
@@ -27,11 +27,12 @@ bit-perfect bypass ──or──► Stretcher (stretcher.rs)
         │                    then Cubic Hermite resample by pitch ratio
         │                    (cubic_hermite lives in dsp_utils.rs, shared by all three engines)
         ▼
-10-band peaking EQ (eq.rs, RBJ biquads, in-place coefficient updates)
+8-band peaking EQ (eq.rs, RBJ biquads, in-place coefficient updates)
         ├─► spectrum tap (48 log-spaced bins, rustfft)  ← post-EQ
         ├─► waveform tap (226-pt decimated, echo scope) ← post-EQ
         ▼
-stereo reverb (clouds_reverb.rs) + dry/wet balance + envelope gain (reverb_mix.rs::Reverb)
+shimmer reverb: dry → Griesinger core (clouds_reverb.rs) → wet
+        │  with the cascade loop around it (reverb_mix.rs + shimmer.rs), §4
         ▼
 master lowpass (lpf.rs, 24 dB/oct) — identity (bypass) at the fader's top
         ▼
@@ -63,6 +64,8 @@ stale state.
 | Speed (tempo) | 0.1 – 2.0 | `player::set_params` |
 | Pitch | ±12 st (±1 octave) | `player::set_params`, all engines |
 | Reverb mix | 0 – 1 | `player::set_params` |
+| Shimmer shift | −12 … +24 st (fader stops −12/7/12/19/24) | `shimmer.rs` |
+| Cascade tone | 0 – 1 (→ 500 Hz · 32^t) | `shimmer.rs` |
 | EQ | ±12 dB per band | `eq.rs` |
 
 Pitch is clamped to ±1 octave in the Rust layer to match the fader range in
@@ -76,6 +79,12 @@ range over `[0.1, 2]`, not a calibration bug.
 
 The pitch fader's range lives in `skin.json`, which is user-owned art config:
 **never regenerate `skin.json`**, only hand-edit it.
+
+The EQ is `eq.rs::EqState`: eight peaking RBJ biquads at
+`[310, 600, 1000, 3000, 6000, 12000, 14000, 16000] Hz`, ±12 dB each (Q 1.0,
+0.9 above 10 kHz). It was ten bands until the shimmer shipped — the two lowest
+became the shift and tone faders, since the cascade needed two controls of its
+own. The 10-band *visualizer* is unrelated and unchanged.
 
 ---
 
@@ -282,7 +291,15 @@ stretch and the phase-propagation reliability degrades once `ha` exceeds `n/4`.
 
 ---
 
-## 4. Reverb (`clouds_reverb.rs`, `reverb_mix.rs::Reverb`)
+## 4. Reverb (`clouds_reverb.rs`, `reverb_mix.rs::Reverb`, `shimmer.rs`)
+
+The reverb is a **shimmer reverb**: a Griesinger core with a pitch-shifted
+feedback cascade wrapped around it, Eno/Lanois-style. The cascade is not a
+second, optional layer — the shift fader is always running and the reverb fader
+is both the dry/wet balance and the cascade's depth, so there is no
+"plain reverb" mode to switch back to. Only the fader at zero is off.
+
+### 4.1 The Griesinger core (`clouds_reverb.rs`)
 
 Stereo feedback-delay network ported from Mutable Instruments Clouds (MIT,
 © 2014 Emilie Gillet — attribution is in the module header and must stay).
@@ -290,7 +307,9 @@ Dattorro/Griesinger topology: four allpass input diffusers, two cross-coupled
 feedback loops (2 diffusers + long delay each) with separate output taps, so
 the L/R tails decorrelate — the reason the old mono-summed Schroeder reverb
 was replaced. LFOs at 0.5 Hz and 0.3 Hz modulate the first diffuser and the
-long delays (shimmer/smear).
+long delays (shimmer/smear). **The internals of this file did not change** when
+the cascade was added; everything new lives in `reverb_mix.rs` and
+`shimmer.rs`.
 
 Deviations from the original, all deliberate:
 - `f32` delay storage instead of 12-bit packed `u16` (that was a Cortex-M4 RAM
@@ -307,13 +326,119 @@ Deviations from the original, all deliberate:
   `0.35 + 0.63·amount` (reaches 0.98, diverges). Guarded by
   `tail_decays_in_a_musical_time`.
 
-`reverb_mix.rs::Reverb` owns the policy the DSP must not: the dry/wet crossfade and
-the envelope-normalised wet gain. The raw tail level varies ~20 dB between
-tonal and broadband material, so no fixed wet gain stays balanced (AGENTS.md
-§3.1.8). `TARGET = 1.8` sits above unity because the soft clip `w/√(1+w²)`
-costs ~3 dB at `w = 1`; measured wet level lands at +0.1 dB (half mix) and
-+1.3 dB (full mix) against dry on broadband material. Never calibrate reverb
-gain on a sine — tones phase-cancel against their own tails.
+### 4.2 The cascade loop (`reverb_mix.rs`, `shimmer.rs`)
+
+```
+dry ──► (dry + loop_return) ──► CloudsReverb ──► raw wet tail ──┬─► envelope gain ──► mix ──► out
+           ▲                                                      │
+           │      0.7·own + 0.3·other  (cross-tap, per channel) ◄──┘
+           ▼
+      Shimmer::process — dual delay-line pitch shifter → tone lowpass → 30 Hz DC block
+           │
+           └──► × g = G_MAX · mix^1.5 ──► loop_return, consumed on the NEXT frame
+```
+
+The return is added at the reverb **input**, not at the output. That single
+wiring choice is what makes the tail feed itself through the shifter instead of
+just being printed with an extra copy on top, and it is pinned by a dedicated
+test (§4.3).
+
+Per frame, in `Reverb::process_with_gain`:
+
+1. **Cross-tap** the raw tail — 0.7 of the channel's own tail plus 0.3 of the
+   other, so the cascade is decorrelated rather than feeding each channel its
+   own comb back.
+2. **Shift** it (`shimmer.rs`): two read heads per channel, half a ring apart,
+   traversing the ring at `ratio = 2^(st/12)` times the write head's speed.
+   +12 st is an octave up, i.e. two write laps per read lap. Reads are cubic
+   Hermite (`cubic_hermite`, shared with §3). The ring scales with the device
+   rate the same way `clouds_reverb::layout` scales its lines, including the
+   `MIN_RING` floor so a low-rate device does not get an absurdly short
+   crossfade. A 0.2 Hz sine modulates the left head and a cosine the right,
+   which decorrelates the two channels' comb structure (Elysiera's trick —
+   algorithm only, its GPL code is not used).
+3. **Damp** it: the tone lowpass (`Biquad`, cutoff `500 Hz · 32^t` from the
+   fader, default 0.65 ≈ 4.8 kHz), then a ~30 Hz one-pole DC blocker. The
+   tone filter is what stops the cascade doubling high-frequency energy every
+   turn; the DC blocker is why the −12 stop cannot pump sub-bass into the loop.
+4. **Scale** by `g = G_MAX · mix^1.5` (`G_MAX = 1.0`) and store as
+   `loop_return` for the next frame. The exponent keeps the cascade out of the
+   way at low mix and lets it bloom towards the top.
+
+`set_shift` glides rather than jumps: the ratio slews with a ~5 ms time
+constant, so moving between the −12/+7/+12/+19/+24 stops is a portamento, not
+a click (`stop_change_is_continuous`).
+
+### 4.3 The two invariants this loop rests on
+
+**The window-sum invariant.** `head_gain(p) + head_gain(p + len/2) == 1` at
+every position, exactly, because the two heads carry complementary
+raised-cosine gains (`0.5 - 0.5·cos(2π·p/len)` and its complement). This is
+what keeps the crossfade free of the periodic **6 dB thump** a short fade
+region produces: unity-gain heads with a finite fade sum to 2 inside the
+crossfade and snap back to 1 outside it, so the level pumps every half-lap —
+which at these ring lengths lands as a slow ~12 Hz thump. The test
+`head_gains_are_complementary` guards it. The invariant is also why the shifter
+can be treated as a gain of ≤1 in the loop-gain arithmetic below.
+
+**The loop-gain cap.** The cascade makes the reverb a *coupled* loop: reverb
+loop gain × shifter ≤ 1 (window invariant) × tone ≤ 1 (a lowpass) × `g`. The
+worst case is therefore
+
+```
+REVERB_TIME (0.55) × 1 × 1 × g  <  1
+```
+
+and `G_MAX = 1.0` satisfies it with margin. This is the same cliff discipline
+as `REVERB_TIME` in §4.1 — the constraint is `< 1` with room to spare, not
+"≤ 1" exactly. Never map the amount fader onto a raw loop gain above 1.
+Guarded by `shimmer_cascade_stays_bounded`, which sweeps the tone fader
+*including its undamped 500 Hz corner* — the undamped corner recirculates
+hardest, so checking only the bright end would test the easy half.
+
+**The NaN self-heal.** Because the recirculation bound is not guaranteed by
+construction alone, the loop return is checked for finiteness every frame. A
+diverged loop reaches `mix_reverb_frame`'s soft clip as `inf/inf = NaN`, and a
+single NaN entering an FDN poisons every delay line **permanently** — it never
+decays, because NaN arithmetic has no decay. So a non-finite return flushes
+the reverb, the shifter and the return itself; the dry input refills the loop
+from silence. This is per frame, not per callback, and costs two `is_finite`
+checks. Guarded by `nan_loop_self_heals`.
+
+**Where the injection point is pinned.** Two tests, because neither alone
+covers it:
+
+- `shimmer_disabled_matches_plain_engine` — at depth 0 the `Reverb` path must be
+  bit-identical to `CloudsReverb` + envelope + mix stage composed by hand, at
+  `mix = 1.0` (at the default 0 the wet path is multiplied by zero and the
+  assert would pass vacuously). This pins the wrapper to the engine. It
+  **cannot** pin *where* the return is injected: at depth 0 the return is
+  identically zero, so moving it to the output, or dropping it, leaves every
+  sample identical.
+- `shimmer_cascade_feeds_back_into_the_reverb_input` — drives the cascade for
+  real, two engines differing only in `depth_g`, and requires both their
+  outputs *and* their `env_wet` envelopes to separate. `env_wet` follows the
+  reverb's own output before the mix stage, so it can only move if the return
+  reached the reverb's **input**. Adding the return to the output instead fails
+  this while still passing the output-separation check.
+
+### 4.4 The envelope normalizer rides the cascade
+
+The loudness policy is unchanged. `reverb_mix.rs::Reverb` owns the dry/wet
+crossfade and the envelope-normalised wet gain. The raw tail level varies ~20 dB
+between tonal and broadband material, so no fixed wet gain stays balanced
+(AGENTS.md §3.1.8). `TARGET = 1.8` sits above unity because the soft clip
+`w/√(1+w²)` costs ~3 dB at `w = 1`.
+
+The cascade needed no special-casing here: because the loop gain is capped
+below unity, the coupled reverb+shimmer loop settles at a **finite
+equilibrium**, so the level follower simply follows the shimmered tail the way
+it follows the plain one. Measured with the cascade engaged, broadband lands
+at +0.15 dB (half mix) and +1.30 dB (full mix) against dry; the worst case is
+a pure tone at half mix, −1.76 dB, which is phase cancellation against its own
+coherent tail — the same reason `TARGET` must never be calibrated on a sine.
+`TARGET` therefore needed no adjustment. If the loop-gain cap is ever raised,
+this equilibrium assumption is the first thing that breaks.
 
 The envelope's attack and release coefficients are stored in the `Reverb` struct
 and computed from the actual device sample rate at construction:
@@ -323,9 +448,11 @@ old constants were correct only at 44.1 kHz — at 96 kHz the release halved to
 buffer and passed to `process_with_gain()` — per-sample computation was
 redundant because the envelope moves slowly relative to individual samples.
 
-Seeks flush the reverb (`shared.reverb.lock().clear()` on `seek_gen` change) so
-the previous position's tail does not bleed across a jump.  `clear()` resets
-both `env_wet` and `env_dry` to zero.
+Seeks and track changes flush the reverb (`shared.reverb.lock().clear()` on
+`seek_gen` change) so the previous position's tail does not bleed across a
+jump. `clear()` resets both `env_wet` and `env_dry`, **and flushes the
+shimmer**: a shifter ring still carrying the old track would keep recirculating
+through the freshly cleared reverb.
 
 ---
 
@@ -358,7 +485,7 @@ else while the reverb's envelope follower still sees the full-band signal.
 
 ## 6. Test methodology
 
-`cargo test` from `app/src-tauri` (65 passing, 1 ignored smoke test, zero
+`cargo test` from `app/src-tauri` (80 passing, 1 ignored smoke test, zero
 warnings is the bar — AGENTS.md §5). The tests are the specification; the
 useful ones to understand before touching DSP:
 
@@ -372,6 +499,13 @@ useful ones to understand before touching DSP:
 | `lines_do_not_overlap_at_any_rate` | reverb layout scales both offsets and lengths |
 | `tail_decays_in_a_musical_time` | reverb loop gain stays off the stability cliff |
 | `reverb_mix_loudness_constant` | wet level within ±4 dB of dry at 0/50/100% mix |
+| `head_gains_are_complementary` | shimmer window sum is 1 at every position (no 6 dB thump) |
+| `shimmer_disabled_matches_plain_engine` | at depth 0 the wrapper is bit-identical to hand-composed `CloudsReverb` + envelope + mix |
+| `shimmer_cascade_feeds_back_into_the_reverb_input` | the loop return reaches the reverb's **input** — `env_wet` moves, which an output-side injection cannot do |
+| `shimmer_cascade_stays_bounded` | full depth + swept tone (incl. the undamped corner) reaches a finite equilibrium |
+| `nan_loop_self_heals` | a poisoned ring flushes reverb + shifter instead of poisoning every delay line |
+| `shift_up_builds_octave_energy` | +12 st really is an octave up (FFT bins, not a magnitude guess) |
+| `stop_change_is_continuous` | moving between fader stops glides — no click across the `set_shift` call |
 | `open_is_bit_transparent` / `closing_then_reopening_is_transparent_again` | fader top = identity; state clears once on re-entry |
 | `two_octaves_above_cutoff_lands_near_48db` | the 24 dB/oct slope |
 | `resonance_bump_at_the_cutoff` | the resonant Q pair peaks at the cutoff |
@@ -424,12 +558,13 @@ Measurement conventions that have bitten us:
 |---|---|
 | `decoder.rs` | Symphonia decode to interleaved f32 PCM |
 | `dsp_utils.rs` | Shared DSP utilities: `cubic_hermite`, `read_stereo_*`, `read_mono` |
-| `eq.rs` | 10-band RBJ biquad EQ; `process_frame` for single stereo frames, `process_interleaved` for bulk |
+| `eq.rs` | 8-band RBJ biquad EQ; `process_frame` for single stereo frames, `process_interleaved` for bulk |
 | `lpf.rs` | 4-pole resonant master lowpass (cutoff fader); identity + cleared state at the top |
 | `phase_vocoder.rs` | Stereo STFT pitch shifter with Laroche & Dolson phase locking |
 | `paulstretch.rs` | Paulstretch tempo-down engine: phase-discarding, 16384-window, spread shipped off, wash by design |
 | `wsola.rs` | WSOLA time-stretcher + Cubic Hermite resampler |
 | `clouds_reverb.rs` | Dattorro/Griesinger FDN reverb (Clouds port) |
+| `shimmer.rs` | Dual delay-line pitch shifter for the cascade loop: complementary windows, ring scaled by rate, tone LP + DC block |
 | `spectrum.rs` | 1024-point FFT → 48 log-spaced bins for the visualizer |
 | `reverb_mix.rs` | Reverb dry/wet balance + envelope-normalized wet gain policy. **Platform-free.** |
 | `stretcher.rs` | Engine selector: paulstretch for tempo-down, then the phase vocoder and the WSOLA. **Platform-free.** |
@@ -445,7 +580,7 @@ parking_lot, or crossbeam stays in `player.rs` and is reimplemented in the
 worklet instead.
 
 **Platform-free (shared):** `clouds_reverb`, `dsp_utils`, `eq`, `lpf`,
-`paulstretch`, `phase_vocoder`, `spectrum`, `wsola`, `reverb_mix`,
+`paulstretch`, `phase_vocoder`, `shimmer`, `spectrum`, `wsola`, `reverb_mix`,
 `stretcher`.
 
 **Desktop-only:** `player.rs` (cpal stream + `SharedPlay`), `decoder.rs`

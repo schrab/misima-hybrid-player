@@ -16,9 +16,10 @@ the user-facing readme is [README.md](README.md) ([english version](README.en.md
         │    1. bypass (speed=1.0, pitch=0)   bit-perfect passthrough
         │    2. Paulstretch (speed<1, pitch kept) / WSOLA / phase vocoder
         │       stretch = speed / pitch at speed >= 1
-        │    3. 10-band peaking EQ
+        │    3. 8-band peaking EQ
         │    4. taps → 48-bin FFT + 226-pt scope
-        │    5. FDN reverb                    envelope-normalized wet gain
+        │    5. Shimmer reverb              envelope-normalized wet gain,
+        │       FDN core + pitch cascade    loop gain capped below unity
         │    6. hard-clip + master volume
         ▼
   ctx.destination
@@ -27,8 +28,8 @@ the user-facing readme is [README.md](README.md) ([english version](README.en.md
   transport.ts ←→ WebTransport | TauriTransport      (one interface, two platforms)
 ```
 
-- **Same source, not a fork.** `app/wasm-dsp/` includes the ten platform-free modules from `src-tauri/src/audio/` directly. `player.rs` and `decoder.rs` stay desktop-only; the browser equivalents are `AudioContext` and `decodeAudioData`.
-- **Why not native Web Audio nodes?** The chain was tuned by ear — the reverb's `TARGET` above 1.0, the `REVERB_TIME` ceiling, the vocoder/WSOLA split at `stretch <= 1`. A rewrite in native nodes would be a second implementation that does not sound the same, and the two would drift apart over time.
+- **Same source, not a fork.** `app/wasm-dsp/` includes the eleven platform-free modules from `src-tauri/src/audio/` directly. `player.rs` and `decoder.rs` stay desktop-only; the browser equivalents are `AudioContext` and `decodeAudioData`.
+- **Why not native Web Audio nodes?** The chain was tuned by ear — the reverb's `TARGET` above 1.0, the `REVERB_TIME` ceiling, the cascade's `G_MAX` loop-gain cap, the vocoder/WSOLA split at `stretch <= 1`. A rewrite in native nodes would be a second implementation that does not sound the same, and the two would drift apart over time.
 - **SIMD is not optional.** `rustfft` falls back to scalar kernels 3–4× slower without it, which is the difference between fitting the 128-sample render quantum and dropping buffers.
 - **Autoplay is gated on a user gesture**, as the browser requires. The page renders immediately, loads its bundled track, and starts on the first click where the platform allows it — Chrome blocks it outright on a low-engagement site, and the player says "press play" rather than pretending.
 - Full implementation log, including three bugs that passed every automated check: [`docs/WEB-PORT.md`](docs/WEB-PORT.md).
@@ -43,7 +44,7 @@ the user-facing readme is [README.md](README.md) ([english version](README.en.md
 | **Backend Core** | Rust 2021 | Audio pipeline, multi-format decoding, real-time DSP, IPC command handlers |
 | **Audio I/O** | [cpal](https://crates.io/crates/cpal) | Cross-platform hardware audio stream management |
 | **Audio Decoding** | [Symphonia](https://crates.io/crates/symphonia) | Pure-Rust decoding for MP3, FLAC, WAV, OGG/Vorbis, PCM |
-| **DSP & Analysis** | [rustfft](https://crates.io/crates/rustfft), custom biquads | 1024-point FFT spectrum analysis, 10-band peaking EQ, Clouds-style feedback-delay reverb |
+| **DSP & Analysis** | [rustfft](https://crates.io/crates/rustfft), custom biquads | 1024-point FFT spectrum analysis, 8-band peaking EQ, Clouds-style feedback-delay reverb with a pitch-shifted feedback cascade |
 | **Frontend UI** | TypeScript, Canvas 2D, Vite | 60 FPS sprite compositor, bitmap glyph font, pointer capture fader math |
 | **Web Runtime** | [wasm-bindgen](https://rustwasm.github.io/wasm-bindgen/), AudioWorklet | The same DSP modules compiled to WASM (+`simd128`), running on the audio thread of the browser |
 
@@ -95,10 +96,12 @@ Stretcher (Speed: 0.05x – 2.0x, Pitch: ±12 st)
 Cubic Hermite Resampler + Anti-Alias Lowpass
       │
       ▼
-10-Band Peaking Biquad EQ (60 Hz – 16 kHz)
+8-Band Peaking Biquad EQ (310 Hz – 16 kHz)
       │
       ▼
-Clouds-Style Stereo Reverb (FDN, Modulated, Envelope-Normalized Wet, Dry→Wet Crossfade)
+Shimmer Reverb (Clouds-Style Stereo FDN, Modulated, Envelope-Normalized Wet, Dry→Wet Crossfade)
+      │  pitch-shifted feedback cascade: tail → cross-tap → dual delay-line
+      │  shifter (−12…+24 st) → tone lowpass → DC block → g(mix) → reverb input
       │
       ▼
 Hardware Output Stream (cpal) ──► Spectrum Analyzer (rustfft) ──► Canvas Visuals
@@ -112,6 +115,7 @@ the horse said one time-stretcher was enough. the barn overruled. (the barn IS t
 3. **Click-Free EQ**: `EqState::set_gains` modifies biquad coefficients in-place while preserving the delay registers (`z1`, `z2`, `z1r`, `z2r`). no pops. no clicks. MALLOC SAYS NOTHING, FOR ONCE.
 4. **Async Race-Free Loading**: `player::prepare_load()` bumps the generation counters (`load_gen`, `seek_gen`) and silences the previous track instantly. rapid track skips never overlap or stutter.
 5. **Saturating WSOLA FIFO Bookkeeping**: the resampler read position can legally run past the FIFO length near track end (overreads are zero-padded); all length arithmetic around `fifo_read_pos` must stay saturating/clamped. an unchecked `usize` underflow here panics the audio thread and kills output. MI$IM∆ warned you. MI$IM∆ always warns you.
+6. **Shimmer Loop-Gain Cap & NaN Self-Heal**: the reverb's pitch cascade is a coupled feedback loop — worst-case recirculation is `REVERB_TIME × shifter × tone × g`, capped by `G_MAX = 1.0` against the 0.55 reverb loop gain. stay below 1 with margin. a diverged loop reaches the soft clip as `inf/inf = NaN` and would poison every delay line permanently, so the return is checked for finiteness every frame and a bad one flushes reverb + shifter and restarts from dry.
 
 ---
 
@@ -164,14 +168,14 @@ GH_PAGES=1 npx vite dev
 ### Running Tests
 
 ```bash
-# Rust desktop backend: unit + DSP tests (65 passed, 1 #[ignore]d smoke test)
+# Rust desktop backend: unit + DSP tests (80 passed, 1 #[ignore]d smoke test)
 cd app/src-tauri
 cargo test -- --nocapture
 
 # Live CoreAudio smoke test (requires a real output device; #[ignore]d by default)
 cargo test coreaudio_smoke -- --ignored --nocapture
 
-# The web DSP crate — runs the same ten shared modules, no browser needed
+# The web DSP crate — runs the same eleven shared modules, no browser needed
 cd ../wasm-dsp
 cargo test
 cargo clippy --target wasm32-unknown-unknown
