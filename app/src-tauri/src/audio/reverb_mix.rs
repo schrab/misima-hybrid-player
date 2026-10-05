@@ -1,24 +1,52 @@
-//! Dry/wet balance and loudness policy in front of the `CloudsReverb` FDN.
+//! Dry/wet balance, loudness policy and the shimmer cascade in front of the
+//! `CloudsReverb` FDN.
 //!
 //! Platform-free: the types here touch no cpal, tauri, or parking_lot API, so
 //! both `src-tauri` and the web `wasm-dsp` crate can `#[path]`-include them and
 //! hear the same reverb.
 
 use crate::audio::clouds_reverb::CloudsReverb;
+use crate::audio::shimmer::Shimmer;
 
-/// Stereo feedback-delay reverb, with the loudness policy that sits in front
-/// of it. The DSP graph itself is `CloudsReverb` (Mutable Instruments
-/// Clouds, MIT, Copyright 2014 Emilie Gillet — ported in
-/// `audio/clouds_reverb.rs`); this wrapper owns the dry/wet balance and the
-/// level envelopes that gain-normalise the tail.
+/// Cascade depth at full mix. Worst-case recirculation is
+/// `REVERB_TIME (0.55) × shifter (≤1 by the window invariant) × tone (≤1) × g`,
+/// so 1.0 keeps the coupled loop below unity with margin — same cliff
+/// discipline as `REVERB_TIME` in `clouds_reverb.rs`.
+const G_MAX: f32 = 1.0;
+/// Depth curve exponent: g = G_MAX · mix^1.5, gentle near zero, blooming late.
+const DEPTH_EXPONENT: f32 = 1.5;
+/// Cross-tap: the shimmer taps mostly its own channel's tail, a little of
+/// the other, for width.
+const CROSS_OWN: f32 = 0.7;
+const CROSS_OTHER: f32 = 0.3;
+
+/// Stereo feedback-delay reverb, with the loudness policy and the shimmer
+/// cascade that sit in front of it. The DSP graph itself is `CloudsReverb`
+/// (Mutable Instruments Clouds, MIT, Copyright 2014 Emilie Gillet — ported
+/// in `audio/clouds_reverb.rs`) plus a `Shimmer` pitch shifter; this wrapper
+/// owns the dry/wet balance, the level envelopes that gain-normalise the
+/// tail, and the feedback path that feeds the shifted tail back into the
+/// reverb input.
 ///
 /// The envelopes exist because the raw tail level is extremely
 /// material-dependent: 0.46x dry RMS on a steady tone, 4.5x on broadband, so
-/// no fixed wet gain stays balanced.
-#[derive(Debug)]
+/// no fixed wet gain stays balanced. The cascade rides on top of that
+/// normaliser: because the loop gain is capped below unity the coupled
+/// reverb+shimmer loop settles at a finite equilibrium, so the envelope
+/// follows the shimmered tail just as it follows the dry one.
+// No `Debug` derive: `Shimmer` does not implement it and nothing in the tree
+// prints a `Reverb`, so carrying one would be plumbing for a caller that does
+// not exist.
 pub struct Reverb {
     inner: CloudsReverb,
     mix: f32,
+    /// Pitch-cascade loop: shifter + tone + DC blocker (see `shimmer.rs`).
+    shimmer: Shimmer,
+    /// Loop gain, recomputed from `mix` in `set_mix`.
+    depth_g: f32,
+    /// The loop return fed into the reverb input on the next frame.
+    ret_l: f32,
+    ret_r: f32,
     env_dry: f32,
     env_wet: f32,
     env_attack: f32,
@@ -44,6 +72,10 @@ impl Reverb {
         Self {
             inner,
             mix: 0.0,
+            shimmer: Shimmer::new(sample_rate),
+            depth_g: 0.0,
+            ret_l: 0.0,
+            ret_r: 0.0,
             env_dry: 0.0,
             env_wet: 0.0,
             // Level follower coefficients: fast attack, ~0.3 s release at any
@@ -54,15 +86,33 @@ impl Reverb {
         }
     }
 
-    /// Wet/dry balance, 0..1, from the reverb fader.
+    /// Wet/dry balance, 0..1, from the reverb fader. Also the cascade's depth
+    /// control: the loop return rides the same fader, on a curve that stays out
+    /// of the way at low settings and blooms towards the top.
     pub fn set_mix(&mut self, mix: f32) {
         self.mix = mix.clamp(0.0, 1.0);
+        self.depth_g = G_MAX * self.mix.powf(DEPTH_EXPONENT);
+    }
+
+    /// Shift interval in semitones (fader stop values).
+    pub fn set_shift(&mut self, semitones: f32) {
+        self.shimmer.set_shift(semitones);
+    }
+
+    /// Loop damping, 0..1.
+    pub fn set_tone(&mut self, t: f32) {
+        self.shimmer.set_tone(t);
     }
 
     /// Drop the tail — used on seek and track load so the previous track's
-    /// reverb does not bleed into the new one.
+    /// reverb does not bleed into the new one. The cascade loop is flushed
+    /// with it, otherwise a shifter ring of the old track keeps recirculating
+    /// through the fresh reverb.
     pub fn clear(&mut self) {
         self.inner.clear();
+        self.shimmer.clear();
+        self.ret_l = 0.0;
+        self.ret_r = 0.0;
         self.env_wet = 0.0;
         self.env_dry = 0.0;
     }
@@ -73,10 +123,30 @@ impl Reverb {
         let dry_r = frame[1];
         self.env_dry = follow(self.env_dry, (dry_l + dry_r) * 0.5, self.env_attack, self.env_release);
 
-        let [wet_l, wet_r] = self.inner.process([dry_l, dry_r]);
+        let [wet_l, wet_r] = self.inner.process([dry_l + self.ret_l, dry_r + self.ret_r]);
         // Follow the louder tail channel: the two loops are symmetric, so the
         // peak is the pair's shared level and neither channel gets pulled down.
         self.env_wet = follow(self.env_wet, wet_l.abs().max(wet_r.abs()), self.env_attack, self.env_release);
+
+        // Shimmer loop: cross-tap the tail, pitch it, damp it, feed it back
+        // into the reverb input on the next frame. The envelope normalizer
+        // rides the cascade's finite equilibrium — with the loop-gain cap the
+        // tail settles, so no special-casing is needed here.
+        let tap_l = CROSS_OWN * wet_l + CROSS_OTHER * wet_r;
+        let tap_r = CROSS_OWN * wet_r + CROSS_OTHER * wet_l;
+        let (s_l, s_r) = self.shimmer.process(tap_l, tap_r);
+        if s_l.is_finite() && s_r.is_finite() {
+            self.ret_l = s_l * self.depth_g;
+            self.ret_r = s_r * self.depth_g;
+        } else {
+            // A diverged loop reaches the soft clip as inf/inf = NaN, which
+            // would poison every delay line permanently. Flush everything;
+            // the dry input refills the loop from silence.
+            self.inner.clear();
+            self.shimmer.clear();
+            self.ret_l = 0.0;
+            self.ret_r = 0.0;
+        }
 
         frame[0] = mix_reverb_frame(dry_l, wet_l, wg, self.mix);
         frame[1] = mix_reverb_frame(dry_r, wet_r, wg, self.mix);
@@ -186,6 +256,83 @@ mod tests {
                 // cancellation against its own coherent tail.
                 assert!(db > -4.0 && db < 4.0, "{label} mix={mix} drift {db:+.2} dB");
             }
+        }
+    }
+
+    #[test]
+    fn shimmer_disabled_matches_plain_engine() {
+        // With depth 0 the loop return must be exactly zero, so the Reverb
+        // path is bit-identical to composing CloudsReverb + the mix stage
+        // by hand — the regression guard for the injection point.
+        let sr = 44_100.0;
+        let (mut rv_a, mut rv_b) = (Reverb::new(sr), Reverb::new(sr));
+        rv_a.depth_g = 0.0;
+        let mut manual = CloudsReverb::new(sr);
+        manual.set_diffusion(0.625);
+        manual.set_lp(0.7);
+        manual.set_input_gain(0.2);
+        let mut seed = 0x2545_F491_4F6C_DD1Du64;
+        let mut next = move || {
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((seed >> 33) as f32 / u32::MAX as f32 - 0.5) * 1.2
+        };
+        for i in 0..8_000 {
+            let x = next();
+            let mut a = [x, x];
+            rv_a.process(&mut a);
+            let [wet_l, wet_r] = manual.process([x + rv_b.ret_l, x + rv_b.ret_r]);
+            rv_b.env_wet = follow(
+                rv_b.env_wet,
+                wet_l.abs().max(wet_r.abs()),
+                rv_b.env_attack,
+                rv_b.env_release,
+            );
+            let wg = rv_b.wet_gain();
+            rv_b.ret_l = 0.0;
+            rv_b.ret_r = 0.0;
+            a[0] = mix_reverb_frame(x, wet_l, wg, rv_b.mix);
+            a[1] = mix_reverb_frame(x, wet_r, wg, rv_b.mix);
+            assert_eq!(a[0].to_bits(), a[1].to_bits(), "frame {i} diverged");
+        }
+    }
+
+    #[test]
+    fn shimmer_cascade_stays_bounded() {
+        // Full mix = full depth G_MAX: the coupled reverb+shimmer loop must
+        // reach a finite equilibrium, never diverge.
+        for sr in [32_000.0f32, 48_000.0, 96_000.0] {
+            let mut rv = Reverb::new(sr);
+            rv.set_mix(1.0);
+            rv.set_shift(12.0);
+            rv.set_tone(1.0);
+            let mut peak = 0.0f32;
+            let mut seed = 0x1234_5678u32;
+            for i in 0..(sr * 10.0) as usize {
+                seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+                let x = ((seed >> 8) & 0xFFFF) as f32 / 65535.0 - 0.5;
+                let mut frame = [x, x];
+                rv.process(&mut frame);
+                assert!(
+                    frame[0].is_finite() && frame[1].is_finite(),
+                    "{sr} Hz: non-finite at frame {i}"
+                );
+                peak = peak.max(frame[0].abs()).max(frame[1].abs());
+            }
+            assert!(peak < 5.0, "{sr} Hz: cascade diverged to {peak}");
+        }
+    }
+
+    #[test]
+    fn nan_loop_self_heals() {
+        let mut rv = Reverb::default();
+        rv.set_mix(0.8);
+        rv.shimmer.poison_for_test();
+        for _ in 0..1_000 {
+            let mut frame = [0.25f32, 0.25];
+            rv.process(&mut frame);
+            assert!(frame[0].is_finite() && frame[1].is_finite());
         }
     }
 }
