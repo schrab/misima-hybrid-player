@@ -840,6 +840,17 @@ canvas.addEventListener("pointerup", async (ev) => {
 });
 
 /**
+ * The browser can revoke a touch pointer mid-gesture (edge swipe, palm
+ * rejection, a gesture it decided belongs to the page). No `pointerup`
+ * follows a cancel, so without dropping the drag state here the next touch
+ * would go on dragging the stale fader from wherever it landed.
+ */
+canvas.addEventListener("pointercancel", () => {
+  pressedButton = null;
+  dragFader = null;
+});
+
+/**
  * The browser context menu is suppressed. The canvas is a picture of a player,
  * so "Save image as / Copy image / Inspect" is never what anyone wants here,
  * and `user-select: none` already rules out the text half of the menu.

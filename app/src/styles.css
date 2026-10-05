@@ -138,3 +138,17 @@ html.web .corner-logo {
   margin: 0;
   padding: 0;
 }
+
+/* Touch: one finger belongs to the UI, two fingers belong to the page.
+   Default `touch-action: auto` lets the browser claim a one-finger drag as a
+   page pan: a few pointermove events get through, then it fires pointercancel
+   and takes over — a fader starts to follow the finger and dies mid-drag, and
+   once the page is pinch-zoomed in, every drag pans the page instead.
+   `pinch-zoom` delivers one-finger drags as plain pointer events (faders track
+   end to end, and keep working while zoomed) while two fingers keep the
+   browser's native page zoom and pan. Web only — the desktop build has no
+   page to pan. */
+html.web body,
+html.web #ui {
+  touch-action: pinch-zoom;
+}
