@@ -11,17 +11,46 @@ the desktop installers; pushing `main` on its own deploys the web app.
 > here. Reconstruct them from `git log v0.2.1..v0.3.2` if the detail is ever
 > needed; nothing below depends on them.
 
-## [Unreleased]
+## [0.6.0] — 2026-10-06
+
+The reverb becomes a shimmer reverb, Valhalla-style: the wet tail feeds a
+pitch shifter inside its own fixed-gain feedback loop, and the shifted cascade
+sums directly into the wet. The shifter is a faithful Rust port of the Faust
+`transpose` (sawtooth delay ramp, two linearly crossfaded taps) from the
+working open-source shimmer patches, and the loop topology follows them too:
+shimmer loudness is an output level and never part of loop gain.
 
 ### Added
+- **Shimmer reverb with shift and tone faders.** The two lowest EQ faders are
+  repurposed: **shift** steps the cascade through −12/+7/+12/+19/+24
+  semitones and **tone** damps it (500 Hz–16 kHz in the loop). The reverb
+  fader is the shimmer amount; at 0 the effect is fully off.
+- **The skin manifest revalidates on load** (`cache: "reload"`). The browser's
+  heuristic cache used to serve a days-old manifest against fresh code, which
+  silently reverted the tempo fader to its pre-Paulstretch range and hid the
+  new faders.
 - **Right-clicking a fader resets it to its default.** The default is the
   `value` the skin ships for that fader, which is the neutral position for every
   control: cutoff back to 20 kHz (the lowpass's open bypass), pitch 0, reverb 0,
-  all ten EQ bands 0, tempo 1.0. Read from the manifest rather than hardcoded
+  all EQ bands 0, tempo 1.0. Read from the manifest rather than hardcoded
   per-param, so a skin with a different resting point gets that one. The browser
   context menu was already suppressed over the canvas, so the gesture was free.
 
 ### Changed
+- **The reverb is the shimmer.** There is no separate plain-reverb mode; the
+  pitch cascade is always engaged behind the wet fader. The loop topology is
+  the working references': the transposer sits in its own loop with feedback
+  capped at 0.5 — unconditionally stable — and its output sums directly into
+  the wet, so shimmer loudness is an output level that can never destabilize
+  anything.
+- **The wet gain rider is gone.** The old adaptive normalizer
+  (`env_dry·TARGET/env_wet`) was structurally a sidechain compressor — a
+  fast-attack detector on the tail with an inverted gain — and ducked the wet
+  after every transient. A fixed wet gain accepts a few dB of material
+  variance, the way every reference reverb does.
+- **The EQ is eight bands** (310, 600, 1000, 3000, 6000, 12000, 14000,
+  16000 Hz). The two bass faders became the shimmer controls; skins still
+  naming `eq8`/`eq9` degrade gracefully to no-ops.
 - **Opening files now replaces the playlist instead of topping it up.** Loading
   files is "play this set", so the previous entries are dropped and only the new
   ones are listed. A track that is already sounding keeps playing: on the desktop
@@ -47,6 +76,13 @@ the desktop installers; pushing `main` on its own deploys the web app.
   existing `playback` gate (`"always"`, `"on-playing"`, `"on-fx"`) rather than a
   hardcoded sheet id, so any animation can be gated by editing the manifest. The
   other six sheets are untouched.
+
+### Fixed
+- **The first cascade architecture rang.** Coupling shimmer loudness into
+  loop gain put the cascade loop past unity at higher levels — a slow
+  build-and-dump heard as a volume LFO. The loop is now its own fixed-gain
+  circuit, stable by construction, and a malformed audio decode can no longer
+  trigger a flush storm on the audio thread.
 
 ## [0.5.1] — 2026-10-05
 
