@@ -289,7 +289,6 @@ impl DspProcessor {
 
         let mix = self.params.reverb.clamp(0.0, 1.0);
         self.reverb.set_mix(mix);
-        let wg = self.reverb.wet_gain();
         self.mono.clear();
 
         for f in 0..frames {
@@ -297,7 +296,7 @@ impl DspProcessor {
             self.eq.process_frame(&mut frame);
             // Tap point: post-EQ, pre-reverb — same place the desktop taps.
             self.mono.push((frame[0] + frame[1]) * 0.5);
-            self.reverb.process_with_gain(&mut frame, wg);
+            self.reverb.process_with_gain(&mut frame);
             self.lpf.process_frame(&mut frame);
             // Unity master gain; the clamp stays as the safety net.
             out[f * 2] = frame[0].clamp(-1.0, 1.0);

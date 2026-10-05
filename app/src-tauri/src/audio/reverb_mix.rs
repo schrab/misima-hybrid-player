@@ -1,5 +1,5 @@
-//! Dry/wet balance, loudness policy and the shimmer cascade in front of the
-//! `CloudsReverb` FDN.
+//! Dry/wet balance and the shimmer cascade in front of the `CloudsReverb`
+//! FDN.
 //!
 //! Platform-free: the types here touch no cpal, tauri, or parking_lot API, so
 //! both `src-tauri` and the web `wasm-dsp` crate can `#[path]`-include them and
@@ -27,20 +27,24 @@ const LEVEL_EXPONENT: f32 = 1.5;
 /// the other, for width.
 const CROSS_OWN: f32 = 0.7;
 const CROSS_OTHER: f32 = 0.3;
+/// Fixed wet gain ahead of the mix crossfade. The raw tail's level varies
+/// with the material — a steady tone rings quieter than dense broadband —
+/// and a fixed gain accepts that variance the way every reference reverb
+/// does (Valhalla, zita, the Faust patches: none ride a gain detector).
+/// The previous adaptive normalizer (`env_dry·TARGET/env_wet`) was exactly a
+/// sidechain compressor — fast-attack detector on the tail, inverted gain —
+/// and ducked the wet after every transient, which under the shimmer's
+/// steady cascade the user heard as pumping. Removed by user decision
+/// (2026-10-06).
+const WET_GAIN: f32 = 1.0;
 
-/// Stereo feedback-delay reverb, with the loudness policy and the shimmer
-/// cascade that sit in front of it. The DSP graph itself is `CloudsReverb`
-/// (Mutable Instruments Clouds, MIT, Copyright 2014 Emilie Gillet — ported
-/// in `audio/clouds_reverb.rs`) plus a `Shimmer` pitch shifter; this wrapper
-/// owns the dry/wet balance and the level envelopes that gain-normalise the
-/// tail, and runs the cascade in its own fixed-gain loop whose output sums
-/// directly into the wet — the working Faust reference's topology, where
-/// shimmer loudness is an output level and never part of loop gain.
-///
-/// The envelopes exist because the raw tail level is extremely
-/// material-dependent: 0.46x dry RMS on a steady tone, 4.5x on broadband, so
-/// no fixed wet gain stays balanced. The cascade rides on top: its loop is
-/// stable by construction (`CASCADE_FB < 1`), so its level is free to move.
+/// Stereo feedback-delay reverb with the shimmer cascade. The DSP graph
+/// itself is `CloudsReverb` (Mutable Instruments Clouds, MIT, Copyright 2014
+/// Emilie Gillet — ported in `audio/clouds_reverb.rs`) plus a `Shimmer` pitch
+/// shifter; this wrapper owns the dry/wet balance and the cascade's own
+/// fixed-gain loop whose output sums directly into the wet — the working
+/// Faust reference's topology, where shimmer loudness is an output level and
+/// never part of loop gain.
 #[derive(Debug)]
 pub struct Reverb {
     inner: CloudsReverb,
@@ -52,10 +56,6 @@ pub struct Reverb {
     /// The cascade's previous output — the loop feedback signal.
     casc_l: f32,
     casc_r: f32,
-    env_dry: f32,
-    env_wet: f32,
-    env_attack: f32,
-    env_release: f32,
 }
 
 impl Default for Reverb {
@@ -81,13 +81,6 @@ impl Reverb {
             casc_level: 0.0,
             casc_l: 0.0,
             casc_r: 0.0,
-            env_dry: 0.0,
-            env_wet: 0.0,
-            // Level follower coefficients: fast attack, ~0.3 s release at any
-            // sample rate.  The release time constant is -1 / (sr * ln(coeff)),
-            // so coeff = exp(-1 / (sr * tau)).
-            env_attack: 0.7,
-            env_release: (-1.0 / (sample_rate * 0.3)).exp(),
         }
     }
 
@@ -104,7 +97,7 @@ impl Reverb {
         self.shimmer.set_shift(semitones);
     }
 
-    /// Loop damping, 0..1.
+    /// Loop damping, 0..1 (dark..bright).
     pub fn set_tone(&mut self, t: f32) {
         self.shimmer.set_tone(t);
     }
@@ -118,12 +111,12 @@ impl Reverb {
         self.shimmer.clear();
         self.casc_l = 0.0;
         self.casc_r = 0.0;
-        self.env_wet = 0.0;
-        self.env_dry = 0.0;
     }
 
+    /// Run one stereo frame through the reverb, the cascade and the dry/wet
+    /// balance.
     #[inline]
-    pub fn process_with_gain(&mut self, frame: &mut [f32; 2], wg: f32) {
+    pub fn process_with_gain(&mut self, frame: &mut [f32; 2]) {
         // Sanitize the *source* here. The cascade guard below costs
         // `shimmer.clear()` — the whole ring — whenever the shifter returns a
         // non-finite sample. If the input itself is persistently non-finite
@@ -134,12 +127,8 @@ impl Reverb {
         // its real job (catching a *diverged cascade*, rare and transient).
         let dry_l = if frame[0].is_finite() { frame[0] } else { 0.0 };
         let dry_r = if frame[1].is_finite() { frame[1] } else { 0.0 };
-        self.env_dry = follow(self.env_dry, (dry_l + dry_r) * 0.5, self.env_attack, self.env_release);
 
         let [wet_l, wet_r] = self.inner.process([dry_l, dry_r]);
-        // Follow the louder tail channel: the two loops are symmetric, so the
-        // peak is the pair's shared level and neither channel gets pulled down.
-        self.env_wet = follow(self.env_wet, wet_l.abs().max(wet_r.abs()), self.env_attack, self.env_release);
 
         // The cascade runs in its own loop — cross-tapped tail plus
         // `CASCADE_FB` times the previous cascade output, through the
@@ -157,10 +146,10 @@ impl Reverb {
             self.casc_l = s_l;
             self.casc_r = s_r;
         } else {
-            // A diverged cascade reaches the soft clip as inf/inf = NaN.
-            // Flush the shifter and the loop state; the tail refills the
-            // loop from silence. The reverb itself is untouched — it is no
-            // longer part of this loop.
+            // A diverged cascade reaches the output soft clip as
+            // `inf/inf = NaN`. Flush the shifter and the loop state; the
+            // tail refills the loop from silence. The reverb itself is
+            // untouched — it is no longer part of this loop.
             self.shimmer.clear();
             self.casc_l = 0.0;
             self.casc_r = 0.0;
@@ -168,50 +157,25 @@ impl Reverb {
 
         // The cascade sums after the tail's soft clip; the callers' final
         // output clamp is the last line of defence for the sum.
-        frame[0] = mix_reverb_frame(dry_l, wet_l, wg, self.mix) + self.casc_l * self.casc_level;
-        frame[1] = mix_reverb_frame(dry_r, wet_r, wg, self.mix) + self.casc_r * self.casc_level;
+        frame[0] = mix_reverb_frame(dry_l, wet_l, self.mix) + self.casc_l * self.casc_level;
+        frame[1] = mix_reverb_frame(dry_r, wet_r, self.mix) + self.casc_r * self.casc_level;
     }
 
-    /// Run one stereo frame through the reverb and the dry/wet balance.
+    /// Convenience wrapper for tests and offline rendering.
     #[inline]
     #[allow(dead_code)]
     pub fn process(&mut self, frame: &mut [f32; 2]) {
-        self.process_with_gain(frame, self.wet_gain());
-    }
-
-    /// Wet gain that holds the tail near dry loudness so 100% mix is a full
-    /// wet reverb, not a quiet one. FLOOR avoids divide-by-zero on silence;
-    /// clamp bounds pump on transients.
-    ///
-    /// TARGET sits above 1 because `mix_reverb_frame` soft-clips the tail by
-    /// `w / sqrt(1 + w^2)`, which costs about 3 dB at w = 1 — so the envelope
-    /// has to aim higher to land on the dry level. Measured on broadband
-    /// material the wet comes out +0.1 dB at half mix, +1.3 dB at full.
-    pub fn wet_gain(&self) -> f32 {
-        const TARGET: f32 = 1.8;
-        const FLOOR: f32 = 1.0e-4;
-        (self.env_dry * TARGET / self.env_wet.max(FLOOR)).clamp(0.05, 8.0)
+        self.process_with_gain(frame);
     }
 }
 
+/// Reverb mix for one channel: linear dry→wet crossfade of the tail, with
+/// the fixed [`WET_GAIN`] in front and a unity-slope soft clip as the tail's
+/// limiter — it saturates gracefully when dense broadband material pushes
+/// the tail past full scale at high mix.
 #[inline]
-fn follow(env: f32, x: f32, attack: f32, release: f32) -> f32 {
-    let ax = x.abs();
-    if ax > env {
-        env + (ax - env) * attack
-    } else {
-        env * release + ax * (1.0 - release)
-    }
-}
-
-/// Reverb mix for one channel: linear dry→wet crossfade of an
-/// envelope-normalized wet tail. At 100% the output is pure wet at roughly
-/// dry loudness — the full effect — while the adaptive gain keeps the sweep
-/// from the old ~16 dB loudness dip. `wg` is computed once per callback
-/// buffer; the clip is unity-slope near zero.
-#[inline]
-fn mix_reverb_frame(dry: f32, wet_raw: f32, wg: f32, mix: f32) -> f32 {
-    let w = wet_raw * wg;
+fn mix_reverb_frame(dry: f32, wet_raw: f32, mix: f32) -> f32 {
+    let w = wet_raw * WET_GAIN;
     let wet = w / (1.0 + w * w).sqrt();
     dry * (1.0 - mix) + wet * mix
 }
@@ -232,13 +196,14 @@ mod tests {
         assert!(peak.is_finite() && peak < 5.0);
     }
 
+    /// The wet/dry sweep's loudness report. With the adaptive normalizer
+    /// gone there is no level constancy to assert — a fixed gain accepts the
+    /// material variance (a steady tone rings quieter than dense broadband,
+    /// by design of every reference reverb). What must still hold: finite
+    /// output everywhere and no runaway with the mix wide open. The printed
+    /// dB table documents the actual spread for tuning [`WET_GAIN`].
     #[test]
-    fn reverb_mix_loudness_constant() {
-        // 100% mix must be a full wet reverb at roughly dry loudness (not
-        // the old ~16 dB drop), and mid settings must stay in the same
-        // ballpark. The wet tail is gain-normalized to the dry envelope
-        // (raw tail varies ~20 dB between tonal and broadband material).
-        // LCG noise keeps the signal repeatable.
+    fn reverb_mix_loudness_report() {
         const N: usize = 44_100;
         const WARM: usize = 8_820;
         let mut seed = 0x2545F4914F6CDD1Du64;
@@ -255,6 +220,7 @@ mod tests {
                 let mut rv = Reverb::default();
                 rv.set_mix(mix);
                 let (mut acc_in, mut acc_out) = (0.0f64, 0.0f64);
+                let mut peak = 0.0f32;
                 for (i, &x) in sig.iter().enumerate() {
                     let mut frame = [x, x];
                     rv.process(&mut frame);
@@ -265,16 +231,14 @@ mod tests {
                         acc_in += 2.0 * (x * x) as f64;
                         acc_out += (frame[0] * frame[0]) as f64 + (frame[1] * frame[1]) as f64;
                     }
+                    peak = peak.max(frame[0].abs()).max(frame[1].abs());
+                    assert!(frame[0].is_finite() && frame[1].is_finite());
                 }
                 let cnt = ((N - WARM) * 2) as f64;
                 let ratio = (acc_out / cnt).sqrt() / (acc_in / cnt).sqrt();
                 let db = 20.0 * ratio.log10() as f32;
-                println!("{label} mix={mix} loudness vs dry: {db:+.2} dB");
-                // Broadband (music-like) material must land within ±2 dB of
-                // dry, so pushing the fader changes the character and not the
-                // level. A pure tone can dip a few dB at mid-mix — phase
-                // cancellation against its own coherent tail.
-                assert!(db > -4.0 && db < 4.0, "{label} mix={mix} drift {db:+.2} dB");
+                println!("{label} mix={mix} loudness vs dry: {db:+.2} dB (peak {peak:.3})");
+                assert!(db > -30.0 && db < 30.0, "{label} mix={mix} runaway {db:+.2} dB");
             }
         }
     }
@@ -282,12 +246,12 @@ mod tests {
     #[test]
     fn shimmer_disabled_matches_plain_engine() {
         // Cascade level 0 must make the Reverb path bit-identical to
-        // composing CloudsReverb + the envelope + the mix stage by hand.
+        // composing CloudsReverb + the mix stage by hand.
         //
         // `mix = 1.0` is load-bearing: at the default 0 the wet path is
         // multiplied by zero and both sides collapse to the dry sample, so the
         // assert would pass no matter what the reverb did. At full wet the
-        // equality spans the reverb, the envelope and the mix stage for real.
+        // equality spans the reverb and the mix stage for real.
         //
         // What it cannot cover is the cascade itself: at level 0 its output
         // sum is identically zero, so the sum's placement (after the soft
@@ -312,33 +276,17 @@ mod tests {
         };
         for i in 0..8_000 {
             let x = next();
-            // The gain comes first, and that ordering is the whole subtlety:
-            // `process` passes `wet_gain()` as a call *argument*, so the gain
-            // applied to frame n is built from frame n-1's envelopes. Reading
-            // it after either follower update makes the replica one frame
-            // ahead of the engine, and the two drift apart as soon as the wet
-            // envelope climbs past the gain clamp — frame 2277 here. Leaving
-            // `env_dry` unfollowed is worse still: the gain stays pinned at the
-            // 0.05 floor forever and stops constraining anything.
-            let wg = rv_b.wet_gain();
             let mut a = [x, x];
             rv_a.process(&mut a);
             let [wet_l, wet_r] = manual.process([x, x]);
-            rv_b.env_wet = follow(
-                rv_b.env_wet,
-                wet_l.abs().max(wet_r.abs()),
-                rv_b.env_attack,
-                rv_b.env_release,
-            );
-            rv_b.env_dry = follow(rv_b.env_dry, x, rv_b.env_attack, rv_b.env_release);
             // Compare the engine's channel against the replica's *same*
             // channel. `CloudsReverb` is a stereo FDN whose per-channel line
             // lengths differ, so L and R are legitimately not sample-equal —
             // a left-vs-right assert says nothing about the wiring, and
             // folding the replica into `a` before comparing throws away
             // `rv_a`'s output entirely.
-            let b0 = mix_reverb_frame(x, wet_l, wg, rv_b.mix);
-            let b1 = mix_reverb_frame(x, wet_r, wg, rv_b.mix);
+            let b0 = mix_reverb_frame(x, wet_l, rv_b.mix);
+            let b1 = mix_reverb_frame(x, wet_r, rv_b.mix);
             assert_eq!(a[0].to_bits(), b0.to_bits(), "frame {i} left diverged");
             assert_eq!(a[1].to_bits(), b1.to_bits(), "frame {i} right diverged");
         }
@@ -347,8 +295,8 @@ mod tests {
     /// The cascade must actually reach the output. Two engines see identical
     /// input and differ only in `casc_level`; their outputs must separate
     /// once the shifter's rings stop being empty. A cascade that is wired
-    /// but never summed (or summed at the wrong place, after the mix stage)
-    /// fails this.
+    /// but never summed (or summed after the mix stage, where `mix = 0`
+    /// would mute it twice) fails this.
     #[test]
     fn shimmer_cascade_sums_into_the_wet() {
         let sr = 44_100.0;
@@ -467,11 +415,11 @@ mod tests {
         let from = n / 2;
         let oct_full = bin_mag(&sig_full, from, f0 * 2.0, sr);
         let oct_muted = bin_mag(&sig_muted, from, f0 * 2.0, sr);
-        // Measured 8.98x at level 1.0 (the single-pass cascade builds less
-        // octave pile-up than the old reverb-fed loop, and that is the
-        // reference architecture's honest number). A level scaled by 0.1
-        // lands at ~1.8x, so the 6x bound still separates them with margin
-        // on both sides.
+        // Measured at level 1.0 with the Faust-port shifter (the single-pass
+        // cascade builds less octave pile-up than the old reverb-fed loop,
+        // and that is the reference architecture's honest number). A level
+        // scaled by 0.1 lands far below, so the 6x bound still separates
+        // them with margin on both sides.
         assert!(
             oct_full > oct_muted * 6.0,
             "cascade inaudible: octave bin {oct_full:.3} at full level vs \

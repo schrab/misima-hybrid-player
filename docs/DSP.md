@@ -432,31 +432,30 @@ frame, not per callback, and costs two `is_finite` checks. Guarded by
   or summed after the mix stage, where `mix = 0` would mute it twice — fails
   this.
 
-### 4.4 The envelope normalizer rides the cascade
+### 4.4 No gain rider on the wet
 
-The loudness policy is unchanged. `reverb_mix.rs::Reverb` owns the dry/wet
-crossfade and the envelope-normalised wet gain. The raw tail level varies ~20 dB
-between tonal and broadband material, so no fixed wet gain stays balanced
-(AGENTS.md §3.1.8). `TARGET = 1.8` sits above unity because the soft clip
-`w/√(1+w²)` costs ~3 dB at `w = 1`.
+The wet/dry crossfade uses a **fixed** `WET_GAIN` ahead of the mix stage —
+there is no level follower. The original port shipped an adaptive normalizer
+(`env_dry·TARGET/env_wet`: fast-attack detector on the tail, inverted gain,
+release ~0.3 s) to pin the tail near dry loudness across material. Under the
+shimmer it became unambiguous what that circuit is: a **sidechain
+compressor**. Every transient in the music ducked the wet right after it
+landed, and against the shimmer's steady cascade the pumping was glaring —
+the user removed it by decision (2026-10-06), and the working references
+confirmed the call: Valhalla, zita and the Faust patches shape loudness with
+fixed input/output trims, never a gain detector.
 
-The cascade needed no special-casing here: its loop is stable by construction
-(`CASCADE_FB < 1`), so its level is free to move. Measured with the cascade
-engaged, broadband lands at +0.19 dB (half mix) and +1.51 dB (full mix)
-against dry; the worst case is a pure tone at half mix, −1.44 dB, which is
-phase cancellation against its own coherent tail — the same reason `TARGET`
-must never be calibrated on a sine. At full mix the tone reads +2.59 dB: the
-cascade sums on top of the tail there, which is the intended bloom. If
-`CASCADE_FB` is ever raised, `0.5 × shifter` is the first product to
-re-derive.
+The fixed gain accepts the tail's material variance instead of fighting it.
+Measured at `WET_GAIN = 1.0`: broadband −1.86 dB (half mix) / −2.62 dB (full
+mix) vs dry, a steady tone −3.13 / −0.23 dB — a spread of a few dB, which is
+what every hardware reverb does. Peaks stay under full scale at these
+settings, so `mix_reverb_frame`'s soft clip engages only on the densest
+material at high mix. `reverb_mix_loudness_report` prints the table.
 
-The envelope's attack and release coefficients are stored in the `Reverb` struct
-and computed from the actual device sample rate at construction:
-`env_release = exp(-1 / (sr × 0.3))` gives a ~0.3 s release at any rate (the
-old constants were correct only at 44.1 kHz — at 96 kHz the release halved to
-~0.15 s and caused pump artifacts).  `wet_gain()` is hoisted once per callback
-buffer and passed to `process_with_gain()` — per-sample computation was
-redundant because the envelope moves slowly relative to individual samples.
+The rest of the caller contract is unchanged: `process_with_gain` runs per
+frame, the reverb guard is hoisted once per callback buffer (AGENTS.md 3.1.2),
+and seeks flush the reverb on the `seek_gen` path so the previous position's
+tail does not bleed across.
 
 Seeks and track changes flush the reverb (`shared.reverb.lock().clear()` on
 `seek_gen` change) so the previous position's tail does not bleed across a

@@ -719,14 +719,12 @@ where
             } else {
                 None
             };
-            let wg = reverb_guard.as_ref().map(|r| r.wet_gain()).unwrap_or(1.0);
-
             for f in 0..frames {
                 let mut frame = [bl[f], br[f]];
                 eq.process_frame(&mut frame);
                 mono_scratch.push((frame[0] + frame[1]) * 0.5);
                 if let Some(reverb) = reverb_guard.as_deref_mut() {
-                    reverb.process_with_gain(&mut frame, wg);
+                    reverb.process_with_gain(&mut frame);
                 }
                 lpf.process_frame(&mut frame);
                 // Unity master gain; the clamp stays as the safety net.
@@ -905,12 +903,11 @@ mod tests {
         let mut dry_peak = 0.0f32;
         let mut wet_peak = 0.0f32;
         reverb.set_mix(mix);
-        let wg = if mix > 0.001 { reverb.wet_gain() } else { 1.0 };
         for f in 0..frames {
             let mut fr = [bl[f], br[f]];
             dry_peak = dry_peak.max(fr[0].abs()).max(fr[1].abs());
             if mix > 0.001 {
-                reverb.process_with_gain(&mut fr, wg);
+                reverb.process_with_gain(&mut fr);
             }
             wet_peak = wet_peak.max(fr[0].abs()).max(fr[1].abs());
         }
