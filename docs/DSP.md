@@ -330,8 +330,8 @@ Deviations from the original, all deliberate:
 
 ```
 dry ──► (dry + loop_return) ──► CloudsReverb ──► raw wet tail ──┬─► envelope gain ──► mix ──► out
-           ▲                                                      │
-           │      0.7·own + 0.3·other  (cross-tap, per channel) ◄──┘
+           ▲                                                    │
+           │      0.7·own + 0.3·other  (cross-tap)           ◄──┘
            ▼
       Shimmer::process — dual delay-line pitch shifter → tone lowpass → 30 Hz DC block
            │
@@ -396,14 +396,16 @@ Guarded by `shimmer_cascade_stays_bounded`, which sweeps the tone fader
 *including its undamped 500 Hz corner* — the undamped corner recirculates
 hardest, so checking only the bright end would test the easy half.
 
-**The NaN self-heal.** Because the recirculation bound is not guaranteed by
-construction alone, the loop return is checked for finiteness every frame. A
-diverged loop reaches `mix_reverb_frame`'s soft clip as `inf/inf = NaN`, and a
-single NaN entering an FDN poisons every delay line **permanently** — it never
-decays, because NaN arithmetic has no decay. So a non-finite return flushes
-the reverb, the shifter and the return itself; the dry input refills the loop
-from silence. This is per frame, not per callback, and costs two `is_finite`
-checks. Guarded by `nan_loop_self_heals`.
+**The NaN self-heal.** The cap above is what keeps the loop bounded *by
+construction*; the runtime check is defence in depth, so that a future edit to
+`G_MAX`, the window gains or `REVERB_TIME` cannot silently ship a diverged
+reverb. What is checked is the **shifter's output, before the depth gain is
+applied** — a diverged loop reaches `mix_reverb_frame`'s soft clip as
+`inf/inf = NaN`, and a single NaN entering an FDN poisons every delay line
+**permanently** — it never decays, because NaN arithmetic has no decay. So a
+non-finite shifter output flushes the reverb, the shifter and the return
+itself; the dry input refills the loop from silence. This is per frame, not per
+callback, and costs two `is_finite` checks. Guarded by `nan_loop_self_heals`.
 
 **Where the injection point is pinned.** Two tests, because neither alone
 covers it:

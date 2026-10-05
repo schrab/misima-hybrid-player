@@ -18,8 +18,8 @@ the user-facing readme is [README.md](README.md) ([english version](README.en.md
         │       stretch = speed / pitch at speed >= 1
         │    3. 8-band peaking EQ
         │    4. taps → 48-bin FFT + 226-pt scope
-        │    5. Shimmer reverb              envelope-normalized wet gain,
-        │       FDN core + pitch cascade    loop gain capped below unity
+        │    5. Shimmer reverb                envelope-normalized wet gain,
+        │       FDN core + pitch cascade      loop gain capped below unity
         │    6. hard-clip + master volume
         ▼
   ctx.destination
@@ -115,7 +115,7 @@ the horse said one time-stretcher was enough. the barn overruled. (the barn IS t
 3. **Click-Free EQ**: `EqState::set_gains` modifies biquad coefficients in-place while preserving the delay registers (`z1`, `z2`, `z1r`, `z2r`). no pops. no clicks. MALLOC SAYS NOTHING, FOR ONCE.
 4. **Async Race-Free Loading**: `player::prepare_load()` bumps the generation counters (`load_gen`, `seek_gen`) and silences the previous track instantly. rapid track skips never overlap or stutter.
 5. **Saturating WSOLA FIFO Bookkeeping**: the resampler read position can legally run past the FIFO length near track end (overreads are zero-padded); all length arithmetic around `fifo_read_pos` must stay saturating/clamped. an unchecked `usize` underflow here panics the audio thread and kills output. MI$IM∆ warned you. MI$IM∆ always warns you.
-6. **Shimmer Loop-Gain Cap & NaN Self-Heal**: the reverb's pitch cascade is a coupled feedback loop — worst-case recirculation is `REVERB_TIME × shifter × tone × g`, capped by `G_MAX = 1.0` against the 0.55 reverb loop gain. stay below 1 with margin. a diverged loop reaches the soft clip as `inf/inf = NaN` and would poison every delay line permanently, so the return is checked for finiteness every frame and a bad one flushes reverb + shifter and restarts from dry.
+6. **Shimmer Loop-Gain Cap & NaN Self-Heal**: the reverb's pitch cascade is a coupled feedback loop — worst-case recirculation is `REVERB_TIME × shifter × tone × g`, capped by `G_MAX = 1.0` against the 0.55 reverb loop gain. stay below 1 with margin. a diverged loop reaches the soft clip as `inf/inf = NaN` and would poison every delay line permanently, so the shifter's output is checked for finiteness every frame, before the depth gain is applied, and a bad one flushes reverb + shifter and restarts from dry.
 
 ---
 

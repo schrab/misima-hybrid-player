@@ -37,7 +37,7 @@ Misima Hybrid Player is a high-performance, skinnable, multiplatform (Windows, m
 │         stretch <= 1 → stereo phase vocoder (pitch-up; smooth)          │
 │         stretch  > 1 → WSOLA time-stretch (expansion; WSOLA's good side)│
 │         then Cubic Hermite resample by the pitch ratio                  │
-│      3) 8-Band Peaking EQ (RBJ biquad filters, seamless updates)        │
+│      3) 8-Band Peaking EQ (RBJ biquad filters, seamless updates)       │
 │      4) Post-EQ visualizer taps (spectrum + waveform)                  │
 │      5) Stereo FDN Reverb (Dattorro/Griesinger, Clouds port) wrapped   │
 │         in a shimmer cascade: cross-tap → dual delay-line pitch shifter│
@@ -229,7 +229,6 @@ cargo check
 # 3. Web DSP Crate — same shared modules, wasm32 target
 #    The unit tests of the eleven shared DSP modules run here too (73 passing),
 #    so a regression that only shows up in the WASM build is caught without a
-#    regression that only shows up in the WASM build is caught without a
 #    browser. This is mandatory for any change under `src/audio/`.
 cd ../wasm-dsp
 cargo test
