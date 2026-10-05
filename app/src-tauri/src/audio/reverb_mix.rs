@@ -9,10 +9,12 @@ use crate::audio::clouds_reverb::CloudsReverb;
 use crate::audio::shimmer::Shimmer;
 
 /// Cascade depth at full mix. Worst-case recirculation is
-/// `REVERB_TIME (0.55) × shifter (≤1 by the window invariant) × tone (≤1) × g`,
-/// so 1.0 keeps the coupled loop below unity with margin — same cliff
-/// discipline as `REVERB_TIME` in `clouds_reverb.rs`.
-const G_MAX: f32 = 1.0;
+/// `REVERB_TIME (0.55) × allpass losses (≈0.37) × shifter (≤1) × tone (≤1) × g`,
+/// so even 2.0 keeps the coupled loop well under unity — measured live, the
+/// first user listen found G_MAX = 1.0 too shy (the FDN's allpass sections
+/// attenuate the cascade far harder than the raw `REVERB_TIME` suggests),
+/// which is the binding constraint here, not stability.
+const G_MAX: f32 = 2.0;
 /// Depth curve exponent: g = G_MAX · mix^1.5, gentle near zero, blooming late.
 const DEPTH_EXPONENT: f32 = 1.5;
 /// Cross-tap: the shimmer taps mostly its own channel's tail, a little of
@@ -478,8 +480,10 @@ mod tests {
         let from = n / 2;
         let oct_full = bin_mag(&sig_full, from, f0 * 2.0, sr);
         let oct_muted = bin_mag(&sig_muted, from, f0 * 2.0, sr);
-        // Measured: 137 vs 3.5 (39x); a depth_g scaled by 0.1 lands at 18 —
-        // still 5x over closed-loop, so the 10x bound fails the mutant.
+        // The reverb core alone cannot create the octave (the closed-loop bin
+        // is ~3 units of residue); a depth_g scaled by 0.1 lands ~5x over it —
+        // still far below the real cascade — so the 10x bound fails the mutant
+        // while passing the real thing with several times the margin.
         assert!(
             oct_full > oct_muted * 10.0,
             "cascade inaudible: octave bin {oct_full:.3} at full depth vs \
