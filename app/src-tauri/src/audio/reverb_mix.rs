@@ -93,13 +93,13 @@ impl Reverb {
     }
 
     /// Shift interval in semitones (fader stop values).
-    #[allow(dead_code)] // Task 4 wires set_shift/set_tone to the UI plumbing
+    #[allow(dead_code)] // Task 4 wires these to the UI — delete this attribute then.
     pub fn set_shift(&mut self, semitones: f32) {
         self.shimmer.set_shift(semitones);
     }
 
     /// Loop damping, 0..1.
-    #[allow(dead_code)] // Task 4 wires set_shift/set_tone to the UI plumbing
+    #[allow(dead_code)] // Task 4 wires these to the UI — delete this attribute then.
     pub fn set_tone(&mut self, t: f32) {
         self.shimmer.set_tone(t);
     }
@@ -261,12 +261,24 @@ mod tests {
 
     #[test]
     fn shimmer_disabled_matches_plain_engine() {
-        // With depth 0 the loop return must be exactly zero, so the Reverb
-        // path is bit-identical to composing CloudsReverb + the mix stage
-        // by hand — the regression guard for the injection point.
+        // Depth 0 must make the Reverb path bit-identical to composing
+        // CloudsReverb + the envelope + the mix stage by hand.
+        //
+        // `mix = 1.0` is load-bearing: at the default 0 the wet path is
+        // multiplied by zero and both sides collapse to the dry sample, so the
+        // assert would pass no matter what the reverb did. At full wet the
+        // equality spans the reverb, the envelope and the mix stage for real.
+        //
+        // What it cannot cover is *where* the loop return is injected: at
+        // depth 0 that return is identically zero, so it is invisible here
+        // however it is wired. `shimmer_cascade_feeds_back_into_the_reverb_input`
+        // below is the test for that.
         let sr = 44_100.0;
         let (mut rv_a, mut rv_b) = (Reverb::new(sr), Reverb::new(sr));
+        rv_a.set_mix(1.0);
         rv_a.depth_g = 0.0;
+        rv_b.mix = 1.0;
+        rv_b.depth_g = 0.0;
         let mut manual = CloudsReverb::new(sr);
         manual.set_diffusion(0.625);
         manual.set_lp(0.7);
@@ -280,47 +292,121 @@ mod tests {
         };
         for i in 0..8_000 {
             let x = next();
+            // The gain comes first, and that ordering is the whole subtlety:
+            // `process` passes `wet_gain()` as a call *argument*, so the gain
+            // applied to frame n is built from frame n-1's envelopes. Reading
+            // it after either follower update makes the replica one frame
+            // ahead of the engine, and the two drift apart as soon as the wet
+            // envelope climbs past the gain clamp — frame 2277 here. Leaving
+            // `env_dry` unfollowed is worse still: the gain stays pinned at the
+            // 0.05 floor forever and stops constraining anything.
+            let wg = rv_b.wet_gain();
             let mut a = [x, x];
             rv_a.process(&mut a);
             let [wet_l, wet_r] = manual.process([x + rv_b.ret_l, x + rv_b.ret_r]);
+            rv_b.ret_l = 0.0;
+            rv_b.ret_r = 0.0;
             rv_b.env_wet = follow(
                 rv_b.env_wet,
                 wet_l.abs().max(wet_r.abs()),
                 rv_b.env_attack,
                 rv_b.env_release,
             );
-            let wg = rv_b.wet_gain();
-            rv_b.ret_l = 0.0;
-            rv_b.ret_r = 0.0;
-            a[0] = mix_reverb_frame(x, wet_l, wg, rv_b.mix);
-            a[1] = mix_reverb_frame(x, wet_r, wg, rv_b.mix);
-            assert_eq!(a[0].to_bits(), a[1].to_bits(), "frame {i} diverged");
+            rv_b.env_dry = follow(rv_b.env_dry, x, rv_b.env_attack, rv_b.env_release);
+            // Compare the engine's channel against the replica's *same*
+            // channel. `CloudsReverb` is a stereo FDN whose per-channel line
+            // lengths differ, so L and R are legitimately not sample-equal —
+            // a left-vs-right assert says nothing about the injection, and
+            // folding the replica into `a` before comparing throws away
+            // `rv_a`'s output entirely.
+            let b0 = mix_reverb_frame(x, wet_l, wg, rv_b.mix);
+            let b1 = mix_reverb_frame(x, wet_r, wg, rv_b.mix);
+            assert_eq!(a[0].to_bits(), b0.to_bits(), "frame {i} left diverged");
+            assert_eq!(a[1].to_bits(), b1.to_bits(), "frame {i} right diverged");
         }
+    }
+
+    /// The half of the injection-point guard that a depth-0 comparison cannot
+    /// provide. `shimmer_disabled_matches_plain_engine` pins the wrapper to a
+    /// hand-composed engine, but at depth 0 the loop return is identically
+    /// zero, so *where* it is added cannot show up there: moving it from the
+    /// reverb input to the output, or dropping it, leaves every sample
+    /// identical and that test still passes (verified by mutation).
+    ///
+    /// So drive the cascade for real. Two engines see identical input and
+    /// differ only in `depth_g`, and two things must then be true:
+    ///
+    /// 1. Their outputs separate, once the shifter's rings stop being empty.
+    ///    A return that is never applied fails this.
+    /// 2. Their `env_wet` envelopes separate. `env_wet` follows the reverb's
+    ///    own output *before* the mix stage, so it can only move if the return
+    ///    reached the reverb's **input** and changed what the reverb is
+    ///    ringing. Adding the return to the output instead leaves the tail
+    ///    bit-identical and fails this, while still passing (1).
+    #[test]
+    fn shimmer_cascade_feeds_back_into_the_reverb_input() {
+        let sr = 44_100.0;
+        let (mut off, mut on) = (Reverb::new(sr), Reverb::new(sr));
+        off.set_mix(1.0);
+        on.set_mix(1.0);
+        off.depth_g = 0.0;
+        on.depth_g = 1.0;
+        let mut seed = 0x1234_5678u32;
+        let (mut out_diff, mut env_diff) = (usize::MAX, usize::MAX);
+        for i in 0..8_000 {
+            seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+            let x = ((seed >> 8) & 0xFFFF) as f32 / 65535.0 - 0.5;
+            let mut a = [x, x];
+            let mut b = [x, x];
+            off.process(&mut a);
+            on.process(&mut b);
+            if a[0].to_bits() != b[0].to_bits() && out_diff == usize::MAX {
+                out_diff = i;
+            }
+            if on.env_wet.to_bits() != off.env_wet.to_bits() && env_diff == usize::MAX {
+                env_diff = i;
+            }
+        }
+        assert!(
+            out_diff > 0 && out_diff != usize::MAX,
+            "the loop return never changed the output: it is not being applied at all"
+        );
+        assert!(
+            env_diff != usize::MAX,
+            "the reverb's own tail is unchanged: the return is added after the \
+             reverb, not into its input"
+        );
+        println!("cascade enters the output at frame {out_diff}, the tail at frame {env_diff}");
     }
 
     #[test]
     fn shimmer_cascade_stays_bounded() {
         // Full mix = full depth G_MAX: the coupled reverb+shimmer loop must
-        // reach a finite equilibrium, never diverge.
+        // reach a finite equilibrium, never diverge. Tone is swept because it
+        // is the loop's damping, so the undamped corner (tone 0, 500 Hz
+        // lowpass) recirculates hardest — checking only the bright end would
+        // test the easy half of the fader.
         for sr in [32_000.0f32, 48_000.0, 96_000.0] {
-            let mut rv = Reverb::new(sr);
-            rv.set_mix(1.0);
-            rv.set_shift(12.0);
-            rv.set_tone(1.0);
-            let mut peak = 0.0f32;
-            let mut seed = 0x1234_5678u32;
-            for i in 0..(sr * 10.0) as usize {
-                seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
-                let x = ((seed >> 8) & 0xFFFF) as f32 / 65535.0 - 0.5;
-                let mut frame = [x, x];
-                rv.process(&mut frame);
-                assert!(
-                    frame[0].is_finite() && frame[1].is_finite(),
-                    "{sr} Hz: non-finite at frame {i}"
-                );
-                peak = peak.max(frame[0].abs()).max(frame[1].abs());
+            for tone in [0.0f32, 0.65, 1.0] {
+                let mut rv = Reverb::new(sr);
+                rv.set_mix(1.0);
+                rv.set_shift(12.0);
+                rv.set_tone(tone);
+                let mut peak = 0.0f32;
+                let mut seed = 0x1234_5678u32;
+                for i in 0..(sr * 10.0) as usize {
+                    seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+                    let x = ((seed >> 8) & 0xFFFF) as f32 / 65535.0 - 0.5;
+                    let mut frame = [x, x];
+                    rv.process(&mut frame);
+                    assert!(
+                        frame[0].is_finite() && frame[1].is_finite(),
+                        "{sr} Hz tone {tone}: non-finite at frame {i}"
+                    );
+                    peak = peak.max(frame[0].abs()).max(frame[1].abs());
+                }
+                assert!(peak < 5.0, "{sr} Hz tone {tone}: cascade diverged to {peak}");
             }
-            assert!(peak < 5.0, "{sr} Hz: cascade diverged to {peak}");
         }
     }
 
