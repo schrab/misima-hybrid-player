@@ -42,6 +42,11 @@ export class WebPlayer {
   private rows: PlaylistRow[] = [];
   private nextId = 1;
   private activeId: number | null = null;
+  /**
+   * Length of a track that was removed from the playlist by a swap while it was
+   * still sounding. See `clearExceptPlaying`.
+   */
+  private detachedDuration: number | null = null;
 
   private playing = false;
   private position = 0;
@@ -230,12 +235,22 @@ export class WebPlayer {
 
   // ---------------------------------------------------------------- playlist
 
-  async openFiles(files: File[]): Promise<void> {
+  /**
+   * Decode `files` and add them to the playlist.
+   *
+   * With `replace`, the playlist is swapped out first rather than topped up.
+   * A track that is currently sounding keeps playing: the worklet renders from
+   * the interleaved copy posted to it in `play()`, so dropping this side's
+   * `AudioBuffer` cannot interrupt it. Only its length is kept, so the time
+   * readout and seeking survive until it ends.
+   */
+  async openFiles(files: File[], replace = false): Promise<void> {
     if (files.length === 0) return;
     // Built up front so a user gesture is still in progress — Safari needs the
     // context constructed inside the handler.
     await this.ensureContext();
     this.loading = true;
+    if (replace) this.clearExceptPlaying();
     try {
       for (const file of files) {
         try {
@@ -318,6 +333,29 @@ export class WebPlayer {
     this.tracks.clear();
     this.rows = [];
     this.activeId = null;
+    this.detachedDuration = null;
+  }
+
+  /**
+   * Empty the playlist *without* touching playback.
+   *
+   * `clear()` stops the transport, which is right for the Clear button and
+   * wrong for opening a new batch of files over a running track. The track that
+   * is sounding leaves `rows` entirely — it is simply no longer listed — but its
+   * length is retained so `duration()`, `seek()` and `cuePercent()` still work
+   * for the rest of it. Without that, the number-key cue would report "No track"
+   * and the arrow-key seek would clamp to zero.
+   *
+   * The desktop needs no equivalent: its position and duration come from the
+   * player, not from the playlist row.
+   */
+  private clearExceptPlaying(): void {
+    const active = this.activeId;
+    this.detachedDuration =
+      active !== null ? (this.tracks.get(active)?.buffer.duration ?? null) : null;
+    this.tracks.clear();
+    this.rows = [];
+    this.activeId = null;
   }
 
   // ---------------------------------------------------------------- transport
@@ -355,6 +393,7 @@ export class WebPlayer {
       if (!first) throw new Error("no track loaded");
       id = first.id;
       this.activeId = id;
+      this.detachedDuration = null;
       if (!(await this.ensureLoaded(id))) throw new Error("track unavailable");
     }
     const track = this.tracks.get(id)!;
@@ -407,7 +446,10 @@ export class WebPlayer {
   private step(delta: number): void {
     if (this.rows.length === 0) return;
     const idx = this.rows.findIndex((r) => r.id === this.activeId);
-    const from = idx < 0 ? 0 : idx;
+    // A miss means nothing is active in this playlist — either it is fresh, or
+    // the row that was playing got swapped out by an open. Stepping from a
+    // synthetic 0 would skip the first entry; start one below it instead.
+    const from = idx >= 0 ? idx : delta > 0 ? -1 : 0;
     const next = (from + delta + this.rows.length) % this.rows.length;
     void this.playIndex(next);
   }
@@ -424,6 +466,7 @@ export class WebPlayer {
     const row = this.rows[index];
     if (!row) return;
     this.activeId = row.id;
+    this.detachedDuration = null;
     this.position = 0;
     // A lazily-registered row has no audio yet; fetch it now that the listener
     // has actually asked for it.
@@ -462,8 +505,10 @@ export class WebPlayer {
   }
 
   duration(): number {
-    if (this.activeId === null) return 0;
-    return this.tracks.get(this.activeId)?.buffer.duration ?? 0;
+    if (this.activeId !== null) return this.tracks.get(this.activeId)?.buffer.duration ?? 0;
+    // No active row: either nothing is loaded, or the sounding track was
+    // swapped out of the playlist and only its length survives.
+    return this.detachedDuration ?? 0;
   }
 
   seek(seconds: number): void {

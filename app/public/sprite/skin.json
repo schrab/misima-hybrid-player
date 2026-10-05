@@ -33,6 +33,7 @@
     {
       "id": "ring",
       "image": "anim/ring_sheet.png",
+      "playback": "on-fx",
       "grid": {
         "cols": 3,
         "rows": 2
@@ -150,7 +151,8 @@
         20000
       ],
       "value": 20000,
-      "curve": "log"
+      "curve": "log",
+      "wheelStep": 0.5
     },
     {
       "id": "pitch",

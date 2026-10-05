@@ -13,6 +13,41 @@ the desktop installers; pushing `main` on its own deploys the web app.
 
 ## [Unreleased]
 
+### Added
+- **Right-clicking a fader resets it to its default.** The default is the
+  `value` the skin ships for that fader, which is the neutral position for every
+  control: cutoff back to 20 kHz (the lowpass's open bypass), pitch 0, reverb 0,
+  all ten EQ bands 0, tempo 1.0. Read from the manifest rather than hardcoded
+  per-param, so a skin with a different resting point gets that one. The browser
+  context menu was already suppressed over the canvas, so the gesture was free.
+
+### Changed
+- **Opening files now replaces the playlist instead of topping it up.** Loading
+  files is "play this set", so the previous entries are dropped and only the new
+  ones are listed. A track that is already sounding keeps playing: on the desktop
+  the playlist is pure list state and the player renders from samples it has
+  already decoded, and on the web the worklet holds its own interleaved copy.
+  `Playlist::clear` also drops `current`, so when the detached track ends it
+  advances into the new list from the top rather than from a stale index.
+  Dropping files in the web build behaves the same as picking them.
+  - The web engine keeps the detached track's *length* only. Without it
+    `duration()` reads zero, the number-key cue reports "No track" and the
+    arrow-key seek clamps to the start — the desktop has no such dependency,
+    since its position and duration come from the player rather than the row.
+  - `step()` used to start one row *past* the head when no row matched the
+    active track. That is exactly the state a swap leaves behind, so `next` would
+    have skipped the first new file.
+- **The cutoff fader's wheel resolution doubled.** Its log range spans 30 Hz to
+  20 kHz, a ×666 ratio, so the default 0.04 wheel fraction was a 30% jump per
+  tick — the steppiness. `wheelStep: 0.5` in the manifest brings it to ~14%, and
+  Shift+wheel from a useless 3% down to ~0.7%. Data only; the tempo fader
+  already used the same knob.
+- **The ring animation follows the fx_enable master.** It reads as the "FX is
+  live" lamp, so it is now hidden while FX is off. This is a third value on the
+  existing `playback` gate (`"always"`, `"on-playing"`, `"on-fx"`) rather than a
+  hardcoded sheet id, so any animation can be gated by editing the manifest. The
+  other six sheets are untouched.
+
 ## [0.5.1] — 2026-10-05
 
 Paulstretch takes the original's texture: a window twice as long, spread off,

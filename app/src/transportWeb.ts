@@ -111,7 +111,9 @@ export class WebTransport implements Transport {
   async openFilePicker(): Promise<string[]> {
     const files = await pickFiles();
     if (files.length === 0) return [];
-    await this.player.openFiles(files);
+    // Replace, matching the desktop's `open_files`: opening files loads a set,
+    // it does not top up an existing playlist.
+    await this.player.openFiles(files, true);
     return files.map((f) => f.name);
   }
 

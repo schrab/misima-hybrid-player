@@ -432,7 +432,7 @@ async function action(name: string) {
       // `File` objects it decodes in place. Both end at the same playlist.
       const picked = await transport.openFilePicker();
       if (picked.length === 0) return;
-      status = "Adding…";
+      status = "Loading…";
       if (transport.isWeb) {
         // The web picker already decoded the files as a side effect.
         await pushPlaylist();
@@ -440,7 +440,7 @@ async function action(name: string) {
         await transport.openFiles(picked);
         await pushPlaylist();
       }
-      status = `${picked.length} added`;
+      status = `${picked.length} loaded`;
       break;
     }
     case "play": {
@@ -597,6 +597,10 @@ function drawAnimations() {
   const now = performance.now();
   for (const a of anims) {
     if (a.def.playback === "on-playing" && !playing) continue;
+    // The ring reads as the "FX is live" lamp, so it follows the fx_enable
+    // master — same shape as the on-playing gate, read off the manifest rather
+    // than hardcoding this sheet's id in the compositor.
+    if (a.def.playback === "on-fx" && !fxOn) continue;
     const fps = a.def.fps ?? 8;
     const frames = Math.max(1, a.def.frames);
     const idx = Math.floor(((now - a.start) / 1000) * fps) % frames;
@@ -835,6 +839,29 @@ canvas.addEventListener("pointerup", async (ev) => {
 document.addEventListener("contextmenu", (ev) => {
   if ((ev.target as Element | null)?.closest("a")) return;
   ev.preventDefault();
+});
+
+/**
+ * Right-click a fader to snap it back to its default.
+ *
+ * The default is the `value` the skin ships for that fader, which is the neutral
+ * position for every control here: cutoff back to 20 kHz (the lowpass's open
+ * bypass), pitch 0, reverb 0, all ten EQ bands 0, tempo 1.0. Taking it from the
+ * manifest rather than hardcoding per-param constants means a skin that ships a
+ * different resting point gets that one.
+ *
+ * Nothing else has claimed the right button by the time this runs — `pointerdown`
+ * returns early for any non-primary button, so there is no drag to cancel and no
+ * window drag to interrupt.
+ */
+canvas.addEventListener("contextmenu", (ev) => {
+  const p = canvasPoint(ev);
+  const fader = findFaderAt(p.x, p.y);
+  if (!fader) return;
+  ev.preventDefault();
+  dragFader = null;
+  setParam(fader.param, fader.value);
+  status = `${fader.id} reset`;
 });
 
 canvas.addEventListener("dblclick", (ev: MouseEvent) => {
@@ -1138,10 +1165,11 @@ async function init() {
   if (transport instanceof WebTransport) {
     const player = transport.webPlayer;
     installDropTarget(async (files) => {
-      status = `Adding ${files.length}…`;
-      await player.openFiles(files);
+      status = `Loading ${files.length}…`;
+      // Same replace semantics as the picker: dropped files are the new set.
+      await player.openFiles(files, true);
       await pushPlaylist();
-      status = `${files.length} added`;
+      status = `${files.length} loaded`;
     });
     // Hosted-MP3 loading (spec Phase 5). Exposed on `window.misima` so a track
     // can be added by URL from the console or a future UI affordance. It goes

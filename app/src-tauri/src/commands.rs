@@ -8,10 +8,18 @@ use tauri::{AppHandle, Emitter, Manager, State};
 #[tauri::command]
 pub fn open_files(paths: Vec<String>, state: State<'_, AppInner>) -> Result<usize, String> {
     let mut pl = state.playlist.write();
-    let before = pl.len();
+    // Replace, not append. Opening files is "load this set", not "top up what is
+    // already there".
+    //
+    // A track that is currently sounding keeps playing: `clear` is pure list
+    // state, and the player renders from samples it has already decoded, so
+    // nothing here reaches the audio path. It also drops `current`, which means
+    // that when the detached track ends, `track_ended` -> `step_track` finds no
+    // current row and starts the new list from the top.
+    pl.clear();
     pl.add_paths(&paths);
     // Duration is optional and must not decode the whole file (UI freeze).
-    for entry in pl.entries_mut()[before..].iter_mut() {
+    for entry in pl.entries_mut().iter_mut() {
         if let Ok(meta) = crate::audio::decoder::duration_hint(std::path::Path::new(&entry.path)) {
             if meta > 0.0 {
                 let m = (meta / 60.0).floor() as u64;
@@ -22,7 +30,7 @@ pub fn open_files(paths: Vec<String>, state: State<'_, AppInner>) -> Result<usiz
             }
         }
     }
-    Ok(pl.len() - before)
+    Ok(pl.len())
 }
 
 fn spawn_load(path: String, app: AppHandle) {

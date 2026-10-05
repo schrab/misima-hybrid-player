@@ -98,8 +98,8 @@ export type SkinAnimDef = {
   fps?: number;
   /** Composite mode; "screen" (default) drops the solid black sheet BG. */
   blend?: "screen" | "source-over";
-  /** "always" (default) or only while a track is playing. */
-  playback?: "always" | "on-playing";
+  /** "always" (default), only while a track is playing, or only while FX is on. */
+  playback?: "always" | "on-playing" | "on-fx";
 };
 
 export type SkinManifestV2 = {
