@@ -147,7 +147,12 @@ export function clamp(v: number, lo: number, hi: number): number {
 }
 
 export async function loadJson(url: string): Promise<import("./types").SkinManifestV2> {
-  const res = await fetch(url);
+  // `cache: "reload"` forces revalidation. Without it the browser's
+  // heuristic freshness (10% of age since Last-Modified) can serve a
+  // days-old manifest against fresh code, and the skin splits in half:
+  // new DSP, old faders — the tempo fader silently reverts to its
+  // pre-Paulstretch [0.5, 2] range and the shift/tone faders vanish.
+  const res = await fetch(url, { cache: "reload" });
   if (!res.ok) throw new Error(`skin load failed: ${url}`);
   return (await res.json()) as import("./types").SkinManifestV2;
 }
