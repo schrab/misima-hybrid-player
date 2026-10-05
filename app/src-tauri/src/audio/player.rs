@@ -116,8 +116,10 @@ pub fn shared() -> Arc<SharedPlay> {
 /// `cargo test` runs every test in one process on one thread pool, and these
 /// tests share module-level state that no amount of per-test cleanup can
 /// isolate — a params write in one test lands in another's assertion. The lock
-/// is deliberately `std::sync` (not the parking_lot one above): poisoning is
-/// ignored rather than handled, because a panicked test has already failed.
+/// is deliberately `std::sync` (not the parking_lot one above): the call
+/// sites use `.lock().unwrap()`, which panics on poison — fine here, because
+/// the test that poisoned the lock has already failed, and the panic cascade
+/// points at the root cause rather than masking it.
 ///
 /// Lock it at the top of any test that touches `shared()`'s params.
 #[cfg(test)]

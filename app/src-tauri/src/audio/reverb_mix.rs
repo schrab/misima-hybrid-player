@@ -117,8 +117,18 @@ impl Reverb {
 
     #[inline]
     pub fn process_with_gain(&mut self, frame: &mut [f32; 2], wg: f32) {
-        let dry_l = frame[0];
-        let dry_r = frame[1];
+        // Sanitize the *source* here, not just the loop return. The guard below
+        // costs `inner.clear()` + `shimmer.clear()` — roughly 150 KB of fill(0)
+        // — whenever the shifter returns a non-finite sample. If the input
+        // itself is persistently non-finite (a malformed decode), that branch
+        // fires every single frame: ~7 GB/s of memset on the RT thread, which
+        // starves the actual audio callback far worse than the bad samples did.
+        // Mute the bad frame up front instead — one compare per channel — so a
+        // broken decode costs silence rather than a meltdown, and the loop guard
+        // below keeps doing its real job (catching a *diverged cascade*, which
+        // is rare and transient by nature).
+        let dry_l = if frame[0].is_finite() { frame[0] } else { 0.0 };
+        let dry_r = if frame[1].is_finite() { frame[1] } else { 0.0 };
         self.env_dry = follow(self.env_dry, (dry_l + dry_r) * 0.5, self.env_attack, self.env_release);
 
         let [wet_l, wet_r] = self.inner.process([dry_l + self.ret_l, dry_r + self.ret_r]);
@@ -418,5 +428,62 @@ mod tests {
             rv.process(&mut frame);
             assert!(frame[0].is_finite() && frame[1].is_finite());
         }
+    }
+
+    /// Naive DFT bin magnitude over the settled half of a signal.
+    fn bin_mag(sig: &[f32], from: usize, freq: f64, sr: f64) -> f64 {
+        use std::f64::consts::TAU;
+        let (mut re, mut im) = (0.0f64, 0.0f64);
+        for (i, &s) in sig[from..].iter().enumerate() {
+            let w = TAU * freq * i as f64 / sr;
+            re += s as f64 * w.cos();
+            im -= s as f64 * w.sin();
+        }
+        (re * re + im * im).sqrt()
+    }
+
+    /// The cascade must actually be audible, not merely wired and bounded: an
+    /// implementation that returned the loop at 1/10 gain, or a mistyped
+    /// depth exponent, would pass every other test in this file. The reverb
+    /// core alone cannot turn 440 Hz into 880 Hz — only the pitch cascade
+    /// can — so the octave bin at full depth must dwarf the same bin with
+    /// the loop closed. Broadband drive cannot work here: the reverb's own
+    /// noise tail floods the octave bin (measured: the depth-0 880 bin rises
+    /// ~30x with noise in the drive), masking exactly the contribution this
+    /// test exists to see. Divergence is the broadband tests' job above.
+    #[test]
+    fn shimmer_cascade_is_audible() {
+        let sr = 48_000.0f64;
+        let f0 = 440.0;
+        let n = (sr * 2.0) as usize;
+        let mut full = Reverb::new(sr as f32);
+        full.set_mix(1.0);
+        full.set_shift(12.0);
+        full.set_tone(1.0);
+        let mut muted = Reverb::new(sr as f32);
+        muted.set_mix(1.0);
+        muted.set_shift(12.0);
+        muted.set_tone(1.0);
+        muted.depth_g = 0.0;
+        let (mut sig_full, mut sig_muted) = (Vec::with_capacity(n), Vec::with_capacity(n));
+        for i in 0..n {
+            let x = (std::f64::consts::TAU * f0 * i as f64 / sr).sin() as f32 * 0.5;
+            let mut a = [x, x];
+            full.process(&mut a);
+            sig_full.push(a[0]);
+            let mut b = [x, x];
+            muted.process(&mut b);
+            sig_muted.push(b[0]);
+        }
+        let from = n / 2;
+        let oct_full = bin_mag(&sig_full, from, f0 * 2.0, sr);
+        let oct_muted = bin_mag(&sig_muted, from, f0 * 2.0, sr);
+        // Measured: 137 vs 3.5 (39x); a depth_g scaled by 0.1 lands at 18 —
+        // still 5x over closed-loop, so the 10x bound fails the mutant.
+        assert!(
+            oct_full > oct_muted * 10.0,
+            "cascade inaudible: octave bin {oct_full:.3} at full depth vs \
+             {oct_muted:.3} with the loop closed"
+        );
     }
 }

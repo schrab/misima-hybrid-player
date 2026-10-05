@@ -20,7 +20,9 @@ export type FaderDef = {
    * Quantize the fader to these stops, evenly spaced in travel. A stopped
    * fader ignores `curve` and steps exactly one stop per wheel tick — that is
    * the shimmer's shift interval, which only sounds right on musical
-   * intervals (octave, fifth, fourth).
+   * intervals (octave, fifth, fourth). `range` also becomes advisory: it
+   * only reaches the legacy log heuristic (false for the shipped ranges),
+   * and the engine-side clamps are the real backstop.
    */
   stops?: number[];
   unit?: string;

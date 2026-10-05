@@ -72,6 +72,9 @@ async function main() {
     speed: 1,
     pitch: 0,
     reverb: 0.2,
+    // Deliberately over-length: exercises the binding's pad/truncate — the
+    // wasm `set_params` binding must tolerate payloads that predate the
+    // 8-band contract instead of panicking on the audio thread.
     eq: [0, 0, 0, 0, 6, 0, 0, 0, 0, 0],
     shift: 12,
     tone: 0.65,

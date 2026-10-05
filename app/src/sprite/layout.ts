@@ -12,8 +12,9 @@ export function faderValueToY(
   stops?: number[],
 ): number {
   const idx = nearestStop(stops, value);
-  let n = valueToNorm(range, value, curve);
-  if (idx >= 0 && stops) n = idx / (stops.length - 1);
+  // A stopped fader's travel is index-spaced, so the log/linear norm math is
+  // skipped entirely — computing it first would be a per-frame dead store.
+  const n = idx >= 0 && stops ? idx / (stops.length - 1) : valueToNorm(range, value, curve);
   return origin.y + (1 - n) * travel;
 }
 

@@ -326,5 +326,11 @@ mod tests {
             .unwrap_err()
             .contains("expected 8 EQ gains"));
         assert!(set_params(20_000.0, 0.0, 0.0, vec![0.0; 8], 1.0, 12.0, 0.65).is_ok());
+        // The seam: non-default values must survive the IPC boundary into the
+        // shared singleton, or a dropped `shift`/`tone` forwarding would pass
+        // silently (the defaults above equal what the singleton already holds).
+        set_params(20_000.0, 0.0, 0.0, vec![0.0; 8], 1.0, 19.0, 0.2).unwrap();
+        assert_eq!(*crate::audio::player::shared().shift.lock(), 19.0);
+        assert_eq!(*crate::audio::player::shared().tone.lock(), 0.2);
     }
 }
