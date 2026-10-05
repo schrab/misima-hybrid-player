@@ -398,7 +398,11 @@ function setParam(key: string, value: number) {
 }
 
 function pushParams() {
-  const eq = fxOn ? params.eq : new Array(8).fill(0);
+  // The sender owns the 8-band wire contract: a stale skin fader (`eq8` /
+  // `eq9` / `eq10`, until Task 4 remaps them) writes past index 7 and would
+  // make the whole payload the wrong length — the desktop guard then rejects
+  // *every* param update, not just that fader, and the error is swallowed here.
+  const eq = fxOn ? params.eq.slice(0, 8) : new Array(8).fill(0);
   const reverb = fxOn ? params.reverb : 0;
   void transport
     .setParams({
