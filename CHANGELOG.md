@@ -13,6 +13,32 @@ the desktop installers; pushing `main` on its own deploys the web app.
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-10-05
+
+Paulstretch takes the original's texture: a window twice as long, spread off,
+and a floor of 20x.
+
+### Changed
+- **The paulstretch analysis window doubled to 16384 samples** (~0.37 s at
+  44.1 kHz, ~5.4 frame refreshes per second per channel instead of ~10.8).
+  A check against the original `paulstretch_cpp` sources showed their default
+  window is ~2.4× longer than what we shipped — window length is the texture
+  knob, and the shorter ours was the "dirt" next to the reference app. CPU
+  rises ~8% and stays under a percent of a core.
+- **The spread filter ships off.** The original's Spread checkbox is unchecked
+  by default too (verified in source), and our implementation had taken the
+  lighter of two readings of the reference smoothing formula. The filter stays
+  in the engine behind a test override; it must not be re-enabled without
+  switching to the reference-strength reading (two forward+backward pairs, an
+  N-point log axis).
+- **The tempo fader floor is 0.05 = 20x stretch** (log curve; 1.0 sits at ~81%
+  of travel). The engine's expansion clamp moves to 50 so the fader floor
+  combined with +12 st of pitch (40x) stays honest, and the backend speed
+  clamps accept the new floor. A new test pins 40x end to end.
+- **The tempo fader's mouse-wheel resolution doubled** — a new `wheelStep`
+  fader field multiplies the per-tick fraction (default 1.0; the tempo fader
+  uses 0.5, and shift still gives the fine step).
+
 ## [0.5.0] — 2026-10-05
 
 Below 1.0x the tempo fader stops pretending and stretches properly: Paulstretch.
