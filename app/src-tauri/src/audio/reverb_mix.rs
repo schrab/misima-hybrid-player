@@ -8,15 +8,21 @@
 use crate::audio::clouds_reverb::CloudsReverb;
 use crate::audio::shimmer::Shimmer;
 
-/// Cascade depth at full mix. Worst-case recirculation is
-/// `REVERB_TIME (0.55) × allpass losses (≈0.37) × shifter (≤1) × tone (≤1) × g`,
-/// so even 2.0 keeps the coupled loop well under unity — measured live, the
-/// first user listen found G_MAX = 1.0 too shy (the FDN's allpass sections
-/// attenuate the cascade far harder than the raw `REVERB_TIME` suggests),
-/// which is the binding constraint here, not stability.
-const G_MAX: f32 = 2.0;
-/// Depth curve exponent: g = G_MAX · mix^1.5, gentle near zero, blooming late.
-const DEPTH_EXPONENT: f32 = 1.5;
+/// The cascade loop's own feedback gain. The shifter sits in ITS OWN loop —
+/// tap + `CASCADE_FB`·previous cascade → shifter → cascade — completely
+/// outside the reverb's `krt` recirculation, so the loop gain is
+/// `CASCADE_FB × shifter (≤1 by the crossfade) ≤ 0.5`: unconditionally
+/// stable, no build-and-dump at any level. This mirrors the working Faust
+/// reference (`shimmer.dsp`), where the transposer's loop feedback tops out
+/// at 0.35 and the shimmer's loudness never touches loop stability.
+const CASCADE_FB: f32 = 0.5;
+/// Cascade output level at full mix. Pure output gain — it scales what the
+/// listener hears, never what the loop recirculates, so it can be raised
+/// freely if the shimmer reads shy.
+const CASCADE_LEVEL: f32 = 1.0;
+/// Level curve exponent: level = CASCADE_LEVEL · mix^1.5, gentle near zero,
+/// blooming late.
+const LEVEL_EXPONENT: f32 = 1.5;
 /// Cross-tap: the shimmer taps mostly its own channel's tail, a little of
 /// the other, for width.
 const CROSS_OWN: f32 = 0.7;
@@ -26,27 +32,26 @@ const CROSS_OTHER: f32 = 0.3;
 /// cascade that sit in front of it. The DSP graph itself is `CloudsReverb`
 /// (Mutable Instruments Clouds, MIT, Copyright 2014 Emilie Gillet — ported
 /// in `audio/clouds_reverb.rs`) plus a `Shimmer` pitch shifter; this wrapper
-/// owns the dry/wet balance, the level envelopes that gain-normalise the
-/// tail, and the feedback path that feeds the shifted tail back into the
-/// reverb input.
+/// owns the dry/wet balance and the level envelopes that gain-normalise the
+/// tail, and runs the cascade in its own fixed-gain loop whose output sums
+/// directly into the wet — the working Faust reference's topology, where
+/// shimmer loudness is an output level and never part of loop gain.
 ///
 /// The envelopes exist because the raw tail level is extremely
 /// material-dependent: 0.46x dry RMS on a steady tone, 4.5x on broadband, so
-/// no fixed wet gain stays balanced. The cascade rides on top of that
-/// normaliser: because the loop gain is capped below unity the coupled
-/// reverb+shimmer loop settles at a finite equilibrium, so the envelope
-/// follows the shimmered tail just as it follows the dry one.
+/// no fixed wet gain stays balanced. The cascade rides on top: its loop is
+/// stable by construction (`CASCADE_FB < 1`), so its level is free to move.
 #[derive(Debug)]
 pub struct Reverb {
     inner: CloudsReverb,
     mix: f32,
     /// Pitch-cascade loop: shifter + tone + DC blocker (see `shimmer.rs`).
     shimmer: Shimmer,
-    /// Loop gain, recomputed from `mix` in `set_mix`.
-    depth_g: f32,
-    /// The loop return fed into the reverb input on the next frame.
-    ret_l: f32,
-    ret_r: f32,
+    /// Cascade output level, recomputed from `mix` in `set_mix`.
+    casc_level: f32,
+    /// The cascade's previous output — the loop feedback signal.
+    casc_l: f32,
+    casc_r: f32,
     env_dry: f32,
     env_wet: f32,
     env_attack: f32,
@@ -73,9 +78,9 @@ impl Reverb {
             inner,
             mix: 0.0,
             shimmer: Shimmer::new(sample_rate),
-            depth_g: 0.0,
-            ret_l: 0.0,
-            ret_r: 0.0,
+            casc_level: 0.0,
+            casc_l: 0.0,
+            casc_r: 0.0,
             env_dry: 0.0,
             env_wet: 0.0,
             // Level follower coefficients: fast attack, ~0.3 s release at any
@@ -86,12 +91,12 @@ impl Reverb {
         }
     }
 
-    /// Wet/dry balance, 0..1, from the reverb fader. Also the cascade's depth
-    /// control: the loop return rides the same fader, on a curve that stays out
-    /// of the way at low settings and blooms towards the top.
+    /// Wet/dry balance, 0..1, from the reverb fader. Also the cascade's
+    /// loudness: its loop gain is fixed at `CASCADE_FB`, so the fader only
+    /// scales the output level — stable at any setting.
     pub fn set_mix(&mut self, mix: f32) {
         self.mix = mix.clamp(0.0, 1.0);
-        self.depth_g = G_MAX * self.mix.powf(DEPTH_EXPONENT);
+        self.casc_level = CASCADE_LEVEL * self.mix.powf(LEVEL_EXPONENT);
     }
 
     /// Shift interval in semitones (fader stop values).
@@ -111,55 +116,60 @@ impl Reverb {
     pub fn clear(&mut self) {
         self.inner.clear();
         self.shimmer.clear();
-        self.ret_l = 0.0;
-        self.ret_r = 0.0;
+        self.casc_l = 0.0;
+        self.casc_r = 0.0;
         self.env_wet = 0.0;
         self.env_dry = 0.0;
     }
 
     #[inline]
     pub fn process_with_gain(&mut self, frame: &mut [f32; 2], wg: f32) {
-        // Sanitize the *source* here, not just the loop return. The guard below
-        // costs `inner.clear()` + `shimmer.clear()` — roughly 150 KB of fill(0)
-        // — whenever the shifter returns a non-finite sample. If the input
-        // itself is persistently non-finite (a malformed decode), that branch
-        // fires every single frame: ~7 GB/s of memset on the RT thread, which
-        // starves the actual audio callback far worse than the bad samples did.
-        // Mute the bad frame up front instead — one compare per channel — so a
-        // broken decode costs silence rather than a meltdown, and the loop guard
-        // below keeps doing its real job (catching a *diverged cascade*, which
-        // is rare and transient by nature).
+        // Sanitize the *source* here. The cascade guard below costs
+        // `shimmer.clear()` — the whole ring — whenever the shifter returns a
+        // non-finite sample. If the input itself is persistently non-finite
+        // (a malformed decode), that branch fires every single frame at
+        // ring-clearing cost on the RT thread. Mute the bad frame up front
+        // instead — one compare per channel — so a broken decode costs
+        // silence rather than a meltdown, and the cascade guard keeps doing
+        // its real job (catching a *diverged cascade*, rare and transient).
         let dry_l = if frame[0].is_finite() { frame[0] } else { 0.0 };
         let dry_r = if frame[1].is_finite() { frame[1] } else { 0.0 };
         self.env_dry = follow(self.env_dry, (dry_l + dry_r) * 0.5, self.env_attack, self.env_release);
 
-        let [wet_l, wet_r] = self.inner.process([dry_l + self.ret_l, dry_r + self.ret_r]);
+        let [wet_l, wet_r] = self.inner.process([dry_l, dry_r]);
         // Follow the louder tail channel: the two loops are symmetric, so the
         // peak is the pair's shared level and neither channel gets pulled down.
         self.env_wet = follow(self.env_wet, wet_l.abs().max(wet_r.abs()), self.env_attack, self.env_release);
 
-        // Shimmer loop: cross-tap the tail, pitch it, damp it, feed it back
-        // into the reverb input on the next frame. The envelope normalizer
-        // rides the cascade's finite equilibrium — with the loop-gain cap the
-        // tail settles, so no special-casing is needed here.
+        // The cascade runs in its own loop — cross-tapped tail plus
+        // `CASCADE_FB` times the previous cascade output, through the
+        // shifter — completely outside the reverb's `krt` recirculation. Its
+        // output sums directly into the wet, so shimmer loudness
+        // (`casc_level`) is pure output gain and can never push the loop
+        // past unity: the working Faust reference's topology.
         let tap_l = CROSS_OWN * wet_l + CROSS_OTHER * wet_r;
         let tap_r = CROSS_OWN * wet_r + CROSS_OTHER * wet_l;
-        let (s_l, s_r) = self.shimmer.process(tap_l, tap_r);
+        let (s_l, s_r) = self.shimmer.process(
+            tap_l + CASCADE_FB * self.casc_l,
+            tap_r + CASCADE_FB * self.casc_r,
+        );
         if s_l.is_finite() && s_r.is_finite() {
-            self.ret_l = s_l * self.depth_g;
-            self.ret_r = s_r * self.depth_g;
+            self.casc_l = s_l;
+            self.casc_r = s_r;
         } else {
-            // A diverged loop reaches the soft clip as inf/inf = NaN, which
-            // would poison every delay line permanently. Flush everything;
-            // the dry input refills the loop from silence.
-            self.inner.clear();
+            // A diverged cascade reaches the soft clip as inf/inf = NaN.
+            // Flush the shifter and the loop state; the tail refills the
+            // loop from silence. The reverb itself is untouched — it is no
+            // longer part of this loop.
             self.shimmer.clear();
-            self.ret_l = 0.0;
-            self.ret_r = 0.0;
+            self.casc_l = 0.0;
+            self.casc_r = 0.0;
         }
 
-        frame[0] = mix_reverb_frame(dry_l, wet_l, wg, self.mix);
-        frame[1] = mix_reverb_frame(dry_r, wet_r, wg, self.mix);
+        // The cascade sums after the tail's soft clip; the callers' final
+        // output clamp is the last line of defence for the sum.
+        frame[0] = mix_reverb_frame(dry_l, wet_l, wg, self.mix) + self.casc_l * self.casc_level;
+        frame[1] = mix_reverb_frame(dry_r, wet_r, wg, self.mix) + self.casc_r * self.casc_level;
     }
 
     /// Run one stereo frame through the reverb and the dry/wet balance.
@@ -271,24 +281,24 @@ mod tests {
 
     #[test]
     fn shimmer_disabled_matches_plain_engine() {
-        // Depth 0 must make the Reverb path bit-identical to composing
-        // CloudsReverb + the envelope + the mix stage by hand.
+        // Cascade level 0 must make the Reverb path bit-identical to
+        // composing CloudsReverb + the envelope + the mix stage by hand.
         //
         // `mix = 1.0` is load-bearing: at the default 0 the wet path is
         // multiplied by zero and both sides collapse to the dry sample, so the
         // assert would pass no matter what the reverb did. At full wet the
         // equality spans the reverb, the envelope and the mix stage for real.
         //
-        // What it cannot cover is *where* the loop return is injected: at
-        // depth 0 that return is identically zero, so it is invisible here
-        // however it is wired. `shimmer_cascade_feeds_back_into_the_reverb_input`
-        // below is the test for that.
+        // What it cannot cover is the cascade itself: at level 0 its output
+        // sum is identically zero, so the sum's placement (after the soft
+        // clip) is invisible here. `shimmer_cascade_sums_into_the_wet` below
+        // is the test for that.
         let sr = 44_100.0;
         let (mut rv_a, mut rv_b) = (Reverb::new(sr), Reverb::new(sr));
         rv_a.set_mix(1.0);
-        rv_a.depth_g = 0.0;
+        rv_a.casc_level = 0.0;
         rv_b.mix = 1.0;
-        rv_b.depth_g = 0.0;
+        rv_b.casc_level = 0.0;
         let mut manual = CloudsReverb::new(sr);
         manual.set_diffusion(0.625);
         manual.set_lp(0.7);
@@ -313,9 +323,7 @@ mod tests {
             let wg = rv_b.wet_gain();
             let mut a = [x, x];
             rv_a.process(&mut a);
-            let [wet_l, wet_r] = manual.process([x + rv_b.ret_l, x + rv_b.ret_r]);
-            rv_b.ret_l = 0.0;
-            rv_b.ret_r = 0.0;
+            let [wet_l, wet_r] = manual.process([x, x]);
             rv_b.env_wet = follow(
                 rv_b.env_wet,
                 wet_l.abs().max(wet_r.abs()),
@@ -326,7 +334,7 @@ mod tests {
             // Compare the engine's channel against the replica's *same*
             // channel. `CloudsReverb` is a stereo FDN whose per-channel line
             // lengths differ, so L and R are legitimately not sample-equal —
-            // a left-vs-right assert says nothing about the injection, and
+            // a left-vs-right assert says nothing about the wiring, and
             // folding the replica into `a` before comparing throws away
             // `rv_a`'s output entirely.
             let b0 = mix_reverb_frame(x, wet_l, wg, rv_b.mix);
@@ -336,33 +344,21 @@ mod tests {
         }
     }
 
-    /// The half of the injection-point guard that a depth-0 comparison cannot
-    /// provide. `shimmer_disabled_matches_plain_engine` pins the wrapper to a
-    /// hand-composed engine, but at depth 0 the loop return is identically
-    /// zero, so *where* it is added cannot show up there: moving it from the
-    /// reverb input to the output, or dropping it, leaves every sample
-    /// identical and that test still passes (verified by mutation).
-    ///
-    /// So drive the cascade for real. Two engines see identical input and
-    /// differ only in `depth_g`, and two things must then be true:
-    ///
-    /// 1. Their outputs separate, once the shifter's rings stop being empty.
-    ///    A return that is never applied fails this.
-    /// 2. Their `env_wet` envelopes separate. `env_wet` follows the reverb's
-    ///    own output *before* the mix stage, so it can only move if the return
-    ///    reached the reverb's **input** and changed what the reverb is
-    ///    ringing. Adding the return to the output instead leaves the tail
-    ///    bit-identical and fails this, while still passing (1).
+    /// The cascade must actually reach the output. Two engines see identical
+    /// input and differ only in `casc_level`; their outputs must separate
+    /// once the shifter's rings stop being empty. A cascade that is wired
+    /// but never summed (or summed at the wrong place, after the mix stage)
+    /// fails this.
     #[test]
-    fn shimmer_cascade_feeds_back_into_the_reverb_input() {
+    fn shimmer_cascade_sums_into_the_wet() {
         let sr = 44_100.0;
         let (mut off, mut on) = (Reverb::new(sr), Reverb::new(sr));
         off.set_mix(1.0);
         on.set_mix(1.0);
-        off.depth_g = 0.0;
-        on.depth_g = 1.0;
+        off.casc_level = 0.0;
+        on.casc_level = 1.0;
         let mut seed = 0x1234_5678u32;
-        let (mut out_diff, mut env_diff) = (usize::MAX, usize::MAX);
+        let mut out_diff = usize::MAX;
         for i in 0..8_000 {
             seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
             let x = ((seed >> 8) & 0xFFFF) as f32 / 65535.0 - 0.5;
@@ -373,29 +369,21 @@ mod tests {
             if a[0].to_bits() != b[0].to_bits() && out_diff == usize::MAX {
                 out_diff = i;
             }
-            if on.env_wet.to_bits() != off.env_wet.to_bits() && env_diff == usize::MAX {
-                env_diff = i;
-            }
         }
         assert!(
             out_diff > 0 && out_diff != usize::MAX,
-            "the loop return never changed the output: it is not being applied at all"
+            "the cascade never changed the output: it is not being summed at all"
         );
-        assert!(
-            env_diff != usize::MAX,
-            "the reverb's own tail is unchanged: the return is added after the \
-             reverb, not into its input"
-        );
-        println!("cascade enters the output at frame {out_diff}, the tail at frame {env_diff}");
+        println!("cascade enters the output at frame {out_diff}");
     }
 
     #[test]
     fn shimmer_cascade_stays_bounded() {
-        // Full mix = full depth G_MAX: the coupled reverb+shimmer loop must
-        // reach a finite equilibrium, never diverge. Tone is swept because it
-        // is the loop's damping, so the undamped corner (tone 0, 500 Hz
-        // lowpass) recirculates hardest — checking only the bright end would
-        // test the easy half of the fader.
+        // Full mix = full cascade level. The cascade loop itself is stable by
+        // construction (feedback 0.5, shifter gain ≤ 1), but the test still
+        // guards the whole summed path — tail + cascade — across rates and
+        // the undamped tone corner (tone 0, 500 Hz lowpass), which
+        // recirculates hardest.
         for sr in [32_000.0f32, 48_000.0, 96_000.0] {
             for tone in [0.0f32, 0.65, 1.0] {
                 let mut rv = Reverb::new(sr);
@@ -445,14 +433,13 @@ mod tests {
     }
 
     /// The cascade must actually be audible, not merely wired and bounded: an
-    /// implementation that returned the loop at 1/10 gain, or a mistyped
-    /// depth exponent, would pass every other test in this file. The reverb
-    /// core alone cannot turn 440 Hz into 880 Hz — only the pitch cascade
-    /// can — so the octave bin at full depth must dwarf the same bin with
-    /// the loop closed. Broadband drive cannot work here: the reverb's own
-    /// noise tail floods the octave bin (measured: the depth-0 880 bin rises
-    /// ~30x with noise in the drive), masking exactly the contribution this
-    /// test exists to see. Divergence is the broadband tests' job above.
+    /// implementation that summed it at 1/10 gain, or a mistyped level
+    /// exponent, would pass every other test in this file. The reverb core
+    /// alone cannot turn 440 Hz into 880 Hz — only the pitch cascade can —
+    /// so the octave bin at full level must dwarf the same bin with the
+    /// cascade muted. Broadband drive cannot work here: the reverb's own
+    /// noise tail floods the octave bin, masking exactly the contribution
+    /// this test exists to see. Divergence is the broadband tests' job above.
     #[test]
     fn shimmer_cascade_is_audible() {
         let sr = 48_000.0f64;
@@ -466,7 +453,7 @@ mod tests {
         muted.set_mix(1.0);
         muted.set_shift(12.0);
         muted.set_tone(1.0);
-        muted.depth_g = 0.0;
+        muted.casc_level = 0.0;
         let (mut sig_full, mut sig_muted) = (Vec::with_capacity(n), Vec::with_capacity(n));
         for i in 0..n {
             let x = (std::f64::consts::TAU * f0 * i as f64 / sr).sin() as f32 * 0.5;
@@ -480,14 +467,15 @@ mod tests {
         let from = n / 2;
         let oct_full = bin_mag(&sig_full, from, f0 * 2.0, sr);
         let oct_muted = bin_mag(&sig_muted, from, f0 * 2.0, sr);
-        // The reverb core alone cannot create the octave (the closed-loop bin
-        // is ~3 units of residue); a depth_g scaled by 0.1 lands ~5x over it —
-        // still far below the real cascade — so the 10x bound fails the mutant
-        // while passing the real thing with several times the margin.
+        // Measured 8.98x at level 1.0 (the single-pass cascade builds less
+        // octave pile-up than the old reverb-fed loop, and that is the
+        // reference architecture's honest number). A level scaled by 0.1
+        // lands at ~1.8x, so the 6x bound still separates them with margin
+        // on both sides.
         assert!(
-            oct_full > oct_muted * 10.0,
-            "cascade inaudible: octave bin {oct_full:.3} at full depth vs \
-             {oct_muted:.3} with the loop closed"
+            oct_full > oct_muted * 6.0,
+            "cascade inaudible: octave bin {oct_full:.3} at full level vs \
+             {oct_muted:.3} with the cascade muted"
         );
     }
 }

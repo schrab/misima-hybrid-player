@@ -1,37 +1,39 @@
-//! Dual delay-line pitch shifter for the shimmer reverb loop.
+//! Pitch shifter for the shimmer cascade — a faithful port of the Faust
+//! `transpose` function (`ef.transpose` / the repository's
+//! `examples/pitch_shifter.dsp`), the same shifter the working Valhalla-style
+//! Faust shimmer patches use (`shimmer.dsp`, "Based on: ValhallaShimmer").
 //!
-//! Two read heads half a ring apart, one ring per channel, traverse it at
-//! `ratio` times the write head's speed — +12 semitones laps them twice per
-//! write lap. They carry complementary raised-cosine gains, `a1 + a2 = 1` at
-//! every position, which is what keeps the crossfade free of the periodic
-//! 6 dB thump a short fade region produces. Reads are cubic Hermite; the ring
-//! length scales with the device rate the way `clouds_reverb::layout` scales
-//! its lines (AGENTS.md 3.1.4). A slow sine modulates the left head and a
-//! cosine the right, decorrelating the channels' comb structure (Elysiera's
-//! trick — algorithm only, its GPL code is not used).
+//! A sawtooth delay ramp `d` advances by `1 − ratio` per sample and wraps at
+//! the window `w` (2048 at 48 kHz). Two fractional taps read the ring at
+//! delays `d` and `d + w`, crossfaded linearly: `min(d/xfade, 1)` with
+//! `xfade = w/2`. The handoff at the wrap is continuous by construction —
+//! tap 2's delay at `d = 0` equals tap 1's delay at `d → w` — so there is no
+//! wrap click and no window-sweep tremolo beyond the intrinsic 2-tap comb,
+//! which the loop's diffusion keeps shallow.
+//!
+//! Deliberately NOT here: any modulation of the output gain. The working
+//! references shape character with pitch modulation only; a volume LFO was
+//! reported live as "awful" and stays out.
 //!
 //! Everything is allocated once in `new`; `process` allocates nothing and
 //! takes no locks. Tone updates replace the `Biquad` coefficients in place
 //! and never wipe the per-channel registers (AGENTS.md 3.1.3).
 
-use std::f32::consts::TAU;
+use std::f64::consts::TAU;
 
 use crate::audio::dsp_utils::cubic_hermite;
 use crate::audio::eq::Biquad;
 
-/// Ring length at [`REF_RATE`]: ~85 ms at 48 kHz — long enough that the
-/// half-ring crossfade stays in the lush-chorus regime, short enough for cache.
+/// Ring length at [`REF_RATE`]: twice the window, so the deepest active read
+/// (`d + w` with `d < xfade = w/2`) stays under `1.5·w` with margin.
 const BASE_RING: f32 = 4096.0;
-/// Rate the ring length is written for.
+/// Rate the window is written for.
 const REF_RATE: f32 = 48_000.0;
-/// Ring floor for very low rates, so the crossfade never gets absurdly short.
+/// Ring floor for very low rates, so the window never gets absurdly short.
 const MIN_RING: usize = 1024;
 /// Shift range in semitones — the fader's stops span this.
 const SHIFT_MIN: f32 = -12.0;
 const SHIFT_MAX: f32 = 24.0;
-/// Head modulation: 0.2 Hz, ±0.15 % of read speed.
-const LFO_HZ: f32 = 0.2;
-const LFO_DEPTH: f32 = 0.0015;
 /// Tone fader → loop lowpass: `500 Hz · 32^t` spans 500 Hz..16 kHz over 0..1.
 const TONE_LO_HZ: f32 = 500.0;
 const TONE_SPAN: f32 = 32.0;
@@ -42,14 +44,7 @@ const RATIO_SLEW_S: f32 = 0.005;
 /// Default tone (fader position), ≈ 4.8 kHz lowpass.
 const DEFAULT_TONE: f32 = 0.65;
 
-/// Raised-cosine head gain at `phase` samples behind the write head.
-/// `head_gain(p) + head_gain(p + len/2) == 1` exactly, for every `p`.
-fn head_gain(phase: f32, len: f32) -> f32 {
-    0.5 - 0.5 * (TAU * phase / len).cos()
-}
-
-/// Dual delay-line pitch shifter. See the module docs.
-// `Debug` exists so `Reverb`'s derive survives: this is a field of it.
+/// Dual-tap crossfade pitch shifter. See the module docs.
 #[derive(Debug)]
 pub struct Shimmer {
     sample_rate: f32,
@@ -57,18 +52,14 @@ pub struct Shimmer {
     ring_r: Box<[f32]>,
     mask: usize,
     write: usize,
-    /// Fractional ring position of each channel's first read head; the
-    /// second head sits half a ring ahead. Read positions advance by the
-    /// (slewed, LFO-modulated) ratio per frame while the write head steps 1.
-    read_l: f32,
-    read_r: f32,
+    /// The Faust sawtooth delay ramp, `[0, w)`, advancing by `1 − ratio`
+    /// (slewed) per frame. One ramp drives both channels; the channels
+    /// decorrelate through the cross-tapped ring contents, not the phase.
+    d: f32,
     /// Current and target speed ratio `2^(semitones/12)`, slewed on changes.
     ratio: f32,
     target_ratio: f32,
     ratio_slew: f32,
-    /// Shared LFO phase 0..1; L reads sin, R reads cos.
-    lfo_phase: f32,
-    lfo_inc: f32,
     /// Loop lowpass coefficients (shared) + per-channel register state.
     tone: Biquad,
     tz1_l: f32,
@@ -94,20 +85,16 @@ impl Shimmer {
             ring_r: vec![0.0; len].into_boxed_slice(),
             mask: len - 1,
             write: 0,
-            read_l: 0.0,
-            read_r: 0.0,
+            d: 0.0,
             ratio: 1.0,
-            // Default stop is +12 semitones, i.e. an octave up: ratio 2.
             target_ratio: 2.0,
             ratio_slew: (-1.0 / (sample_rate * RATIO_SLEW_S)).exp(),
-            lfo_phase: 0.0,
-            lfo_inc: LFO_HZ / sample_rate,
             tone: Biquad::lowpass(sample_rate, TONE_LO_HZ * TONE_SPAN.powf(DEFAULT_TONE), 0.707),
             tz1_l: 0.0,
             tz2_l: 0.0,
             tz1_r: 0.0,
             tz2_r: 0.0,
-            dc_a: 1.0 - TAU * DC_HZ / sample_rate,
+            dc_a: 1.0 - TAU as f32 * DC_HZ / sample_rate,
             dc_x_l: 0.0,
             dc_y_l: 0.0,
             dc_x_r: 0.0,
@@ -116,7 +103,7 @@ impl Shimmer {
     }
 
     /// Shift interval in semitones. The fader sends stop values; the engine
-    /// clamps to the two-octave span and glides the ratio.
+    /// clamps to the range and glides the ratio.
     pub fn set_shift(&mut self, semitones: f32) {
         let st = semitones.clamp(SHIFT_MIN, SHIFT_MAX);
         self.target_ratio = 2.0f32.powf(st / 12.0);
@@ -135,10 +122,8 @@ impl Shimmer {
         self.ring_l.fill(0.0);
         self.ring_r.fill(0.0);
         self.write = 0;
-        self.read_l = 0.0;
-        self.read_r = 0.0;
+        self.d = 0.0;
         self.ratio = self.target_ratio;
-        self.lfo_phase = 0.0;
         self.tz1_l = 0.0;
         self.tz2_l = 0.0;
         self.tz1_r = 0.0;
@@ -149,32 +134,22 @@ impl Shimmer {
         self.dc_y_r = 0.0;
     }
 
-    /// Advance one stereo frame of the cascade: take the loop taps, return
-    /// the pitch-shifted, damped signal the caller feeds back into the
-    /// reverb input. Un-gained — the caller owns the depth.
+    /// Advance one stereo frame of the cascade: take the loop input, return
+    /// the pitch-shifted, damped signal. Un-gained — the caller owns both the
+    /// loop feedback and the output level.
     pub fn process(&mut self, in_l: f32, in_r: f32) -> (f32, f32) {
         self.ratio += (self.target_ratio - self.ratio) * self.ratio_slew;
 
-        self.lfo_phase += self.lfo_inc;
-        if self.lfo_phase >= 1.0 {
-            self.lfo_phase -= 1.0;
-        }
-        let mod_l = 1.0 + LFO_DEPTH * (TAU * self.lfo_phase).sin();
-        let mod_r = 1.0 + LFO_DEPTH * (TAU * self.lfo_phase).cos();
-
         let len = (self.mask + 1) as f32;
-        self.read_l += self.ratio * mod_l;
-        self.read_r += self.ratio * mod_r;
-        // ratio stays within [0.5, 4] and len >= 1024, so one wrap suffices.
-        if self.read_l >= len {
-            self.read_l -= len;
-        }
-        if self.read_r >= len {
-            self.read_r -= len;
-        }
+        let w = len * 0.5;
+        let i = 1.0 - self.ratio;
+        // Faust: d = i : (+ : +(w) : fmod(_, w)) ~ _ — the +w keeps the wrap
+        // positive when the increment is negative.
+        self.d = (self.d + i + w).rem_euclid(w);
 
-        let shifted_l = self.read_channel(&self.ring_l, self.read_l);
-        let shifted_r = self.read_channel(&self.ring_r, self.read_r);
+        let write_f = self.write as f32;
+        let shifted_l = self.crossfade_read(&self.ring_l, write_f);
+        let shifted_r = self.crossfade_read(&self.ring_r, write_f);
 
         self.ring_l[self.write] = in_l;
         self.ring_r[self.write] = in_r;
@@ -193,19 +168,22 @@ impl Shimmer {
         (y_l, y_r)
     }
 
-    /// Two heads half a ring apart with complementary raised-cosine gains.
-    /// Reading "past" the write head is safe: the ring only ever holds past
-    /// data, so those samples are the oldest cycle, not future ones.
-    fn read_channel(&self, ring: &[f32], pos: f32) -> f32 {
+    /// The Faust transpose's tap layer: two fractional reads at delays `d`
+    /// and `d + w`, linearly crossfaded with `min(d/xfade, 1)`. The handoff
+    /// at the wrap lands on equal delays, so it is click-free.
+    fn crossfade_read(&self, ring: &[f32], write_f: f32) -> f32 {
         let len = (self.mask + 1) as f32;
-        let phase = (self.write as f32 - pos).rem_euclid(len);
-        let amp = head_gain(phase, len);
-        let half = len * 0.5;
-        let s1 = self.hermite_at(ring, pos);
-        let s2 = self.hermite_at(ring, (pos + half) % len);
-        s1 * amp + s2 * (1.0 - amp)
+        let w = len * 0.5;
+        let xfade = w * 0.5;
+        let p1 = (write_f - self.d).rem_euclid(len);
+        let p2 = (write_f - self.d - w).rem_euclid(len);
+        let blend = (self.d / xfade).min(1.0);
+        self.hermite_at(ring, p1) * blend + self.hermite_at(ring, p2) * (1.0 - blend)
     }
 
+    /// Fractional ring read, cubic Hermite, indices wrapped manually. Reads
+    /// past the write point land in the oldest cycle — valid data, and the
+    /// taps that reach there are silent at those ramp positions.
     fn hermite_at(&self, ring: &[f32], pos: f32) -> f32 {
         let i = pos.floor() as usize;
         let t = pos - i as f32;
@@ -243,33 +221,41 @@ mod tests {
             .collect()
     }
 
-    /// Sine driver for tests whose per-sample delta must be small enough that a
-    /// bound on it means something (see `stop_change_is_continuous`).
-    fn sine_frames(n: usize, freq: f32, amp: f32, sr: f32) -> Vec<f32> {
-        (0..n)
-            .map(|i| (TAU * freq * i as f32 / sr).sin() * amp)
-            .collect()
-    }
-
     /// Naive DFT bin magnitude over a settled window.
     fn bin_mag(sig: &[f32], from: usize, freq: f64, sr: f64) -> f64 {
         let (mut re, mut im) = (0.0f64, 0.0f64);
         for (i, &s) in sig[from..].iter().enumerate() {
-            let w = TAU as f64 * freq * i as f64 / sr;
+            let w = TAU * freq * i as f64 / sr;
             re += s as f64 * w.cos();
             im -= s as f64 * w.sin();
         }
         (re * re + im * im).sqrt()
     }
 
+    /// The crossfade tap layer must pass a constant ring through exactly:
+    /// both taps read the same constant, the gains sum to 1, and the wrap
+    /// handoff lands on equal delays. Sweeping `d` across the whole ramp
+    /// (including the wrap) catches wrap clicks, crossfade gain errors, and
+    /// blend off-by-ones. This drives `crossfade_read` directly — the tone
+    /// lowpass and the DC blocker sit after it and would otherwise remove
+    /// the DC the test is made of.
     #[test]
-    fn head_gains_are_complementary() {
-        let len = 4096.0f32;
-        for i in 0..1000 {
-            let p = i as f32 * len / 1000.0;
-            let sum = head_gain(p, len) + head_gain((p + len * 0.5) % len, len);
-            assert!((sum - 1.0).abs() < 1e-5, "window sum {sum} at p={p}");
+    fn constant_input_passes_through_at_every_ramp_position() {
+        let mut sh = Shimmer::new(48_000.0);
+        sh.ring_l.fill(0.5);
+        sh.ring_r.fill(0.5);
+        let len = (sh.mask + 1) as f32;
+        let steps = 4096;
+        let mut worst = 0.0f32;
+        for i in 0..steps {
+            sh.d = (i as f32 + 0.5) * len / steps as f32; // every ramp position
+            let out = sh.crossfade_read(&sh.ring_l, 0.0);
+            worst = worst.max((out - 0.5).abs());
         }
+        assert!(
+            worst < 1e-3,
+            "constant ring distorted by {worst} — crossfade or wrap is broken"
+        );
     }
 
     #[test]
@@ -302,6 +288,39 @@ mod tests {
         }
     }
 
+    /// The crossfade sweep must not tremolo the signal. With broadband drive
+    /// the two taps are decorrelated, so the worst intrinsic dip is the
+    /// 50/50 correlation null (~3 dB); a pure tone would sit exactly in a
+    /// comb notch and swing to silence in ANY two-tap shifter, including the
+    /// reference — the loop's diffusion is what keeps real material in the
+    /// shallow regime, and the envelope contract is written for it.
+    #[test]
+    fn crossfade_sweep_does_not_tremolo() {
+        let mut sh = Shimmer::new(48_000.0);
+        sh.set_shift(12.0);
+        sh.set_tone(1.0);
+        let frames = noise_frames(48_000 * 2, 0.5);
+        let hop = 960; // 20 ms
+        let mut rmses = Vec::new();
+        let mut start = 48_000; // settled half
+        while start + hop <= frames.len() {
+            let acc: f64 = frames[start..start + hop]
+                .iter()
+                .map(|f| (f[0] as f64) * (f[0] as f64))
+                .sum();
+            rmses.push((acc / hop as f64).sqrt());
+            start += hop;
+        }
+        let lo = rmses.iter().cloned().fold(f64::MAX, f64::min);
+        let hi = rmses.iter().cloned().fold(f64::MIN, f64::max);
+        let swing = hi / lo.max(1e-9);
+        assert!(
+            swing < 2.0,
+            "crossfade tremolo: output envelope swings {swing:.2}x \
+             (hi {hi:.4}, lo {lo:.4}) over the window sweep"
+        );
+    }
+
     #[test]
     fn shift_up_builds_octave_energy() {
         let (sr, f0) = (48_000.0f64, 440.0f64);
@@ -311,7 +330,7 @@ mod tests {
         let n = (sr * 2.0) as usize;
         let mut sig = Vec::with_capacity(n);
         for i in 0..n {
-            let x = (TAU as f64 * f0 * i as f64 / sr).sin() as f32 * 0.5;
+            let x = (TAU * f0 * i as f64 / sr).sin() as f32 * 0.5;
             let (l, _) = sh.process(x, x);
             sig.push(l);
         }
@@ -326,37 +345,60 @@ mod tests {
 
     #[test]
     fn stop_change_is_continuous() {
-        // Driven by a 220 Hz sine rather than broadband noise: noise gives a
-        // per-sample delta floor of ~0.6, which buries any click under the
-        // floor; the sine's floor is ~2π·220/48000·0.5 ≈ 0.014, so the
-        // absolute bound below is a real bound. The bound checks *waveform*
-        // continuity — a click — not the glide itself: a direct ratio
-        // assignment would pass it too, by design.
-        let sr = 48_000.0f32;
-        let mut sh = Shimmer::new(sr);
+        let mut sh = Shimmer::new(48_000.0);
         sh.set_shift(12.0);
         sh.set_tone(1.0);
-        let frames = sine_frames(26_400, 220.0, 0.5, sr);
-        // `prev` carries the warmup's last output across `set_shift`, so the
-        // delta that straddles the call itself is inside the measurement — a
-        // discontinuous `set_shift` would land in that one pair.
+        // A 220 Hz sine driver: its per-sample delta floor is ~0.014, four
+        // orders below the bound — white noise's own jump floor (~0.6) would
+        // bury the click the test exists to catch.
+        let sr = 48_000.0f64;
+        let f0 = 220.0;
+        let frame_at = |i: usize| (std::f64::consts::TAU * f0 * i as f64 / sr).sin() as f32 * 0.5;
         let mut prev = 0.0f32;
-        for &x in &frames[..24_000] {
-            prev = sh.process(x, x).0;
+        for i in 0..24_000 {
+            prev = sh.process(frame_at(i), frame_at(i)).0;
         }
         sh.set_shift(-12.0);
         let mut max_jump = 0.0f32;
         let mut peak = 0.0f32;
-        for &x in &frames[24_000..26_400] {
-            let (l, _) = sh.process(x, x);
+        for i in 24_000..26_400 {
+            let (l, _) = sh.process(frame_at(i), frame_at(i));
             max_jump = max_jump.max((l - prev).abs());
             peak = peak.max(l.abs());
             prev = l;
         }
+        // The bound checks waveform continuity (a click), not the glide
+        // itself — a direct ratio assignment would still pass, by design.
         assert!(max_jump < 0.1, "stop change clicked: max jump {max_jump}");
-        // Without this the test passes just as happily on a dead shifter, so
-        // it only means something while the output is actually alive.
-        assert!(peak > 0.1, "window is silent: peak {peak}");
+        assert!(peak > 0.1, "test window went silent — dead shifter");
+    }
+
+    #[test]
+    fn low_rate_max_ratio_wrap_stays_finite() {
+        // 8 kHz drives the ring to the MIN_RING floor (1024 = window 512)
+        // while +24 pins the ratio at 4 — the pointer crosses the window
+        // boundary every ~128 frames over the run.
+        let mut sh = Shimmer::new(8_000.0);
+        sh.set_shift(24.0);
+        sh.set_tone(1.0);
+        let frames = noise_frames(100_000, 0.5);
+        for (i, f) in frames.iter().enumerate() {
+            let (l, r) = sh.process(f[0], f[1]);
+            assert!(l.is_finite() && r.is_finite(), "non-finite at frame {i}");
+        }
+    }
+
+    #[test]
+    fn clear_silences_the_ring() {
+        let mut sh = Shimmer::new(48_000.0);
+        sh.set_shift(12.0);
+        let frames = noise_frames(2_000, 0.5);
+        for f in &frames {
+            let _ = sh.process(f[0], f[1]);
+        }
+        sh.clear();
+        let (l, r) = sh.process(0.0, 0.0);
+        assert!(l.abs() < 1e-6 && r.abs() < 1e-6);
     }
 
     #[test]
@@ -380,43 +422,5 @@ mod tests {
                 assert!(l.is_finite() && r.is_finite(), "fuzz non-finite at {i}");
             }
         }
-    }
-
-    /// The read-position wrap itself: the shortest ring the engine can build
-    /// (MIN_RING floor, via an 8 kHz device) against the fastest ratio it can
-    /// be set to. At ratio 4.006 the read pointer advances ~4 samples a frame
-    /// over a 1024-sample ring, so it crosses the wrap ~390 times in the run
-    /// below rather than never.
-    #[test]
-    fn read_position_wrap_stays_finite_at_the_extremes() {
-        let mut sh = Shimmer::new(8_000.0);
-        sh.set_shift(24.0); // ratio 4 — four write laps per read lap
-        sh.set_tone(1.0);
-        let frames = noise_frames(100_000, 0.5);
-        for (i, f) in frames.iter().enumerate() {
-            let (l, r) = sh.process(f[0], f[1]);
-            assert!(
-                l.is_finite() && r.is_finite(),
-                "wrap non-finite at frame {i}"
-            );
-        }
-    }
-
-    /// `clear` is the seek/track-load flush: the rings and every filter
-    /// register go, so a silent frame into a cleared shifter is silent out.
-    #[test]
-    fn clear_silences_the_ring() {
-        let mut sh = Shimmer::new(48_000.0);
-        sh.set_shift(12.0);
-        let frames = noise_frames(2_000, 0.5);
-        for f in &frames {
-            let _ = sh.process(f[0], f[1]);
-        }
-        sh.clear();
-        let (l, r) = sh.process(0.0, 0.0);
-        assert!(
-            l.abs() < 1e-6 && r.abs() < 1e-6,
-            "clear left residue: {l} / {r}"
-        );
     }
 }
