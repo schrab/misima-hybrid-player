@@ -190,6 +190,10 @@ The audio callback runs on a high-priority, real-time thread driven by the OS au
    - `sprite/font.ts` pre-builds a darkened atlas with `source-atop` instead. That is the operation to reach for, not a plain `fillRect`: `source-atop` confines the fill to pixels that already exist and **preserves their alpha**, which is exactly what `brightness()` does (scale colour, leave shape). A plain fill would also make the glyphs translucent, and `multiply` cannot express this without also darkening the backdrop. Cost is one canvas at load time and an extra `drawImage` source, not per-frame work.
    - Verified equivalent on Chromium: max channel difference 1/255, mean 0.29, against the filter it replaced.
 
+13. **One finger is the UI, two fingers are the page** (`styles.css`, `main.ts`).
+   - The web canvas and body carry `touch-action: pinch-zoom` (scoped to `html.web`). The browser default (`auto`) claims any one-finger drag as a page pan: a few `pointermove` events get through, then it fires `pointercancel` and takes over — a fader starts to follow the finger and dies mid-drag, and once the page is pinch-zoomed in, every drag pans the page instead of moving the knob. With `pinch-zoom`, a one-finger drag arrives as plain pointer events and faders track end to end, while two fingers keep the browser's native page zoom and pan — which is how the phone-sized UI gets enlarged. Do not "simplify" the value to `none` (kills the pinch-zoom users rely on) or to `manipulation` (re-enables the one-finger pan that cancels faders). The coordinate path needs no special casing: `canvasPointFrom` maps client coordinates through `getBoundingClientRect`, which stays consistent under the visual viewport's zoom.
+   - `pointercancel` must drop `dragFader` and `pressedButton`. No `pointerup` follows a cancel, so stale drag state would make the *next* touch go on dragging the previous fader from wherever it lands. The same release belongs in any future drag surface added to the canvas.
+
 ---
 
 ## 4. Multiplatform Guidelines (Windows / Linux / macOS)
